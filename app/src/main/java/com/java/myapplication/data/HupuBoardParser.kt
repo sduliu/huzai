@@ -75,8 +75,10 @@ object HupuBoardParser {
     private fun newsFrom(o: JSONObject): HupuBoardNews? {
         val nid = o.optString("nid")
         if (nid.isEmpty()) return null
-        var tid = o.optString("tid")
-        val link = o.optString("link")
+        // Android 版 org.json 的 quirk：字段值显式为 JSON null 时 optString 返回串 "null"
+        //（JVM 版返回 ""）——不挡掉会把 LINK 运营位误判成可开帖（tid="null"）。
+        var tid = o.optString("tid").takeUnless { it == "null" } ?: ""
+        val link = o.optString("link").takeUnless { it == "null" } ?: ""
         if (tid.isEmpty()) {
             tid = TID_IN_LINK.find(link)?.groupValues?.get(1) ?: ""
         }
