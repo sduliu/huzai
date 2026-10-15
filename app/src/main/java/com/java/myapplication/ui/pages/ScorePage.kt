@@ -834,6 +834,7 @@ fun ScorePage(modifier: Modifier = Modifier) {
         }
         }
         }
+        }
 
         // ---------- 1.199：热门赛事「项目筛选」底部 sheet ----------
         if (hotFilterOpen) {
