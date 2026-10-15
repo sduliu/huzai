@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -39,7 +40,9 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,9 +65,14 @@ import coil.compose.AsyncImage
 import com.java.myapplication.ui.components.AutoFitScore
 import com.java.myapplication.ui.components.normalizeCover
 import kotlinx.coroutines.delay
+import com.java.myapplication.data.HupuMatch
+import com.java.myapplication.data.HupuMatchDay
+import com.java.myapplication.data.HupuRepository
 import com.java.myapplication.data.HupuScoreGroup
 import com.java.myapplication.data.HupuScoreItem
 import com.java.myapplication.data.HupuScoreTree
+import com.java.myapplication.ui.components.SecondaryPage
+import java.time.LocalDate
 import com.java.myapplication.ui.components.Chip
 import com.java.myapplication.ui.components.ErrorRetry
 import com.java.myapplication.ui.components.HeroBadgeAvatar
@@ -107,6 +115,8 @@ fun MatchDetailOverlay(
     onLiveTick: () -> Unit = {},
     /** 1.200：NBA（basketball_match + NBA 联赛）——非空则显示「数据统计 / 文字实录」入口 */
     nbaQuery: NbaStatsQuery? = null,
+    /** 记分板点队名/队标 → 盖出球队页（memberId/name/logo） */
+    onOpenTeam: (String, String, String?) -> Unit = { _, _, _ -> },
 ) {
     // 盖入动画：进入 0→1；返回动画结束后由父级移除本组件
     val progress = remember { Animatable(0f) }
@@ -200,7 +210,7 @@ fun MatchDetailOverlay(
 
             // 1.198：记分板（赛制 / 状态 / 两队 / 比分或开赛时间）
             // 1.201：上提到内容区之外——各组内容（评分/数据统计/文字实录）共用同一块记分板，且不随列表滚走
-            scoreboard?.let { ScoreboardBanner(it) }
+            scoreboard?.let { ScoreboardBanner(it, onTeam = onOpenTeam) }
 
             // 1.201：顶层分类条——「评分」恒有；NBA 追加「数据统计 / 文字实录」
             // （非 NBA 只有一项，整条不显示，外观与旧版一致）
@@ -496,6 +506,9 @@ data class MatchScoreboard(
     val awayName: String,
     val awayLogo: String?,
     val awayScore: String,
+    /** 队名点击 → 球队页（HupuMatchTeam.memberId）；空串 = 不可点 */
+    val homeId: String = "",
+    val awayId: String = "",
     val homeWon: Boolean,
     val awayWon: Boolean,
     /** 开赛时间文案（未开始/无比分时占位显示） */
@@ -511,7 +524,7 @@ data class MatchScoreboard(
  *   · 底部固定显示**日期时间**（原来只在未开始时借位显示）。
  */
 @Composable
-private fun ScoreboardBanner(sb: MatchScoreboard) {
+private fun ScoreboardBanner(sb: MatchScoreboard, onTeam: (String, String, String?) -> Unit) {
     val hasScore = sb.homeScore.isNotBlank() && sb.homeScore != "-" &&
         sb.awayScore.isNotBlank() && sb.awayScore != "-"
 
@@ -562,7 +575,10 @@ private fun ScoreboardBanner(sb: MatchScoreboard) {
         }
         // 两队 + 比分：队标在各自半区居中，比分居中
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            TeamSide(sb.homeName, sb.homeLogo, sb.homeWon, modifier = Modifier.weight(1f))
+            TeamSide(
+                sb.homeName, sb.homeLogo, sb.homeWon, modifier = Modifier.weight(1f),
+                onClick = if (sb.homeId.isNotBlank()) ({ onTeam(sb.homeId, sb.homeName, sb.homeLogo) }) else null,
+            )
             Column(Modifier.width(118.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 if (hasScore) {
                     // 1.199b：比分自适应字号（空间不够就缩小，不换行、不裁切）
@@ -586,7 +602,10 @@ private fun ScoreboardBanner(sb: MatchScoreboard) {
                     )
                 }
             }
-            TeamSide(sb.awayName, sb.awayLogo, sb.awayWon, modifier = Modifier.weight(1f))
+            TeamSide(
+                sb.awayName, sb.awayLogo, sb.awayWon, modifier = Modifier.weight(1f),
+                onClick = if (sb.awayId.isNotBlank()) ({ onTeam(sb.awayId, sb.awayName, sb.awayLogo) }) else null,
+            )
         }
         // 日期时间（始终显示）
         if (sb.timeText.isNotBlank()) {
@@ -606,9 +625,10 @@ private fun TeamSide(
     logo: String?,
     won: Boolean,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
     Column(
-        modifier,
+        modifier.then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         AsyncImage(
@@ -668,5 +688,179 @@ private fun StatusPill(sb: MatchScoreboard) {
                 .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
                 .padding(horizontal = 8.dp, vertical = 3.dp),
         )
+    }
+}
+
+/** 球队页请求：打开方用当前频道上下文构造（赛程来源 + 榜单类型）。 */
+internal class TeamPageRequest(
+    val memberId: String,
+    val name: String,
+    val logo: String?,
+    /** matchSchedule 的 businessId（板块频道 = cfg.scheduleId，其余 = 频道 id） */
+    val scheduleId: String,
+    /** 原生榜类型（无榜源 = NONE，只显示赛程） */
+    val standingKind: HupuBoardStanding,
+    val standingCompId: String,
+)
+
+/**
+ * 球队页（比赛详情 → 记分板点队名/队标进入）。
+ * 零新接口：赛程 = 频道赛程按 memberId 过滤；榜单摘要 = NBA/足球原生榜按队名匹配。
+ * 盖入页与积分榜同款转场；zIndex 高于比赛详情（2f）使其盖在详情之上。
+ */
+@Composable
+internal fun TeamDetailOverlay(
+    req: TeamPageRequest,
+    onOpenMatch: (HupuMatch) -> Unit,
+    onBack: () -> Unit,
+) {
+    val repo = remember { HupuRepository() }
+    var loading by remember { mutableStateOf(true) }
+    var days by remember { mutableStateOf<List<HupuMatchDay>>(emptyList()) }
+    var standingLine by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(req.memberId) {
+        loading = true
+        val ds = repo.matchSchedule(req.scheduleId)
+        days = ds.mapNotNull { d ->
+            val ms = d.matches.filter {
+                it.home?.memberId == req.memberId || it.away?.memberId == req.memberId
+            }
+            if (ms.isEmpty()) null else d.copy(matches = ms)
+        }
+        if (req.standingKind != HupuBoardStanding.NONE) {
+            val s = when (req.standingKind) {
+                HupuBoardStanding.NBA -> repo.nbaStandings()
+                HupuBoardStanding.SOCCER_API -> repo.soccerStandings(req.standingCompId)
+                else -> null
+            }
+            s?.groups?.forEach { g ->
+                g.rows.find { it.team == req.name }?.let { r ->
+                    standingLine = buildString {
+                        if (g.title.isNotBlank()) append(g.title).append('·')
+                        append("第").append(r.rank).append("名")
+                        g.columns.zip(r.cells).take(4).forEach { (c, v) -> append(' ').append(c).append(v) }
+                    }
+                }
+            }
+        }
+        loading = false
+    }
+
+    // 锚定当前比赛日（今日→最近过往日→首日），与「全部赛程」同款
+    val listState = rememberLazyListState()
+    val effDays = days
+    LaunchedEffect(effDays) {
+        if (effDays.isNotEmpty()) {
+            val today = LocalDate.now().toString()
+            val anchor = effDays.indexOfFirst { it.dayTime >= today }
+                .takeIf { it >= 0 } ?: (effDays.size - 1)
+            listState.scrollToItem(1 + anchor)
+        }
+    }
+
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        SecondaryPage.enter()
+        progress.animateTo(1f, tween(280))
+    }
+    DisposableEffect(Unit) {
+        onDispose { SecondaryPage.exit() }
+    }
+    var closing by remember { mutableStateOf(false) }
+    LaunchedEffect(closing) {
+        if (closing) {
+            progress.animateTo(0f, tween(280))
+            onBack()
+        }
+    }
+    PredictiveBackHandler { events ->
+        if (closing) {
+            events.collect { }
+            return@PredictiveBackHandler
+        }
+        try {
+            events.collect { event -> progress.snapTo(1f - event.progress) }
+            progress.animateTo(0f, tween(120))
+            closing = true
+        } catch (e: CancellationException) {
+            progress.animateTo(1f, tween(200))
+            throw e
+        }
+    }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .zIndex(2.6f)
+            .graphicsLayer { translationX = (1f - progress.value) * size.width }
+            .background(MaterialTheme.colorScheme.background)
+            .tapGuard(),
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            CenteredTopBar(title = req.name, onBack = { closing = true })
+            // 队头卡：队徽 + 队名 + 榜单摘要（有榜源且匹配到才显示）
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                AsyncImage(
+                    model = normalizeCover(req.logo),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(44.dp),
+                )
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text(req.name, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    standingLine?.let {
+                        Spacer(Modifier.height(3.dp))
+                        Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            when {
+                loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(26.dp),
+                        strokeWidth = 2.5.dp,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                days.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("近期无赛程数据", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                else -> LazyColumn(
+                    state = listState,
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                ) {
+                    effDays.forEach { day ->
+                        item(key = "d-${day.dayTime}") {
+                            Column(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                            ) {
+                                Text(
+                                    day.dateBlock,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                )
+                                day.matches.forEach { m -> BoardMatchRow(m) { onOpenMatch(m) } }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

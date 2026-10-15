@@ -988,7 +988,7 @@ private fun StandingRowLayout(
  * 官方式样——单行最多 4 条；有详情钥匙的比赛可点进详情（同 MatchCard 的 openable 判据）。
  */
 @Composable
-private fun BoardMatchRow(m: HupuMatch, onOpen: () -> Unit) {
+internal fun BoardMatchRow(m: HupuMatch, onOpen: () -> Unit) {
     val openable = m.scoreBizNo != null || m.scoreBizType == HupuMatchApi.FOOTBALL_MATCH
     val multiTeam = (m.home == null && m.away == null) ||
         (m.home?.name.isNullOrBlank() && m.away?.name.isNullOrBlank())

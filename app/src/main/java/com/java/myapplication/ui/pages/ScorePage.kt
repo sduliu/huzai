@@ -146,6 +146,8 @@ fun ScorePage(modifier: Modifier = Modifier) {
     // ---------- 比赛详情二级页（盖入式；状态外置：返回再进不重载） ----------
     val scope = rememberCoroutineScope()
     var openedMatch by remember { mutableStateOf<HupuMatch?>(null) }
+    /** 比赛详情 → 记分板点队名/队标 → 盖出的球队页请求 */
+    var openedTeam by remember { mutableStateOf<TeamPageRequest?>(null) }
     // 1.192: 本层「已计数」标记——连点多个条目时 enter 只发生一次，防 Tab 栏计数泄漏
     var matchEntered by remember { mutableStateOf(false) }
     var detailClosing by remember { mutableStateOf(false) }
@@ -916,6 +918,8 @@ fun ScorePage(modifier: Modifier = Modifier) {
                     awayName = om.away?.name.orEmpty(),
                     awayLogo = om.away?.logo,
                     awayScore = om.away?.baseScore.orEmpty(),
+                    homeId = om.home?.memberId.orEmpty(),
+                    awayId = om.away?.memberId.orEmpty(),
                     homeWon = om.winnerMemberId != null && om.winnerMemberId == om.home?.memberId,
                     awayWon = om.winnerMemberId != null && om.winnerMemberId == om.away?.memberId,
                     timeText = om.startTimeText,
@@ -971,6 +975,26 @@ fun ScorePage(modifier: Modifier = Modifier) {
                     }
                 },
                 onOpenPlayer = { openPlayer(it) },
+                onOpenTeam = { id, name, logo ->
+                    val cfg = boardState?.cfg
+                    openedTeam = TeamPageRequest(
+                        memberId = id,
+                        name = name,
+                        logo = logo,
+                        scheduleId = cfg?.scheduleId ?: selectedGame,
+                        standingKind = cfg?.standing ?: HupuBoardStanding.NONE,
+                        standingCompId = cfg?.standingCompId ?: "",
+                    )
+                },
+            )
+        }
+
+        // ---------- 球队页（比赛详情 → 记分板点队进入，zIndex 2.6 盖在详情之上） ----------
+        openedTeam?.let { ot ->
+            TeamDetailOverlay(
+                req = ot,
+                onOpenMatch = { m -> openMatch(m) },
+                onBack = { openedTeam = null },
             )
         }
 
