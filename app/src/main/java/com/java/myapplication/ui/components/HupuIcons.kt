@@ -73,6 +73,10 @@ object HupuIcons {
     val FilterAlt: ImageVector = materialIcon(name = "HupuIcons.FilterAlt") {
         addPath(fill = SolidColor(Color.Black), pathData = addPathNodes("M4.25,5.61C6.57,8.59,10,13,10,13v5c0,1.1,0.9,2,2,2h0c1.1,0,2-0.9,2-2v-5c0,0,3.43-4.41,5.75-7.39 C20.26,4.95,19.79,4,18.95,4H5.04C4.21,4,3.74,4.95,4.25,5.61z"))
     }
+    /** board：板块页入口——文档（Material article 24px path） */
+    val Article: ImageVector = materialIcon(name = "HupuIcons.Article") {
+        addPath(fill = SolidColor(Color.Black), pathData = addPathNodes("M19,3H5C3.9,3,3,3.9,3,5v14c0,1.1,0.9,2,2,2h14c1.1,0,2-0.9,2-2V5C21,3.9,20.1,3,19,3zM14,17H7v-2h7V17zM17,13H7v-2h10V13zM17,9H7V7h10V9z"))
+    }
     val FormatSize: ImageVector = materialIcon(name = "HupuIcons.FormatSize") {
         addPath(fill = SolidColor(Color.Black), pathData = addPathNodes("M9 5.5c0 .83.67 1.5 1.5 1.5H14v10.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V7h3.5c.83 0 1.5-.67 1.5-1.5S21.33 4 20.5 4h-10C9.67 4 9 4.67 9 5.5zM4.5 12H6v5.5c0 .83.67 1.5 1.5 1.5S9 18.33 9 17.5V12h1.5c.83 0 1.5-.67 1.5-1.5S11.33 9 10.5 9h-6C3.67 9 3 9.67 3 10.5S3.67 12 4.5 12z"))
     }

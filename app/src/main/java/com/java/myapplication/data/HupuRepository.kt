@@ -361,6 +361,24 @@ class HupuRepository {
     suspend fun footballScoreNo(matchId: String, refresh: Boolean = false): String? =
         HupuMatchApi.fetchFootballScoreNo(matchId, forceNetwork = refresh)
 
+    /** board：板块资讯一页（newsList）。失败 null；空 data 返回空页（区分空态与失败）。 */
+    suspend fun boardNews(
+        tagCode: String,
+        preCount: Int = 0,
+        anchorNid: String = "",
+        refresh: Boolean = false,
+    ): HupuBoardNewsPage? {
+        val json = HupuBoardApi.fetchBoardNews(tagCode, preCount, anchorNid, forceNetwork = refresh)
+            ?: return null
+        return withContext(Dispatchers.Default) { HupuBoardParser.parseBoardNews(json, preCount) }
+    }
+
+    /** board：国际足球资讯（m.hupu.com/soccer SSR；newsList 无对应 tagCode）。 */
+    suspend fun soccerNews(refresh: Boolean = false): List<HupuBoardNews> {
+        val html = HupuBoardApi.fetchSoccerNewsHtml(forceNetwork = refresh) ?: return emptyList()
+        return withContext(Dispatchers.Default) { HupuBoardParser.parseSoccerNews(html) }
+    }
+
     /** 评分树：比赛 → 对局[] → 选手[]（一次请求全量，匿名可用）。失败返回 null。 */
     suspend fun scoreTree(bizType: String, bizNo: String, refresh: Boolean = false): HupuScoreTree? {
         val json = HupuMatchApi.fetchScoreTree(bizType, bizNo, forceNetwork = refresh) ?: return null

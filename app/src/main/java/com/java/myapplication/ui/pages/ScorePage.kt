@@ -141,6 +141,9 @@ fun ScorePage(modifier: Modifier = Modifier) {
     var refreshTick by remember { mutableIntStateOf(0) }
     var refreshVersion by remember { mutableIntStateOf(0) }
 
+    // board：板块页（盖入式；NBA/国际足球等有资讯配置的频道 → 右上角入口）
+    var boardGame by remember { mutableStateOf<String?>(null) }
+
     // ---------- 比赛详情二级页（盖入式；状态外置：返回再进不重载） ----------
     val scope = rememberCoroutineScope()
     var openedMatch by remember { mutableStateOf<HupuMatch?>(null) }
@@ -671,6 +674,17 @@ fun ScorePage(modifier: Modifier = Modifier) {
                 ),
             header = {
             PageHeader(title = "评分") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // board：当前频道有板块页配置 → 「资讯」入口（盖入式板块页）
+                if (!commonOpen && HUPU_BOARDS.containsKey(selectedGame)) {
+                    LiquidIconButton(
+                        icon = HupuIcons.Article,
+                        contentDescription = "板块资讯",
+                        onClick = { boardGame = selectedGame },
+                        iconSize = 24.dp,
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
                 // 1.199：热门赛事是混装聚合 → 右上角给「筛选项目」入口
                 //     （组件与首页搜索键同源：LiquidIconButton 液态玻璃圆钮，24dp 图标）
                 //     过滤生效时图标转主题色，避免「明明有比赛却看不到」的困惑
@@ -683,6 +697,7 @@ fun ScorePage(modifier: Modifier = Modifier) {
                         tint = if (hotExcluded.isEmpty()) MaterialTheme.colorScheme.onSurface
                         else MaterialTheme.colorScheme.primary,
                     )
+                }
                 }
             }
         // 项目横滑条（与首页/专区同款裁剪）——首项为通用评分（虎扑评分，非赛事体系）
@@ -849,6 +864,17 @@ fun ScorePage(modifier: Modifier = Modifier) {
                 },
                 onDismiss = { hotFilterOpen = false },
             )
+        }
+
+        // ---------- board：板块页（盖入式；zIndex 1.5，低于比赛详情 2f） ----------
+        boardGame?.let { bg ->
+            androidx.compose.runtime.key(bg) {
+                BoardPage(
+                    boardId = bg,
+                    onClose = { boardGame = null },
+                    onOpenMatch = { openMatch(it) },
+                )
+            }
         }
 
         // ---------- 比赛详情二级页：盖入式转场 ----------

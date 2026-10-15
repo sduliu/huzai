@@ -21,10 +21,12 @@ data class HupuEmbed(
     val type: String,
     val url: String,
     val matchId: String,
+    /** board：页内嵌入用途的自定义标题（积分榜/活动页等）；空则按 type 取默认名 */
+    val label: String = "",
 ) {
-    /** 卡片标题：已知类型给中文名，未知类型兜底（避免以后新增类型又变乱码）。 */
+    /** 卡片标题：label 优先；否则已知类型给中文名，未知类型兜底（避免以后新增类型又变乱码）。 */
     val title: String
-        get() = when (type) {
+        get() = if (label.isNotEmpty()) label else when (type) {
             "iframe-match" -> "比赛战报"
             else -> "嵌入内容"
         }
