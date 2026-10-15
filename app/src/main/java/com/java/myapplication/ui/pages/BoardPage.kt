@@ -18,9 +18,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -44,6 +46,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -84,15 +87,15 @@ import kotlinx.coroutines.launch
 /**
  * board：赛事板块页（官方首页板块结构的复刻）——盖入式二级页。
  *
- * 结构对齐官方 App 首页赛事板块：
+ * 结构对齐官方 App 赛事板块（点频道 chip 即盖出，频道本体承载）：
  *   顶栏 ← 「NBA / 国际足球 / …」
- *   近期赛程横滑卡（复用频道赛程数据与 MatchCard）→ 点比赛走宿主的 MatchDetailOverlay
- *   数据入口行（积分榜 chip → EmbedWebPage）
+ *   近期比赛紧凑行（≤4 场热门：进行中优先+锚定日填充）→ 点比赛走宿主的 MatchDetailOverlay
+ *   入口行（积分榜 chip → 原生榜/WebView；「查看全部赛程 ›」→ 关页露出频道全量赛程）
  *   资讯流（basketballapi/news/v2/newsList 或 soccer SSR；tid 帖 → ThreadDetailOverlay，
  *          LINK 运营位 → 解 huputiyu://webview url 进 EmbedWebPage）
  *
  * 层级：本页 zIndex 1.5 —— 低于比赛详情 overlay(2f)，板块内点比赛可正常盖出详情，
- * 返回后板块仍在；高于主内容（0f）。
+ * 返回后板块仍在；高于主内容（0f）。「查看全部」关闭本页后露出的就是频道赛程列表。
  */
 /** 积分榜数据源：NONE 无入口 / NBA SSR 表格 / football-api 赛事榜。 */
 internal enum class HupuBoardStanding { NONE, NBA, SOCCER_API }
@@ -321,11 +324,12 @@ internal fun BoardPage(
         loadNews(first = true, force = refreshTick > 0)
     }
 
-    // 赛程预览：对齐 ScheduleList 定位逻辑——今天（或最近过往日）起取前 4 场
+    // 顶部热门比赛（官方式：≤4 场）——进行中优先，锚定日（今天/最近过往日/首日）起填充
     val today = remember { LocalDate.now().toString() }
-    val previewMatches = remember(days) {
+    val hotMatches = remember(days) {
         val ds = days.orEmpty()
         if (ds.isEmpty()) emptyList() else {
+            val live = ds.flatMap { it.matches }.filter { it.status == "INPROGRESS" }
             val todayIdx = ds.indexOfFirst { it.dayTime == today }
             val lastPast = ds.indexOfLast { it.dayTime <= today }
             val start = when {
@@ -333,7 +337,7 @@ internal fun BoardPage(
                 lastPast >= 0 -> lastPast
                 else -> 0
             }
-            ds.drop(start).flatMap { it.matches }.take(4)
+            (live + ds.drop(start).flatMap { it.matches }).distinctBy { it.matchId }.take(4)
         }
     }
 
@@ -479,28 +483,55 @@ internal fun BoardPage(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    // 近期赛程横滑
-                    if (previewMatches.isNotEmpty()) {
+                    // 顶部热门比赛（官方式：≤4 场紧凑行，点行进详情）
+                    if (hotMatches.isNotEmpty()) {
                         item(key = "schedule-header") {
-                            BoardSectionHeader("近期赛程")
+                            BoardSectionHeader("近期比赛")
+                            Spacer(Modifier.height(6.dp))
                         }
                         item(key = "schedule-strip") {
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                items(previewMatches, key = { it.matchId }) { m ->
-                                    Box(Modifier.width(300.dp)) {
-                                        MatchCard(m, onOpen = onOpenMatch)
-                                    }
+                            Column(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                            ) {
+                                hotMatches.forEach { m ->
+                                    BoardMatchRow(m) { onOpenMatch(m) }
                                 }
                             }
                         }
                     }
-                    // 数据入口行（官方同款图标行 → chip 化）
+                    // 入口行：积分榜 chip + 「查看全部赛程 ›」（关页露出频道全量赛程列表）
                     item(key = "entry-chips") {
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
                             if (cfg.standing != HupuBoardStanding.NONE || cfg.standingsUrl.isNotEmpty()) {
                                 Chip(text = "积分榜", selected = false) { openStandings() }
                             }
-                            Chip(text = "完整赛程", selected = false) { onClose() }
+                            Spacer(Modifier.weight(1f))
+                            Row(
+                                Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable(onClick = onClose)
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    "查看全部赛程",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                Icon(
+                                    Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
                         }
                     }
                     // 资讯
@@ -905,5 +936,106 @@ private fun StandingRowLayout(
                 modifier = Modifier.width(32.dp),
             )
         }
+    }
+}
+
+/**
+ * 板块页顶部热门比赛的紧凑行：时间 | 主队名[logo] 比分 [logo]客队名 | 状态。
+ * 官方式样——单行最多 4 条；有详情钥匙的比赛可点进详情（同 MatchCard 的 openable 判据）。
+ */
+@Composable
+private fun BoardMatchRow(m: HupuMatch, onOpen: () -> Unit) {
+    val openable = m.scoreBizNo != null || m.scoreBizType == HupuMatchApi.FOOTBALL_MATCH
+    val multiTeam = (m.home == null && m.away == null) ||
+        (m.home?.name.isNullOrBlank() && m.away?.name.isNullOrBlank())
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .then(if (openable) Modifier.clickable(onClick = onOpen) else Modifier)
+            .padding(vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // 开赛时间（"10月16日 07:30" 由服务端格式化直出）
+        Text(
+            m.startTimeText,
+            fontSize = 10.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Clip,
+            modifier = Modifier.width(72.dp),
+        )
+        if (multiTeam) {
+            // 多队赛事（团体赛/大逃杀）：无队伍槽位，赛事名居中
+            Text(
+                m.matchName.ifBlank { m.introduction },
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.weight(1f),
+            )
+        } else {
+            Row(
+                Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    m.home?.name.orEmpty(),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(5.dp))
+                AsyncImage(
+                    model = normalizeCover(m.home?.logo),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(18.dp).clip(CircleShape),
+                )
+                Text(
+                    if (m.home?.baseScore?.isNotEmpty() == true &&
+                        m.away?.baseScore?.isNotEmpty() == true
+                    ) "${m.home?.baseScore}:${m.away?.baseScore}" else "vs",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    modifier = Modifier.padding(horizontal = 7.dp),
+                )
+                AsyncImage(
+                    model = normalizeCover(m.away?.logo),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(18.dp).clip(CircleShape),
+                )
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    m.away?.name.orEmpty(),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        Spacer(Modifier.width(6.dp))
+        Text(
+            m.statusDesc,
+            fontSize = 10.sp,
+            color = if (m.status == "INPROGRESS") MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            textAlign = TextAlign.End,
+            modifier = Modifier.width(42.dp),
+        )
     }
 }

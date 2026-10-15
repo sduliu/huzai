@@ -334,6 +334,12 @@ fun ScorePage(modifier: Modifier = Modifier) {
     var commonLoadingMore by remember { mutableStateOf(false) }
     val commonTrees = remember { mutableStateMapOf<String, HupuCommonTree>() }
 
+    // board：进「比赛」Tab 即落在默认频道的板块页（比赛+资讯合并页，官方形态）；
+    // 「虎扑评分」可见时落在它上面，不抢开板块页
+    LaunchedEffect(Unit) {
+        if (!commonOpen) HUPU_BOARDS[selectedGame]?.let { boardGame = it }
+    }
+
     fun openMatch(m: HupuMatch) {
         // 1.196：国际足球的赛程项没有 outBizNo——先盖章式打开（骨架屏第一帧），
         // 再后台换取评分钥匙并回填；LaunchedEffect(openedMatch?.scoreBizNo) 会在
@@ -733,6 +739,17 @@ fun ScorePage(modifier: Modifier = Modifier) {
             }
             items(effectiveGames, key = { it.first }) { (id, name) ->
                 Chip(text = name, selected = !commonOpen && selectedGame == id) {
+                    // board：频道即板块——点 chip 进「比赛+资讯」合并页（官方形态）；
+                    // 已选中再点 = 从赛程列表态回到板块页
+                    if (HUPU_BOARDS.containsKey(id)) {
+                        commonOpen = false
+                        if (selectedGame != id) {
+                            selectedGame = id
+                            if (!schedules.containsKey(id)) loadingGame = id
+                        }
+                        boardGame = id
+                        return@Chip
+                    }
                     if (!commonOpen && selectedGame == id) return@Chip
                     commonOpen = false
                     selectedGame = id
