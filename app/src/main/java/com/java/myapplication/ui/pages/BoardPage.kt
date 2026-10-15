@@ -891,7 +891,7 @@ private fun StandingRowLayout(
             Spacer(Modifier.width(6.dp))
         }
         Text(
-            team, fontSize = 13.sp,
+            team, fontSize = 12.sp,
             fontWeight = if (isHeader) FontWeight.Normal else FontWeight.Medium,
             color = textColor,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -899,10 +899,10 @@ private fun StandingRowLayout(
         )
         cells.forEach { c ->
             Text(
-                c, fontSize = 12.sp, color = textColor,
+                c, fontSize = if (isHeader) 10.sp else 12.sp, color = textColor,
                 maxLines = 1, overflow = TextOverflow.Clip,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier.width(40.dp),
+                modifier = Modifier.width(32.dp),
             )
         }
     }
