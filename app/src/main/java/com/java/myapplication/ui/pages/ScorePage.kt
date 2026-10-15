@@ -702,10 +702,11 @@ fun ScorePage(modifier: Modifier = Modifier) {
         val selIdx = if (commonOpen) 0
         else (if (showCommon) 1 else 0) + effectiveGames.indexOfFirst { it.first == selectedGame }
         LaunchedEffect(commonOpen, selectedGame) { if (selIdx >= 0) barState.animateChipCenterTo(selIdx) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
         LazyRow(
             state = barState,
             modifier = Modifier
-                .fillMaxWidth()
+                .weight(1f)
                 // 1.197：裁剪边界退到 8dp，给首个/末个 chip 的浮起阴影留空间（内容仍从 16dp 起）
                 .chipBarClip()
                 .padding(bottom = 10.dp),
@@ -736,23 +737,23 @@ fun ScorePage(modifier: Modifier = Modifier) {
                     if (!schedules.containsKey(id)) loadingGame = id
                 }
             }
-            // 官方同款：频道条尾部的「管理」入口（关注哪些频道、谁排第一）
-            item(key = "channel-manage") {
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(50))
-                        .clickable { pickerOpen = true }
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                ) {
-                    Icon(
-                        HupuIcons.Tune,
-                        contentDescription = "频道管理",
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
 }
+            // 官方同款：频道条右端常驻「管理」入口（固定不随横滑走）——关注哪些频道、谁排第一
+            Box(
+                Modifier
+                    .padding(end = 12.dp, bottom = 10.dp)
+                    .clip(RoundedCornerShape(50))
+                    .clickable { pickerOpen = true }
+                    .padding(8.dp),
+            ) {
+                Icon(
+                    HupuIcons.Tune,
+                    contentDescription = "频道管理",
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
             },
         ) { topInset ->
         // 1.191: 内容层挂记录层——弹窗画在根 Box 里本层之后的兄弟位置
