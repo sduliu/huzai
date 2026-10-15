@@ -21,7 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -81,21 +81,21 @@ import com.java.myapplication.ui.components.tapGuard
 import java.net.URLDecoder
 import java.time.LocalDate
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * board：赛事板块页（官方首页板块结构的复刻）——盖入式二级页。
+ * board：赛事板块视图（官方板块形态的复刻）——**内嵌在「比赛」Tab 频道内容区**。
  *
- * 结构对齐官方 App 赛事板块（点频道 chip 即盖出，频道本体承载）：
- *   顶栏 ← 「NBA / 国际足球 / …」
+ * 结构对齐官方 App 赛事板块（频道本体即板块页，无中间入口）：
+ *   「近期比赛」标题行（右侧：积分榜 chip? + 查看全部赛程 ›，就地展开/收起）
  *   近期比赛紧凑行（≤4 场热门：进行中优先+锚定日填充）→ 点比赛走宿主的 MatchDetailOverlay
- *   入口行（积分榜 chip → 原生榜/WebView；「查看全部赛程 ›」→ 关页露出频道全量赛程）
- *   资讯流（basketballapi/news/v2/newsList 或 soccer SSR；tid 帖 → ThreadDetailOverlay，
- *          LINK 运营位 → 解 huputiyu://webview url 进 EmbedWebPage）
+ *   资讯流（basketballapi/news/v2/newsList 或 soccer SSR / 专区话题兜底；
+ *          tid 帖 → ThreadDetailOverlay，LINK 运营位 → 解 huputiyu://webview url 进 EmbedWebPage）
  *
- * 层级：本页 zIndex 1.5 —— 低于比赛详情 overlay(2f)，板块内点比赛可正常盖出详情，
- * 返回后板块仍在；高于主内容（0f）。「查看全部」关闭本页后露出的就是频道赛程列表。
+ * 内部 overlay（帖子详情/嵌入页/积分榜）照常盖出并计数 SecondaryPage；
+ * 比赛区「常驻占位」——赛程异步落地后原地替换，不把视口顶下去。
  */
 /** 积分榜数据源：NONE 无入口 / NBA SSR 表格 / football-api 赛事榜。 */
 internal enum class HupuBoardStanding { NONE, NBA, SOCCER_API }
@@ -166,67 +166,51 @@ internal val HUPU_BOARDS: Map<String, HupuBoardCfg> = mapOf(
     "cuba" to HupuBoardCfg("CUBA", "cuba", newsTopic = "/176"),
 )
 
-@Composable
-internal fun BoardPage(
-    boardId: String,
-    onClose: () -> Unit,
-    onOpenMatch: (HupuMatch) -> Unit,
-    /** 宿主频道页已加载的赛程（schedules[boardId]）——首帧即用，本页 fetch 仅作兜底/刷新 */
-    hostSchedule: List<HupuMatchDay>? = null,
+/**
+ * board：板块视图状态。拆出原因——板块视图内嵌在「比赛」Tab 内容区后，其内部
+ * overlay（帖子详情/嵌入页/积分榜）必须挂到宿主根层渲染（频道页头是覆盖式浮层，
+ * 内容区内的 overlay 会被压住）；状态与加载逻辑集中于此，[BoardContent] 渲染列表、
+ * [BoardOverlays] 在根层渲染盖层。
+ */
+internal class BoardUiState(
+    val cfg: HupuBoardCfg,
+    internal val repo: HupuRepository,
+    internal val scope: CoroutineScope,
 ) {
-    val cfg = HUPU_BOARDS[boardId] ?: return
-    val repo = remember { HupuRepository() }
-    val scope = rememberCoroutineScope()
-
-    // ---------- 转场（EmbedWebPage 同款：盖入 + 预测性返回 + SecondaryPage 计数） ----------
-    val progress = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        SecondaryPage.enter()
-        progress.animateTo(1f, tween(280))
-    }
-    DisposableEffect(Unit) {
-        onDispose { SecondaryPage.exit() }
-    }
-    var closing by remember { mutableStateOf(false) }
-    LaunchedEffect(closing) {
-        if (closing) {
-            progress.animateTo(0f, tween(280))
-            onClose()
-        }
-    }
-    // 帖子详情 / 嵌入页打开时，返回键由它们的 handler 接管（后组合者优先）
-    var openedThread by remember { mutableStateOf<HupuThread?>(null) }
-    var embedPage by remember { mutableStateOf<HupuEmbed?>(null) }
-    var standingsOpen by remember { mutableStateOf(false) }
-    val innerPageOpen = openedThread != null || embedPage != null || standingsOpen
-    PredictiveBackHandler { events ->
-        if (closing || innerPageOpen) {
-            events.collect { }
-            return@PredictiveBackHandler
-        }
-        try {
-            events.collect { event -> progress.snapTo(1f - event.progress) }
-            progress.animateTo(0f, tween(120))
-            closing = true
-        } catch (e: CancellationException) {
-            progress.animateTo(1f, tween(200))
-            throw e
-        }
-    }
+    // ---------- 页面态 ----------
+    var openedThread by mutableStateOf<HupuThread?>(null)
+    var embedPage by mutableStateOf<HupuEmbed?>(null)
+    var standingsOpen by mutableStateOf(false)
+    var showAllMatches by mutableStateOf(false)
 
     // ---------- 赛程（复用频道数据源） ----------
-    var days by remember { mutableStateOf<List<HupuMatchDay>?>(null) }
-    var scheduleFailed by remember { mutableStateOf(false) }
+    var days by mutableStateOf<List<HupuMatchDay>?>(null)
 
     // ---------- 资讯流 ----------
-    var newsItems by remember { mutableStateOf<List<HupuBoardNews>>(emptyList()) }
-    var newsLoading by remember { mutableStateOf(true) }
-    var newsFailed by remember { mutableStateOf(false) }
-    var newsLoadingMore by remember { mutableStateOf(false) }
-    var newsAnchor by remember { mutableStateOf("") }
-    var newsPreCount by remember { mutableIntStateOf(0) }
-    var newsHasMore by remember { mutableStateOf(false) }
-    var refreshTick by remember { mutableIntStateOf(0) }
+    var newsItems by mutableStateOf<List<HupuBoardNews>>(emptyList())
+    var newsLoading by mutableStateOf(true)
+    var newsFailed by mutableStateOf(false)
+    var newsLoadingMore by mutableStateOf(false)
+    var newsAnchor by mutableStateOf("")
+    var newsPreCount by mutableIntStateOf(0)
+    var newsHasMore by mutableStateOf(false)
+    var refreshTick by mutableIntStateOf(0)
+
+    // ---------- 积分榜 ----------
+    var standings by mutableStateOf<HupuStandings?>(null)
+    var standingsLoading by mutableStateOf(false)
+    var standingsFailed by mutableStateOf(false)
+
+    // ---------- 帖子详情 ----------
+    var threadClosing by mutableStateOf(false)
+    var threadEntered by mutableStateOf(false)
+    var threadLoading by mutableStateOf(false)
+    var threadLoadingMore by mutableStateOf(false)
+    var threadSortSeq by mutableIntStateOf(0)
+    val threadDetails = mutableStateMapOf<String, HupuThreadDetail>()
+    val floorStates = mutableStateMapOf<String, HupuFloorReplies>()
+    val floorLoading = mutableStateMapOf<String, Boolean>()
+    val floorLoadingMore = mutableStateMapOf<String, Boolean>()
 
     fun loadSoccerNews(force: Boolean) {
         scope.launch {
@@ -283,11 +267,6 @@ internal fun BoardPage(
         }
     }
 
-    // ---------- 积分榜 ----------
-    var standings by remember { mutableStateOf<HupuStandings?>(null) }
-    var standingsLoading by remember { mutableStateOf(false) }
-    var standingsFailed by remember { mutableStateOf(false) }
-
     fun loadStandings() {
         scope.launch {
             standingsLoading = true
@@ -316,45 +295,8 @@ internal fun BoardPage(
         scope.launch {
             val ds = repo.matchSchedule(cfg.scheduleId, refresh = force)
             days = ds
-            scheduleFailed = ds.isEmpty()
         }
     }
-
-    LaunchedEffect(boardId, refreshTick) {
-        days = null
-        loadSchedule(force = refreshTick > 0)
-        loadNews(first = true, force = refreshTick > 0)
-    }
-
-    // 顶部热门比赛（官方式：≤4 场）——进行中优先，锚定日（今天/最近过往日/首日）起填充；
-    // 数据源：本页拉到的 days 优先，未落地前用宿主频道的 hostSchedule 首帧直出
-    val today = remember { LocalDate.now().toString() }
-    val effDays = days ?: hostSchedule
-    val hotMatches = remember(days, hostSchedule) {
-        val ds = effDays.orEmpty()
-        if (ds.isEmpty()) emptyList() else {
-            val live = ds.flatMap { it.matches }.filter { it.status == "INPROGRESS" }
-            val todayIdx = ds.indexOfFirst { it.dayTime == today }
-            val lastPast = ds.indexOfLast { it.dayTime <= today }
-            val start = when {
-                todayIdx >= 0 -> todayIdx
-                lastPast >= 0 -> lastPast
-                else -> 0
-            }
-            (live + ds.drop(start).flatMap { it.matches }).distinctBy { it.matchId }.take(4)
-        }
-    }
-
-    // ---------- 帖子详情（ZonePage 同款精简版：盖入式 + 楼中楼） ----------
-    var threadClosing by remember { mutableStateOf(false) }
-    var threadEntered by remember { mutableStateOf(false) }
-    var threadLoading by remember { mutableStateOf(false) }
-    var threadLoadingMore by remember { mutableStateOf(false) }
-    var threadSortSeq by remember { mutableIntStateOf(0) }
-    val threadDetails = remember { mutableStateMapOf<String, HupuThreadDetail>() }
-    val floorStates = remember { mutableStateMapOf<String, HupuFloorReplies>() }
-    val floorLoading = remember { mutableStateMapOf<String, Boolean>() }
-    val floorLoadingMore = remember { mutableStateMapOf<String, Boolean>() }
 
     fun openThread(t: HupuThread) {
         HupuPrefs.addHistory(
@@ -397,6 +339,74 @@ internal fun BoardPage(
         }
     }
 
+    // 资讯点击：有 tid → 帖子详情；无 tid → 解 link 内嵌 webview
+    fun openNews(n: HupuBoardNews) {
+        if (n.openableAsThread) {
+            openThread(
+                HupuThread(
+                    tid = n.tid, title = n.title, cover = n.img,
+                    replies = n.replies, lights = n.lights,
+                    createdAtText = n.publishTime.take(16).drop(5),
+                )
+            )
+            return
+        }
+        boardLinkUrl(n)?.let { url ->
+            embedPage = HupuEmbed(type = "board", url = url, matchId = "", label = n.title.take(20))
+        }
+    }
+}
+
+/**
+ * 创建/复用板块状态（key=boardId，切频道即整套重建——滚动/资讯/赛程互不串台）。
+ * 非板块频道返回 null。
+ */
+@Composable
+internal fun rememberBoardState(boardId: String): BoardUiState? {
+    val repo = remember { HupuRepository() }
+    val scope = rememberCoroutineScope()
+    return remember(boardId) { HUPU_BOARDS[boardId]?.let { BoardUiState(it, repo, scope) } }
+}
+
+/**
+ * 板块视图：「近期比赛 ≤4 场紧凑行（查看全部赛程就地展开）」+ 下方资讯流。
+ * 内嵌在「比赛」Tab 频道内容区；内部 overlay 由 [BoardOverlays] 挂宿主根层。
+ */
+@Composable
+internal fun BoardContent(
+    state: BoardUiState,
+    onOpenMatch: (HupuMatch) -> Unit,
+    /** 宿主频道页已加载的赛程（schedules[boardId]）——首帧即用，本页 fetch 仅作兜底/刷新 */
+    hostSchedule: List<HupuMatchDay>? = null,
+    /** 浮空顶栏（页头+频道条）占位——内容从这里开始才不钻进栏底 */
+    topInset: androidx.compose.ui.unit.Dp,
+) = with(state) {
+    LaunchedEffect(state, refreshTick) {
+        days = null
+        loadSchedule(force = refreshTick > 0)
+        loadNews(first = true, force = refreshTick > 0)
+    }
+
+    // 顶部热门比赛（官方式：≤4 场）——进行中优先，锚定日（今天/最近过往日/首日）起填充；
+    // 数据源：本页拉到的 days 优先，未落地前用宿主频道的 hostSchedule 首帧直出
+    val today = remember { LocalDate.now().toString() }
+    val effDays = days ?: hostSchedule
+    val hotMatches = remember(days, hostSchedule) {
+        val ds = effDays.orEmpty()
+        if (ds.isEmpty()) emptyList() else {
+            val live = ds.flatMap { it.matches }.filter { it.status == "INPROGRESS" }
+            val todayIdx = ds.indexOfFirst { it.dayTime == today }
+            val lastPast = ds.indexOfLast { it.dayTime <= today }
+            val start = when {
+                todayIdx >= 0 -> todayIdx
+                lastPast >= 0 -> lastPast
+                else -> 0
+            }
+            (live + ds.drop(start).flatMap { it.matches }).distinctBy { it.matchId }.take(4)
+        }
+    }
+
+    // 帖子详情数据加载（懒拉 + 缓存 + 后台刷新）
     LaunchedEffect(openedThread?.tid) {
         val t = openedThread ?: return@LaunchedEffect
         val tid = t.tid
@@ -427,41 +437,14 @@ internal fun BoardPage(
         }
     }
 
-    // 资讯点击：有 tid → 帖子详情；无 tid → 解 link 内嵌 webview
-    fun openNews(n: HupuBoardNews) {
-        if (n.openableAsThread) {
-            openThread(
-                HupuThread(
-                    tid = n.tid, title = n.title, cover = n.img,
-                    replies = n.replies, lights = n.lights,
-                    createdAtText = n.publishTime.take(16).drop(5),
-                )
-            )
-            return
-        }
-        boardLinkUrl(n)?.let { url ->
-            embedPage = HupuEmbed(type = "board", url = url, matchId = "", label = n.title.take(20))
-        }
-    }
-
-    // ---------- 页面 ----------
-    Box(
-        Modifier
-            .fillMaxSize()
-            // 1.5f：低于比赛详情 overlay(2f)——板块内点比赛，详情盖在本页之上
-            .zIndex(1.5f)
-            .graphicsLayer { translationX = (1f - progress.value) * size.width }
-            .background(MaterialTheme.colorScheme.background)
-            .tapGuard(),
-    ) {
-        Column(Modifier.fillMaxSize()) {
-            CenteredTopBar(title = cfg.name, onBack = { closing = true })
-            val pullState = rememberPullToRefreshState()
-            PullToRefreshBox(
-                isRefreshing = newsLoading && newsItems.isNotEmpty(),
-                onRefresh = { refreshTick++ },
-                state = pullState,
-                modifier = Modifier.fillMaxSize(),
+    // ---------- 视图 ----------
+    Box(Modifier.fillMaxSize()) {
+        val pullState = rememberPullToRefreshState()
+        PullToRefreshBox(
+            isRefreshing = newsLoading && newsItems.isNotEmpty(),
+            onRefresh = { refreshTick++ },
+            state = pullState,
+            modifier = Modifier.fillMaxSize(),
                 indicator = {
                     PullToRefreshDefaults.Indicator(
                         state = pullState,
@@ -470,7 +453,10 @@ internal fun BoardPage(
                     )
                 },
             ) {
-                val listState = rememberLazyListState()
+                // 列表状态随 boardState 实例重建（切频道=全新滚动位置）+ 首帧强制置顶：
+                // 「近期比赛」永远是最先看到的内容，异步赛程落位不会把视口顶下去
+                val listState = remember(state) { LazyListState() }
+                LaunchedEffect(state) { listState.scrollToItem(0) }
                 val shouldLoadMore by remember {
                     derivedStateOf {
                         val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
@@ -483,16 +469,68 @@ internal fun BoardPage(
                 }
                 LazyColumn(
                     state = listState,
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 140.dp),
+                    contentPadding = PaddingValues(
+                        start = 16.dp, end = 16.dp, top = topInset, bottom = 140.dp,
+                    ),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    // 顶部热门比赛（官方式：≤4 场紧凑行，点行进详情）
-                    if (hotMatches.isNotEmpty()) {
-                        item(key = "schedule-header") {
-                            BoardSectionHeader("近期比赛")
-                            Spacer(Modifier.height(6.dp))
+                    // 比赛区标题行：「近期比赛」 … [积分榜 chip] 「查看全部赛程 ›」（展开后变「全部赛程/收起」）
+                    item(key = "schedule-header") {
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            BoardSectionHeader(if (showAllMatches) "全部赛程" else "近期比赛")
+                            Spacer(Modifier.weight(1f))
+                            if (cfg.standing != HupuBoardStanding.NONE ||
+                                cfg.standingsUrl.isNotEmpty()
+                            ) {
+                                Chip(text = "积分榜", selected = false) { openStandings() }
+                                Spacer(Modifier.width(6.dp))
+                            }
+                            Row(
+                                Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { showAllMatches = !showAllMatches }
+                                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    if (showAllMatches) "收起" else "查看全部赛程",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                Icon(
+                                    Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
                         }
+                    }
+                    if (showAllMatches) {
+                        // 全部赛程：按日分块平铺（每日一张圆角面，行仍是紧凑行）
+                        effDays.orEmpty().forEach { d ->
+                            if (d.matches.isNotEmpty()) {
+                                item(key = "day-${d.dayTime}") {
+                                    Column(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(MaterialTheme.colorScheme.surface)
+                                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                                    ) {
+                                        d.matches.forEach { m ->
+                                            BoardMatchRow(m) { onOpenMatch(m) }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else if (hotMatches.isNotEmpty()) {
+                        // 顶部热门比赛（官方式：≤4 场紧凑行，点行进详情）
                         item(key = "schedule-strip") {
                             Column(
                                 Modifier
@@ -506,36 +544,15 @@ internal fun BoardPage(
                                 }
                             }
                         }
-                    }
-                    // 入口行：积分榜 chip + 「查看全部赛程 ›」（关页露出频道全量赛程列表）
-                    item(key = "entry-chips") {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            if (cfg.standing != HupuBoardStanding.NONE || cfg.standingsUrl.isNotEmpty()) {
-                                Chip(text = "积分榜", selected = false) { openStandings() }
-                            }
-                            Spacer(Modifier.weight(1f))
-                            Row(
-                                Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable(onClick = onClose)
-                                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    "查看全部赛程",
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                                Icon(
-                                    Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                            }
+                    } else {
+                        // 占位常驻：赛程异步落地后原地替换，不会因插入条目把视口顶下去
+                        item(key = "schedule-empty") {
+                            Text(
+                                if (effDays == null) "赛程加载中…" else "近期暂无比赛",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(vertical = 6.dp),
+                            )
                         }
                     }
                     // 资讯
@@ -581,7 +598,14 @@ internal fun BoardPage(
                 }
             }
         }
+    }
 
+/**
+ * 板块内部 overlay（帖子详情/嵌入页/积分榜）——必须挂在宿主**根层**渲染：
+ * 频道页头是覆盖式浮层，若放在内容区里会被「比赛」页头压住。
+ */
+@Composable
+internal fun BoardOverlays(state: BoardUiState) = with(state) {
         // ---------- 资讯帖子详情（盖在本页内容之上） ----------
         val ot = openedThread
         if (ot != null) {
@@ -664,7 +688,6 @@ internal fun BoardPage(
                 onRetry = { loadStandings() },
             )
         }
-    }
 }
 
 /** 板块内节标题。 */

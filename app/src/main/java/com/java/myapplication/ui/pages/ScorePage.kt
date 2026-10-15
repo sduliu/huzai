@@ -74,7 +74,6 @@ import com.java.myapplication.data.HupuPrefs
 import com.java.myapplication.ui.components.HupuIcons
 import com.java.myapplication.ui.components.LiquidIconButton
 import com.java.myapplication.ui.glass.LiquidButton
-import com.java.myapplication.ui.glass.LocalTabActive
 import com.java.myapplication.data.isLocalStickerUrl
 import com.java.myapplication.data.HupuMatchDay
 import com.java.myapplication.data.HupuMatchTeam
@@ -141,9 +140,8 @@ fun ScorePage(modifier: Modifier = Modifier) {
     var loadingGame by remember { mutableStateOf<String?>(null) }
     var refreshTick by remember { mutableIntStateOf(0) }
     var refreshVersion by remember { mutableIntStateOf(0) }
-
-    // board：板块页（盖入式；NBA/国际足球等有资讯配置的频道 → 右上角入口）
-    var boardGame by remember { mutableStateOf<String?>(null) }
+    // 板块频道状态（非板块频道为 null；key=频道，切换即整套重建）
+    val boardState = rememberBoardState(selectedGame)
 
     // ---------- 比赛详情二级页（盖入式；状态外置：返回再进不重载） ----------
     val scope = rememberCoroutineScope()
@@ -334,21 +332,6 @@ fun ScorePage(modifier: Modifier = Modifier) {
     var commonDetailLoading by remember { mutableStateOf(false) }
     var commonLoadingMore by remember { mutableStateOf(false) }
     val commonTrees = remember { mutableStateMapOf<String, HupuCommonTree>() }
-
-    // board：进「比赛」Tab 即落在默认频道的板块页（比赛+资讯合并页，官方形态）；
-    // 「虎扑评分」可见时落在它上面，不抢开板块页。
-    // 主页常驻组合（切 Tab 不重建），故用 LocalTabActive 而非 Unit 触发——首次激活才算"进入"，
-    // 且每轮激活至多自动开一次（否则用户关掉板块页、切走再切回又被弹回）。
-    val tabActive = LocalTabActive.current
-    var boardAutoOpened by remember { mutableStateOf(false) }
-    LaunchedEffect(tabActive) {
-        if (tabActive && !boardAutoOpened) {
-            boardAutoOpened = true
-            if (!commonOpen && boardGame == null && HUPU_BOARDS.containsKey(selectedGame)) {
-                boardGame = selectedGame
-            }
-        }
-    }
 
     fun openMatch(m: HupuMatch) {
         // 1.196：国际足球的赛程项没有 outBizNo——先盖章式打开（骨架屏第一帧），
@@ -692,20 +675,11 @@ fun ScorePage(modifier: Modifier = Modifier) {
             // fork：页头同步「比赛」命名（官方同名页）
             PageHeader(title = "比赛") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // board：当前频道有板块页配置 → 「资讯」入口（盖入式板块页）
-                if (!commonOpen && HUPU_BOARDS.containsKey(selectedGame)) {
-                    LiquidIconButton(
-                        icon = HupuIcons.Article,
-                        contentDescription = "板块资讯",
-                        onClick = { boardGame = selectedGame },
-                        iconSize = 24.dp,
-                        tint = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
                 // 1.199：热门赛事是混装聚合 → 右上角给「筛选项目」入口
                 //     （组件与首页搜索键同源：LiquidIconButton 液态玻璃圆钮，24dp 图标）
                 //     过滤生效时图标转主题色，避免「明明有比赛却看不到」的困惑
-                if (isHotChannel) {
+                //     板块频道走 BoardContent（无赛程筛选对象），隐藏入口
+                if (isHotChannel && !HUPU_BOARDS.containsKey(selectedGame)) {
                     LiquidIconButton(
                         icon = HupuIcons.FilterAlt,
                         contentDescription = "筛选项目",
@@ -749,17 +723,6 @@ fun ScorePage(modifier: Modifier = Modifier) {
             }
             items(effectiveGames, key = { it.first }) { (id, name) ->
                 Chip(text = name, selected = !commonOpen && selectedGame == id) {
-                    // board：频道即板块——点 chip 进「比赛+资讯」合并页（官方形态）；
-                    // 已选中再点 = 从赛程列表态回到板块页
-                    if (HUPU_BOARDS.containsKey(id)) {
-                        commonOpen = false
-                        if (selectedGame != id) {
-                            selectedGame = id
-                            if (!schedules.containsKey(id)) loadingGame = id
-                        }
-                        boardGame = id
-                        return@Chip
-                    }
                     if (!commonOpen && selectedGame == id) return@Chip
                     commonOpen = false
                     selectedGame = id
@@ -815,6 +778,16 @@ fun ScorePage(modifier: Modifier = Modifier) {
         val shownDays = remember(days, hotExcluded, isHotChannel) {
             if (isHotChannel) HotSport.filterDays(days.orEmpty(), hotExcluded) else days.orEmpty()
         }
+        // board：有板块配置的频道，内容区直接是「比赛+资讯」合并视图（官方形态）；
+        // boardState 按频道重建，滚动/资讯/赛程互不串台
+        if (boardState != null) {
+            BoardContent(
+                boardState,
+                onOpenMatch = { openMatch(it) },
+                hostSchedule = days,
+                topInset = topInset,
+            )
+        } else {
         val pullState = rememberPullToRefreshState()
         val refreshing = loadingGame == selectedGame
         PullToRefreshBox(
@@ -894,17 +867,8 @@ fun ScorePage(modifier: Modifier = Modifier) {
             )
         }
 
-        // ---------- board：板块页（盖入式；zIndex 1.5，低于比赛详情 2f） ----------
-        boardGame?.let { bg ->
-            androidx.compose.runtime.key(bg) {
-                BoardPage(
-                    boardId = bg,
-                    onClose = { boardGame = null },
-                    onOpenMatch = { openMatch(it) },
-                    hostSchedule = schedules[bg],
-                )
-            }
-        }
+        // 板块内部 overlay（帖子详情/嵌入页/积分榜）——挂根层，避免被浮空页头压住
+        boardState?.let { BoardOverlays(it) }
 
         // ---------- 比赛详情二级页：盖入式转场 ----------
         val om = openedMatch
