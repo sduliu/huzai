@@ -35,5 +35,6 @@ tools/*
 # 签名与密钥（绝不入库）
 *.jks
 *.keystore
+!app/debug.keystore
 keystore.properties
 keystore/

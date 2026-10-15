@@ -41,8 +41,19 @@ android {
                 keyPassword = keystoreProps.getProperty("keyPassword")
             }
         }
+        // 仓库内置固定 debug 签名（口令即安卓惯例 android）——CI 每台 runner 随机
+        // keystore 会导致每版签名漂移、覆盖安装被拒；固定后 nightly 可增量升级。
+        create("ci-debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("ci-debug")
+        }
         release {
             isMinifyEnabled = false
             if (keystoreProps.isNotEmpty()) {
