@@ -35,6 +35,7 @@ import com.java.myapplication.ui.components.animateChipCenterTo
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -148,6 +149,8 @@ fun ScorePage(modifier: Modifier = Modifier) {
     var openedMatch by remember { mutableStateOf<HupuMatch?>(null) }
     /** 比赛详情 → 记分板点队名/队标 → 盖出的球队页请求 */
     var openedTeam by remember { mutableStateOf<TeamPageRequest?>(null) }
+    /** 频道条右端「管理」入口 → 频道自定义页（选择+排序） */
+    var pickerOpen by remember { mutableStateOf(false) }
     // 1.192: 本层「已计数」标记——连点多个条目时 enter 只发生一次，防 Tab 栏计数泄漏
     var matchEntered by remember { mutableStateOf(false) }
     var detailClosing by remember { mutableStateOf(false) }
@@ -733,6 +736,22 @@ fun ScorePage(modifier: Modifier = Modifier) {
                     if (!schedules.containsKey(id)) loadingGame = id
                 }
             }
+            // 官方同款：频道条尾部的「管理」入口（关注哪些频道、谁排第一）
+            item(key = "channel-manage") {
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(50))
+                        .clickable { pickerOpen = true }
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                ) {
+                    Icon(
+                        HupuIcons.Tune,
+                        contentDescription = "频道管理",
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
 }
             },
         ) { topInset ->
@@ -996,6 +1015,11 @@ fun ScorePage(modifier: Modifier = Modifier) {
                 onOpenMatch = { m -> openMatch(m) },
                 onBack = { openedTeam = null },
             )
+        }
+
+        // ---------- 频道自定义页（频道条右端「管理」入口，盖入式；同 zIndex 时组合序决定层叠 → 放最后） ----------
+        if (pickerOpen) {
+            ScorePickerPage(onClose = { pickerOpen = false })
         }
 
         // ---------- 虎扑通用评分主题详情（盖入式，zIndex 2；叶子详情 3 盖其上） ----------

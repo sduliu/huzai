@@ -85,7 +85,10 @@ fun HomePage(modifier: Modifier = Modifier) {
             kotlinx.coroutines.delay(600L * tries)
             p = repo.board(refresh = refresh)
         }
-        page = p
+        // fork：默认流换成官方移动站「综合」（m.hupu.com 首页 SSR）——
+        // /all-gambia 步行街热帖与官方 App 首页不一致；拉不到时保留版块流兜底
+        val home = repo.mobileHome(refresh)
+        page = p?.copy(threads = if (home.isNotEmpty()) home else p.threads)
         failed = p == null
         loading = false
         refreshing = false
@@ -685,7 +688,7 @@ private fun TopicBar(
         // 「热帖」chip：默认流（/all-gambia 全站热帖榜）——1.192 起可被设置页隐藏
         if (showHot) {
             item(key = "hot-chip") {
-                Chip(text = "热帖", selected = selected == "hot") { onSelect("hot") }
+                Chip(text = "综合", selected = selected == "hot") { onSelect("hot") }
             }
         }
         items(topics, key = { it.topicId + it.url }) { t ->

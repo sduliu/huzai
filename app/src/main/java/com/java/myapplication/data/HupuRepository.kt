@@ -18,6 +18,12 @@ class HupuRepository {
         return withContext(Dispatchers.Default) { HupuParser.parseBoardPage(html) }
     }
 
+    /** 官方移动站「综合」流（m.hupu.com 首页 SSR res[]）。失败返回空表。 */
+    suspend fun mobileHome(refresh: Boolean = false): List<HupuThread> {
+        val html = HupuApi.fetchMobileHomeHtml(forceNetwork = refresh) ?: return emptyList()
+        return withContext(Dispatchers.Default) { HupuParser.parseMobileHome(html) }
+    }
+
     /**
      * 1.222: 单条帖子的作者（`/api/v2/threads?tid=`）。
      * 首页热帖列表不带 author，黑名单过滤前需要按 tid 补齐作者身份。
@@ -427,6 +433,19 @@ class HupuRepository {
             competitionId, seasonId, forceNetwork = refresh,
         ) ?: return null
         return withContext(Dispatchers.Default) { HupuStandingParser.parseSoccerStandings(json) }
+    }
+
+    /** 球队页：NBA 球队信息+阵容（nba.hupu.com/teams/{slug} SSR）。失败返回 null。 */
+    suspend fun nbaTeamInfo(slug: String, refresh: Boolean = false): HupuTeamInfo? {
+        val html = HupuTeamApi.fetchNbaTeamHtml(slug, forceNetwork = refresh) ?: return null
+        return withContext(Dispatchers.Default) { HupuTeamParser.parseNbaTeam(html) }
+    }
+
+    /** 球队页：NBA 全季赛程窗（nba.hupu.com/schedule/{slug} SSR，本队视角胜负）。失败返回空表。 */
+    suspend fun nbaTeamSchedule(slug: String, refresh: Boolean = false): List<HupuTeamGame> {
+        val html = HupuTeamApi.fetchNbaTeamScheduleHtml(slug, forceNetwork = refresh)
+            ?: return emptyList()
+        return withContext(Dispatchers.Default) { HupuTeamParser.parseNbaTeamSchedule(html) }
     }
 
     /** 评分树：比赛 → 对局[] → 选手[]（一次请求全量，匿名可用）。失败返回 null。 */

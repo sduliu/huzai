@@ -68,6 +68,9 @@ import kotlinx.coroutines.delay
 import com.java.myapplication.data.HupuMatch
 import com.java.myapplication.data.HupuMatchDay
 import com.java.myapplication.data.HupuRepository
+import com.java.myapplication.data.HupuTeamApi
+import com.java.myapplication.data.HupuTeamGame
+import com.java.myapplication.data.HupuTeamInfo
 import com.java.myapplication.data.HupuScoreGroup
 import com.java.myapplication.data.HupuScoreItem
 import com.java.myapplication.data.HupuScoreTree
@@ -718,15 +721,28 @@ internal fun TeamDetailOverlay(
     var loading by remember { mutableStateOf(true) }
     var days by remember { mutableStateOf<List<HupuMatchDay>>(emptyList()) }
     var standingLine by remember { mutableStateOf<String?>(null) }
+    /** NBA 球队专属数据（nba.hupu.com/teams|schedule/{slug} SSR）：信息+阵容+全季赛程窗 */
+    var teamInfo by remember { mutableStateOf<HupuTeamInfo?>(null) }
+    var teamGames by remember { mutableStateOf<List<HupuTeamGame>?>(null) }
 
     LaunchedEffect(req.memberId) {
         loading = true
-        val ds = repo.matchSchedule(req.scheduleId)
-        days = ds.mapNotNull { d ->
-            val ms = d.matches.filter {
-                it.home?.memberId == req.memberId || it.away?.memberId == req.memberId
+        // NBA 队：官方站球队页（信息+阵容）与全季赛程窗——比频道赛程窗口更全
+        val slug = HupuTeamApi.nbaSlug(req.name)
+        if (slug != null) {
+            teamInfo = repo.nbaTeamInfo(slug)
+            val gs = repo.nbaTeamSchedule(slug)
+            if (gs.isNotEmpty()) teamGames = gs
+        }
+        // 兜底（非 NBA 或官方页失败）：频道赛程按 memberId 过滤
+        if (teamInfo == null && teamGames == null) {
+            val ds = repo.matchSchedule(req.scheduleId)
+            days = ds.mapNotNull { d ->
+                val ms = d.matches.filter {
+                    it.home?.memberId == req.memberId || it.away?.memberId == req.memberId
+                }
+                if (ms.isEmpty()) null else d.copy(matches = ms)
             }
-            if (ms.isEmpty()) null else d.copy(matches = ms)
         }
         if (req.standingKind != HupuBoardStanding.NONE) {
             val s = when (req.standingKind) {
@@ -747,12 +763,22 @@ internal fun TeamDetailOverlay(
         loading = false
     }
 
-    // 锚定当前比赛日（今日→最近过往日→首日），与「全部赛程」同款
+    // NBA 模式：按月分组的赛程段（锚定=首个含今日之后比赛的月）
+    val gameMonths = remember(teamGames) {
+        teamGames?.groupBy { it.dateTime.take(7) }?.toList() ?: emptyList()
+    }
+    // 锚定当前比赛日/月（今日→最近过往日→首日），与「全部赛程」同款
     val listState = rememberLazyListState()
     val effDays = days
-    LaunchedEffect(effDays) {
-        if (effDays.isNotEmpty()) {
-            val today = LocalDate.now().toString()
+    LaunchedEffect(effDays, gameMonths) {
+        val today = LocalDate.now().toString()
+        if (gameMonths.isNotEmpty()) {
+            val mIdx = gameMonths.indexOfFirst { (_, gs) ->
+                gs.any { it.dateTime.take(10) >= today }
+            }.takeIf { it >= 0 } ?: (gameMonths.size - 1)
+            // item 序：0=信息卡(NBA) → 赛程按月各一项
+            listState.scrollToItem(1 + mIdx)
+        } else if (effDays.isNotEmpty()) {
             val anchor = effDays.indexOfFirst { it.dayTime >= today }
                 .takeIf { it >= 0 } ?: (effDays.size - 1)
             listState.scrollToItem(1 + anchor)
@@ -824,6 +850,7 @@ internal fun TeamDetailOverlay(
                 }
             }
             Spacer(Modifier.height(10.dp))
+            val nbaMode = teamInfo != null || teamGames != null
             when {
                 loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(
@@ -832,15 +859,46 @@ internal fun TeamDetailOverlay(
                         color = MaterialTheme.colorScheme.primary,
                     )
                 }
-                days.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                !nbaMode && days.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("近期无赛程数据", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 else -> LazyColumn(
                     state = listState,
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                 ) {
-                    effDays.forEach { day ->
-                        item(key = "d-${day.dayTime}") {
+                    // ---- NBA：球队信息卡（进入NBA/主场/分区/主教练 + 简介） ----
+                    teamInfo?.let { ti ->
+                        item(key = "info") {
+                            Column(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                            ) {
+                                ti.infos.forEach { (k, v) ->
+                                    Row(Modifier.padding(vertical = 2.dp)) {
+                                        Text(k, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Spacer(Modifier.width(10.dp))
+                                        Text(v, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                                    }
+                                }
+                                if (ti.intro.isNotBlank()) {
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(
+                                        ti.intro,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        lineHeight = 17.sp,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    // ---- NBA：全季赛程窗（按月分组，本月锚定） ----
+                    gameMonths.forEach { (month, gs) ->
+                        item(key = "m-$month") {
                             Column(
                                 Modifier
                                     .fillMaxWidth()
@@ -850,18 +908,153 @@ internal fun TeamDetailOverlay(
                                     .padding(horizontal = 12.dp, vertical = 8.dp),
                             ) {
                                 Text(
-                                    day.dateBlock,
+                                    month.replace('-', '年') + "月",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
                                 )
-                                // 点场 → 本页滑出 + 详情层换上该场（详情 zIndex 2 在本页之下）
-                                day.matches.forEach { m -> BoardMatchRow(m) { closing = true; onOpenMatch(m) } }
+                                gs.forEach { g -> TeamGameRow(g) }
                             }
                         }
                     }
+                    // ---- 兜底：频道赛程按 memberId 过滤（非 NBA/官方页失败） ----
+                    if (!nbaMode) {
+                        effDays.forEach { day ->
+                            item(key = "d-${day.dayTime}") {
+                                Column(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(MaterialTheme.colorScheme.surface)
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                ) {
+                                    Text(
+                                        day.dateBlock,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                    )
+                                    // 点场 → 本页滑出 + 详情层换上该场（详情 zIndex 2 在本页之下）
+                                    day.matches.forEach { m -> BoardMatchRow(m) { closing = true; onOpenMatch(m) } }
+                                }
+                            }
+                        }
+                    }
+                    // ---- NBA：阵容表（号码/姓名/位置/年龄/身高/体重） ----
+                    val roster = teamInfo?.roster.orEmpty()
+                    if (roster.isNotEmpty()) {
+                        item(key = "roster") {
+                            Column(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                            ) {
+                                Text(
+                                    "阵容",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                )
+                                TeamRosterRow("#", "球员", "位置", "年龄", "身高", "体重", header = true)
+                                roster.forEach { p ->
+                                    TeamRosterRow(p.no, p.name, p.pos, p.age, p.height, p.weight, header = false)
+                                }
+                            }
+                        }
+                    }
+                    item(key = "tail") { Spacer(Modifier.height(24.dp)) }
                 }
             }
         }
+    }
+}
+
+/** 球队赛程行（NBA 官方页 /schedule/{slug}）：日期·时间 | 主/客 vs 对手 | 比分 | 胜负（本队视角） */
+@Composable
+private fun TeamGameRow(g: HupuTeamGame) {
+    val played = g.result == "胜" || g.result == "负"
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // 北京时间 → 「MM-dd HH:mm」
+        Text(
+            g.dateTime.drop(5).take(11).replace('-', '.'),
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(76.dp),
+            maxLines = 1,
+        )
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (g.isHome) "主" else "客",
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                    .padding(horizontal = 4.dp, vertical = 1.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                g.opponent,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Text(
+            if (played) g.score else "- : -",
+            fontSize = 13.sp,
+            fontWeight = if (played) FontWeight.SemiBold else FontWeight.Normal,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            when (g.result) { "胜" -> "胜"; "负" -> "负"; else -> "未赛" },
+            fontSize = 11.sp,
+            color = when (g.result) {
+                "胜" -> MaterialTheme.colorScheme.primary
+                "负" -> MaterialTheme.colorScheme.error
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            modifier = Modifier.width(26.dp),
+            textAlign = TextAlign.End,
+        )
+    }
+}
+
+/** 阵容表行：# | 球员 | 位置 | 年龄 | 身高 | 体重 */
+@Composable
+private fun TeamRosterRow(
+    no: String, name: String, pos: String,
+    age: String, height: String, weight: String,
+    header: Boolean,
+) {
+    val color = if (header) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+    val fs = if (header) 11.sp else 12.sp
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = if (header) 4.dp else 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(no, fontSize = fs, color = color, modifier = Modifier.width(26.dp), maxLines = 1)
+        Text(
+            name, fontSize = fs, color = color, modifier = Modifier.weight(1f),
+            fontWeight = if (header) FontWeight.Normal else FontWeight.Medium,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
+        Text(pos, fontSize = fs, color = color, modifier = Modifier.width(30.dp), maxLines = 1)
+        Text(age, fontSize = fs, color = color, modifier = Modifier.width(30.dp), maxLines = 1)
+        Text(height, fontSize = fs, color = color, modifier = Modifier.width(48.dp), maxLines = 1)
+        Text(weight, fontSize = fs, color = color, modifier = Modifier.width(52.dp), maxLines = 1)
     }
 }

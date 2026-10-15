@@ -107,6 +107,37 @@ object HupuParser {
         )
     }
 
+    /**
+     * 官方移动站首页「综合」流（m.hupu.com SSR __NEXT_DATA__.props.pageProps.res[]）。
+     * 每项：tid/title/url/label(版块名)/lights/replies/type(1_pic|3_pic)/source[](缩略图)。
+     * 映射为 HupuThread：label → topic.name（列表行显示版块名），source[0] → cover。
+     */
+    fun parseMobileHome(html: String): List<HupuThread> {
+        val root = extractNextData(html) ?: return emptyList()
+        val arr = root.optJSONObject("props")?.optJSONObject("pageProps")
+            ?.optJSONArray("res") ?: return emptyList()
+        val out = mutableListOf<HupuThread>()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val tid = o.optString("tid").takeUnless { it == "null" } ?: ""
+            val title = o.optString("title")
+            if (tid.isEmpty() || title.isEmpty()) continue
+            val label = o.optString("label").takeUnless { it == "null" } ?: ""
+            val cover = o.optJSONArray("source")?.optString(0)
+                ?.takeUnless { it.isEmpty() || it == "null" }
+            out += HupuThread(
+                tid = tid,
+                title = title,
+                cover = cover,
+                lights = o.optString("lights").toIntOrNull() ?: 0,
+                replies = o.optString("replies").toIntOrNull() ?: 0,
+                url = o.optString("url").takeUnless { it == "null" } ?: "",
+                topic = label.takeIf { it.isNotEmpty() }?.let { HupuTopic(name = it) },
+            )
+        }
+        return out
+    }
+
     /** 全站版块/话题导航树（来自任一 /all-* 页的 pageData.categories） */
     fun parseCategories(html: String): List<HupuCategory> {
         val root = extractDollarData(html) ?: return emptyList()

@@ -622,3 +622,34 @@ data class HupuStandings(
     val league: String,
     val groups: List<HupuStandingGroup>,
 )
+
+/** ============ 球队页（nba.hupu.com/teams|schedule/{slug} SSR） ============ */
+
+/** 阵容一行：号码 / 姓名 / 位置 / 年龄 / 身高 / 体重 */
+data class HupuTeamPlayer(
+    val no: String,
+    val name: String,
+    val pos: String,
+    val age: String,
+    val height: String,
+    val weight: String,
+)
+
+/** 球队赛程一行（/schedule/{slug} 全季滚窗表；结果列是本队视角） */
+data class HupuTeamGame(
+    val dateTime: String,     // 北京时间 "2026-10-04 07:00:00"
+    val opponent: String,     // 对手中文名
+    val isHome: Boolean,      // 本队为主队（页面里本队名字加粗）
+    val score: String,        // "129-105" / 未赛 "-"
+    val result: String,       // 胜 / 负 / 未赛 "-"
+)
+
+/** 球队信息（/teams/{slug}）：队名 + 信息行 + 简介 + 阵容 */
+data class HupuTeamInfo(
+    val fullName: String,                    // 迈阿密热火（Miami Heat）
+    val logo: String = "",
+    /** 信息行（进入NBA/主场/分区/官网/主教练…），键值对保持页面顺序 */
+    val infos: List<Pair<String, String>> = emptyList(),
+    val intro: String = "",
+    val roster: List<HupuTeamPlayer> = emptyList(),
+)

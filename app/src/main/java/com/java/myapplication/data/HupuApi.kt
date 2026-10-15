@@ -269,6 +269,36 @@ object HupuApi {
     }
 
     /**
+     * 官方移动站首页 HTML（m.hupu.com/，「综合」流 SSR __NEXT_DATA__）。
+     * 失败返回 null。
+     */
+    suspend fun fetchMobileHomeHtml(forceNetwork: Boolean = false): String? {
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val cacheKey = "m-home"
+            if (!forceNetwork) {
+                HupuCache.get(cacheKey)?.let { return@withContext it }
+            }
+            val request = Request.Builder()
+                .url("https://m.hupu.com/")
+                .header("User-Agent", MOBILE_UA)
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                .header("Accept-Language", "zh-CN,zh;q=0.9")
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use null
+                    val html = response.body?.string() ?: return@use null
+                    if (!html.contains("__NEXT_DATA__")) return@use null
+                    HupuCache.put(cacheKey, html)
+                    html
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
+    /**
      * 拉取页面 HTML。返回 null 表示失败。
      * forceNetwork = true 时跳过缓存直接请求（下拉刷新用）
      */
