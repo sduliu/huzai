@@ -547,3 +547,47 @@ data class HupuFollowUser(
     val repliesNum: Int = 0,
     val isSelf: Boolean = false,
 )
+
+/**
+ * board：板块资讯条目。
+ * 两套来源共用同一结构：
+ *  · games.mobileapi `basketballapi/news/v2/newsList`（nba/lol/cba/epl/csl/digital 等 tagCode）
+ *  · m.hupu.com/soccer SSR `pageProps.news`（国际足球）
+ * tid 非空即可按帖子打开（官方 link 形如 kanqiu://bbs/topic/{tid} / m.hupu.com/bbs/{tid}）；
+ * 为空的条目是运营位（type=LINK 的倒计时/活动卡），按 link 兜底处理。
+ */
+data class HupuBoardNews(
+    val nid: String,
+    val tid: String = "",
+    val type: String = "",
+    val title: String,
+    val img: String = "",
+    val link: String = "",
+    /** 落地链接类型：普通帖为 bbs 链接；LINK 运营位多为 CUSTOM
+     *  （huputiyu://webview/openencodeurl?url=<编码后的 https 活动页>） */
+    val linkType: String = "",
+    val replies: Int = 0,
+    val lights: Int = 0,
+    /** "2026-10-15 04:51:33" 服务端格式化时间 */
+    val publishTime: String = "",
+    /** epoch 秒（newsList 的 addTime 字段） */
+    val addTime: Long = 0L,
+    /** 置顶标记（newsList 的 top 字段 / badge 含「置顶」） */
+    val top: Boolean = false,
+    /** 角标名列表（置顶/精选/流言板 等，来自 badge[].name） */
+    val badges: List<String> = emptyList(),
+) {
+    /** 可按帖子打开（有 tid） */
+    val openableAsThread: Boolean get() = tid.isNotEmpty()
+}
+
+/** 一页板块资讯。 */
+data class HupuBoardNewsPage(
+    val items: List<HupuBoardNews>,
+    /** 服务端置顶的条数（data 前 N 条为置顶位） */
+    val topNewsCount: Int = 0,
+    /** 翻页游标：下一次请求的 preCount（本页累计条数） */
+    val nextPreCount: Int = 0,
+    /** 翻页锚点：下一次请求的 newId（本页首条 nid；首页为空串） */
+    val anchorNid: String = "",
+)
