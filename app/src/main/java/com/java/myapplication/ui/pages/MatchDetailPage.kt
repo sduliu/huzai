@@ -855,7 +855,8 @@ internal fun TeamDetailOverlay(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
                                 )
-                                day.matches.forEach { m -> BoardMatchRow(m) { onOpenMatch(m) } }
+                                // 点场 → 本页滑出 + 详情层换上该场（详情 zIndex 2 在本页之下）
+                                day.matches.forEach { m -> BoardMatchRow(m) { closing = true; onOpenMatch(m) } }
                             }
                         }
                     }
