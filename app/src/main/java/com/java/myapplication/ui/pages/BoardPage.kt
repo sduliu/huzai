@@ -60,6 +60,8 @@ import com.java.myapplication.data.HupuMatchDay
 import com.java.myapplication.data.HupuPrefs
 import com.java.myapplication.data.HupuReply
 import com.java.myapplication.data.HupuRepository
+import com.java.myapplication.data.HupuStandingRow
+import com.java.myapplication.data.HupuStandings
 import com.java.myapplication.data.HupuThread
 import com.java.myapplication.data.HupuThreadDetail
 import com.java.myapplication.data.HupuFloorReplies
@@ -92,32 +94,72 @@ import kotlinx.coroutines.launch
  * 层级：本页 zIndex 1.5 —— 低于比赛详情 overlay(2f)，板块内点比赛可正常盖出详情，
  * 返回后板块仍在；高于主内容（0f）。
  */
+/** 积分榜数据源：NONE 无入口 / NBA SSR 表格 / football-api 赛事榜。 */
+internal enum class HupuBoardStanding { NONE, NBA, SOCCER_API }
+
 internal data class HupuBoardCfg(
     /** 显示名（复用 HupuMatchApi.GAMES 的频道名） */
     val name: String,
     /** 赛程 businessId（= GAMES 频道 id；soccer 走 SSR，matchSchedule 已内部分流） */
     val scheduleId: String,
-    /** newsList 的 tagCode；null 表示该板块资讯走 soccer SSR */
+    /** newsList 的 tagCode；null 表示走 [newsTopic] 兜底或 soccer SSR */
     val tagCode: String? = null,
-    /** 国际足球：资讯来自 m.hupu.com/soccer SSR */
+    /** 国际足球：tagCode 失败/空时回退 m.hupu.com/soccer SSR */
     val soccerSsr: Boolean = false,
-    /** 积分榜落地页（EmbedWebPage；空串 = 无入口） */
+    /** 资讯兜底：专区话题页（如 /245 网球场），tid 帖直接可开 */
+    val newsTopic: String = "",
+    /** 积分榜数据源 */
+    val standing: HupuBoardStanding = HupuBoardStanding.NONE,
+    /** SOCCER_API 用：football-api 的 competitionId（英超81/中超531/欧冠46/世界杯1） */
+    val standingCompId: String = "",
+    /** 积分榜 WebView 兜底落地页（无原生实现时用；空串 + NONE = 无入口） */
     val standingsUrl: String = "",
 )
 
-/** 有板块页的频道（key = GAMES 频道 id）。实测 tagCode 见 HupuBoardApi 注释。 */
+/**
+ * 有板块页的频道（key = GAMES 频道 id）。
+ * 实测 tagCode（2026-10 newsList 各拉 20 条验证）：nba/cba/lol/kog/val/pubg/epl/csl/
+ * tabletennis/olympics/commonhotsports/fifa/digital 有量；wnba/cuba/lpl/lck/cs2/
+ * pubgmobile/worldcup/tennis/badminton 空 → 分别兜底（lpl/lck 共用 lol 流，
+ * 足球系共用 fifa 流，小球类走专区话题帖）。
+ */
 internal val HUPU_BOARDS: Map<String, HupuBoardCfg> = mapOf(
+    HupuMatchApi.COMMON_HOT_SPORTS_ID to
+        HupuBoardCfg("热门赛事", HupuMatchApi.COMMON_HOT_SPORTS_ID, tagCode = "commonhotsports"),
+    "lol" to HupuBoardCfg("英雄联盟", "lol", tagCode = "lol"),
     "nba" to HupuBoardCfg(
         "NBA", "nba", tagCode = "nba",
+        standing = HupuBoardStanding.NBA,
         standingsUrl = "https://nba.hupu.com/standings",
     ),
+    "epl" to HupuBoardCfg(
+        "英超", "epl", tagCode = "epl",
+        standing = HupuBoardStanding.SOCCER_API, standingCompId = "81",
+    ),
+    "kog" to HupuBoardCfg("王者荣耀", "kog", tagCode = "kog"),
+    "cba" to HupuBoardCfg("CBA", "cba", tagCode = "cba"),
     "soccer" to HupuBoardCfg(
-        "国际足球", HupuMatchApi.SOCCER_ID, soccerSsr = true,
+        // 国际足球资讯实测走 fifa tagCode（SSR 仅兜底）
+        "国际足球", HupuMatchApi.SOCCER_ID, tagCode = "fifa", soccerSsr = true,
+        // 跨联赛场景：原生榜只支持单赛事，聚合页仍用官方 H5（含联赛切换）
         standingsUrl = "https://games.mobileapi.hupu.com/football#/football/rank_new/1",
     ),
-    "lol" to HupuBoardCfg("英雄联盟", "lol", tagCode = "lol"),
-    "cba" to HupuBoardCfg("CBA", "cba", tagCode = "cba"),
-    "epl" to HupuBoardCfg("英超", "epl", tagCode = "epl"),
+    "cs2" to HupuBoardCfg("CS2", "cs2", newsTopic = "/240"),
+    "val" to HupuBoardCfg("无畏契约", "val", tagCode = "val"),
+    "lpl" to HupuBoardCfg("LPL", "lpl", tagCode = "lol"),
+    "pubg" to HupuBoardCfg("绝地求生", "pubg", tagCode = "pubg"),
+    "pubgmobile" to HupuBoardCfg("和平精英", "pubgmobile", newsTopic = "/240"),
+    "lck" to HupuBoardCfg("LCK", "lck", tagCode = "lol"),
+    "worldcup" to HupuBoardCfg(
+        "世界杯", "worldcup", tagCode = "fifa",
+        standing = HupuBoardStanding.SOCCER_API, standingCompId = "1",
+    ),
+    "tennis" to HupuBoardCfg("网球", "tennis", newsTopic = "/245"),
+    "tabletennis" to HupuBoardCfg("乒乓球", "tabletennis", tagCode = "tabletennis"),
+    "badminton" to HupuBoardCfg("羽毛球", "badminton", newsTopic = "/252"),
+    "olympics" to HupuBoardCfg("奥运会", "olympics", tagCode = "olympics"),
+    "wnba" to HupuBoardCfg("WNBA", "wnba", newsTopic = "/502"),
+    "cuba" to HupuBoardCfg("CUBA", "cuba", newsTopic = "/176"),
 )
 
 @Composable
@@ -149,7 +191,8 @@ internal fun BoardPage(
     // 帖子详情 / 嵌入页打开时，返回键由它们的 handler 接管（后组合者优先）
     var openedThread by remember { mutableStateOf<HupuThread?>(null) }
     var embedPage by remember { mutableStateOf<HupuEmbed?>(null) }
-    val innerPageOpen = openedThread != null || embedPage != null
+    var standingsOpen by remember { mutableStateOf(false) }
+    val innerPageOpen = openedThread != null || embedPage != null || standingsOpen
     PredictiveBackHandler { events ->
         if (closing || innerPageOpen) {
             events.collect { }
@@ -180,15 +223,27 @@ internal fun BoardPage(
     var refreshTick by remember { mutableIntStateOf(0) }
 
     fun loadNews(first: Boolean, force: Boolean) {
-        val tag = cfg.tagCode ?: return        // soccer SSR 走 loadSoccerNews
+        val tag = cfg.tagCode
+        val topic = cfg.newsTopic
+        if (tag == null && topic.isEmpty()) { loadSoccerNews(force); return }
         if (first) newsLoading = true else newsLoadingMore = true
         scope.launch {
-            val page = repo.boardNews(
-                tag,
-                preCount = if (first) 0 else newsPreCount,
-                anchorNid = if (first) "" else newsAnchor,
-                refresh = force,
-            )
+            val page = if (topic.isNotEmpty()) {
+                // 专区兜底：preCount 槽位复用为页码（topicNews 回写 nextPreCount=page+1）
+                repo.topicNews(topic, page = if (first) 1 else newsPreCount, refresh = force)
+            } else {
+                repo.boardNews(
+                    tag!!,
+                    preCount = if (first) 0 else newsPreCount,
+                    anchorNid = if (first) "" else newsAnchor,
+                    refresh = force,
+                )
+            }
+            // 失败/首页空 → 配置了 SSR 回退的板块（国际足球）再试一次
+            if ((page == null || (first && page.items.isEmpty())) && cfg.soccerSsr) {
+                loadSoccerNews(force)
+                return@launch
+            }
             if (page == null) {
                 if (first) newsFailed = true else newsLoadingMore = false
                 newsLoading = false
@@ -222,6 +277,35 @@ internal fun BoardPage(
         }
     }
 
+    // ---------- 积分榜 ----------
+    var standings by remember { mutableStateOf<HupuStandings?>(null) }
+    var standingsLoading by remember { mutableStateOf(false) }
+    var standingsFailed by remember { mutableStateOf(false) }
+
+    fun loadStandings() {
+        scope.launch {
+            standingsLoading = true
+            standingsFailed = false
+            val s = when (cfg.standing) {
+                HupuBoardStanding.NBA -> repo.nbaStandings()
+                HupuBoardStanding.SOCCER_API -> repo.soccerStandings(cfg.standingCompId)
+                HupuBoardStanding.NONE -> null
+            }
+            if (s != null) standings = s else standingsFailed = true
+            standingsLoading = false
+        }
+    }
+
+    /** 「积分榜」chip：有原生实现开原生页，否则回落 standingsUrl 的 WebView */
+    fun openStandings() {
+        if (cfg.standing != HupuBoardStanding.NONE) {
+            standingsOpen = true
+            if (standings == null && !standingsLoading) loadStandings()
+        } else if (cfg.standingsUrl.isNotEmpty()) {
+            embedPage = HupuEmbed(type = "board", url = cfg.standingsUrl, matchId = "", label = "积分榜")
+        }
+    }
+
     fun loadSchedule(force: Boolean) {
         scope.launch {
             val ds = repo.matchSchedule(cfg.scheduleId, refresh = force)
@@ -233,7 +317,7 @@ internal fun BoardPage(
     LaunchedEffect(boardId, refreshTick) {
         days = null
         loadSchedule(force = refreshTick > 0)
-        if (cfg.soccerSsr) loadSoccerNews(force = refreshTick > 0) else loadNews(first = true, force = refreshTick > 0)
+        loadNews(first = true, force = refreshTick > 0)
     }
 
     // 赛程预览：对齐 ScheduleList 定位逻辑——今天（或最近过往日）起取前 4 场
@@ -410,19 +494,12 @@ internal fun BoardPage(
                         }
                     }
                     // 数据入口行（官方同款图标行 → chip 化）
-                    if (cfg.standingsUrl.isNotEmpty() || cfg.scheduleId == boardId) {
-                        item(key = "entry-chips") {
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                if (cfg.standingsUrl.isNotEmpty()) {
-                                    Chip(text = "积分榜", selected = false) {
-                                        embedPage = HupuEmbed(
-                                            type = "board", url = cfg.standingsUrl,
-                                            matchId = "", label = "积分榜",
-                                        )
-                                    }
-                                }
-                                Chip(text = "完整赛程", selected = false) { onClose() }
+                    item(key = "entry-chips") {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            if (cfg.standing != HupuBoardStanding.NONE || cfg.standingsUrl.isNotEmpty()) {
+                                Chip(text = "积分榜", selected = false) { openStandings() }
                             }
+                            Chip(text = "完整赛程", selected = false) { onClose() }
                         }
                     }
                     // 资讯
@@ -541,6 +618,16 @@ internal fun BoardPage(
                 EmbedWebPage(e) { embedPage = null }
             }
         }
+        // 积分榜原生页
+        if (standingsOpen) {
+            BoardStandingsOverlay(
+                data = standings,
+                loading = standingsLoading,
+                failed = standingsFailed,
+                onBack = { standingsOpen = false },
+                onRetry = { loadStandings() },
+            )
+        }
     }
 }
 
@@ -658,4 +745,164 @@ private fun boardLinkUrl(n: HupuBoardNews): String? {
     return runCatching { URLDecoder.decode(inner.substringBefore('&'), "UTF-8") }
         .getOrNull()
         ?.takeIf { it.startsWith("http") }
+}
+
+/**
+ * 积分榜盖入页（EmbedWebPage 同款转场）：组标题 + 列头 + 排名行。
+ * NBA（SSR 表）与足球（competition/ranking）共用渲染；足球行的
+ * [HupuStandingRow.color] 是服务端给的升降级区底色，直接做排名角标底。
+ */
+@Composable
+private fun BoardStandingsOverlay(
+    data: HupuStandings?,
+    loading: Boolean,
+    failed: Boolean,
+    onBack: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        SecondaryPage.enter()
+        progress.animateTo(1f, tween(280))
+    }
+    DisposableEffect(Unit) {
+        onDispose { SecondaryPage.exit() }
+    }
+    var closing by remember { mutableStateOf(false) }
+    LaunchedEffect(closing) {
+        if (closing) {
+            progress.animateTo(0f, tween(280))
+            onBack()
+        }
+    }
+    PredictiveBackHandler { events ->
+        if (closing) {
+            events.collect { }
+            return@PredictiveBackHandler
+        }
+        try {
+            events.collect { event -> progress.snapTo(1f - event.progress) }
+            progress.animateTo(0f, tween(120))
+            closing = true
+        } catch (e: CancellationException) {
+            progress.animateTo(1f, tween(200))
+            throw e
+        }
+    }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .zIndex(1.6f)
+            .graphicsLayer { translationX = (1f - progress.value) * size.width }
+            .background(MaterialTheme.colorScheme.background)
+            .tapGuard(),
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            CenteredTopBar(
+                title = data?.league?.takeIf { it.isNotEmpty() }?.let { "$it 积分榜" } ?: "积分榜",
+                onBack = { closing = true },
+            )
+            when {
+                data != null -> StandingList(data)
+                loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(26.dp),
+                        strokeWidth = 2.5.dp,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                failed -> ErrorRetry { onRetry() }
+                else -> Box(Modifier.fillMaxSize())
+            }
+        }
+    }
+}
+
+@Composable
+private fun StandingList(data: HupuStandings) {
+    LazyColumn(
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        data.groups.forEach { g ->
+            item(key = "g-${g.title}") {
+                BoardSectionHeader(g.title)
+                Spacer(Modifier.height(6.dp))
+            }
+            // 列头
+            item(key = "h-${g.title}") {
+                StandingRowLayout(
+                    rank = "排名", team = "队名", cells = g.columns,
+                    isHeader = true, color = "",
+                )
+            }
+            items(g.rows, key = { "${g.title}-${it.rank}-${it.team}" }) { r ->
+                StandingRowLayout(
+                    rank = r.rank, team = r.team, cells = r.cells,
+                    isHeader = false, color = r.color, teamLogo = r.teamLogo,
+                )
+            }
+            item(key = "sp-${g.title}") { Spacer(Modifier.height(14.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun StandingRowLayout(
+    rank: String,
+    team: String,
+    cells: List<String>,
+    isHeader: Boolean,
+    color: String,
+    teamLogo: String = "",
+) {
+    val textColor = if (isHeader) MaterialTheme.colorScheme.onSurfaceVariant
+        else MaterialTheme.colorScheme.onSurface
+    val badgeBg = runCatching {
+        androidx.compose.ui.graphics.Color(android.graphics.Color.parseColor(color))
+    }.getOrNull() ?: MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(22.dp)
+                .clip(RoundedCornerShape(50))
+                .background(if (isHeader) MaterialTheme.colorScheme.surface else badgeBg),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                rank, fontSize = 11.sp,
+                fontWeight = if (isHeader) FontWeight.Normal else FontWeight.SemiBold,
+                color = textColor,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        if (teamLogo.isNotEmpty()) {
+            AsyncImage(
+                model = teamLogo,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+        }
+        Text(
+            team, fontSize = 13.sp,
+            fontWeight = if (isHeader) FontWeight.Normal else FontWeight.Medium,
+            color = textColor,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        cells.forEach { c ->
+            Text(
+                c, fontSize = 12.sp, color = textColor,
+                maxLines = 1, overflow = TextOverflow.Clip,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.width(40.dp),
+            )
+        }
+    }
 }

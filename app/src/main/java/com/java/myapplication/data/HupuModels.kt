@@ -591,3 +591,34 @@ data class HupuBoardNewsPage(
     /** 翻页锚点：下一次请求的 newId（本页首条 nid；首页为空串） */
     val anchorNid: String = "",
 )
+
+// ---------- board：积分榜（Step 3）----------
+
+/**
+ * 积分榜一行。NBA（nba.hupu.com/standings SSR 表格）与足球
+ * （football-api competition/ranking JSON）共用此结构；[cells] 与
+ * 所属组 [HupuStandingGroup.columns] 一一对应（均不含排名/队名两列）。
+ */
+data class HupuStandingRow(
+    val rank: String,
+    val team: String,
+    /** 队徽 url（足球有，NBA SSR 表无图） */
+    val teamLogo: String = "",
+    val cells: List<String>,
+    /** 排名色标（足球升降级区底色，如 "#FFEBEB"；空=无） */
+    val color: String = "",
+)
+
+/** 积分榜分组（东/西部、联赛排名、小组赛 A 组…）。 */
+data class HupuStandingGroup(
+    val title: String,
+    /** 数据列头（不含排名/队名） */
+    val columns: List<String>,
+    val rows: List<HupuStandingRow>,
+)
+
+data class HupuStandings(
+    /** 榜单名（英超 / NBA） */
+    val league: String,
+    val groups: List<HupuStandingGroup>,
+)

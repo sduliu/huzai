@@ -379,6 +379,56 @@ class HupuRepository {
         return withContext(Dispatchers.Default) { HupuBoardParser.parseSoccerNews(html) }
     }
 
+    /**
+     * board：专区帖子流兜底资讯（无 newsList tagCode 的板块）。
+     * [url] 是 bbs.hupu.com 的话题页路径（如 /245 网球场、/252 羽毛球），
+     * 线程映射为 [HupuBoardNews]（tid 必非空 → 全部可开帖）。失败返回 null。
+     */
+    suspend fun topicNews(url: String, page: Int = 1, refresh: Boolean = false): HupuBoardNewsPage? {
+        val p = topicPage(url, page, refresh) ?: return null
+        val items = p.threads.map { t ->
+            HupuBoardNews(
+                nid = t.tid,
+                tid = t.tid,
+                type = "TOPIC",
+                title = t.title,
+                img = t.cover ?: "",
+                link = t.url,
+                replies = t.replies,
+                lights = t.lights,
+                publishTime = t.createdAtText,
+            )
+        }
+        return HupuBoardNewsPage(
+            items = items,
+            nextPreCount = page + 1,      // 对 topic 复用 preCount 槽位存页码
+            anchorNid = items.firstOrNull()?.nid ?: "",
+        )
+    }
+
+    /** board：NBA 积分榜（nba.hupu.com/standings SSR 表格）。失败返回 null。 */
+    suspend fun nbaStandings(refresh: Boolean = false): HupuStandings? {
+        val html = HupuBoardApi.fetchNbaStandingsHtml(forceNetwork = refresh) ?: return null
+        return withContext(Dispatchers.Default) { HupuStandingParser.parseNbaStandings(html) }
+    }
+
+    /**
+     * board：足球积分榜（football-api 两段式：subDataCategory 取最新赛季 →
+     * competition/ranking 取榜）。competitionId 如 英超=81、中超=531、欧冠=46。
+     * 失败返回 null。
+     */
+    suspend fun soccerStandings(competitionId: String, refresh: Boolean = false): HupuStandings? {
+        val seasons = HupuBoardApi.fetchSoccerSeasonsJson(competitionId, forceNetwork = refresh)
+            ?: return null
+        val seasonId = withContext(Dispatchers.Default) {
+            HupuStandingParser.parseSoccerSeasonId(seasons)
+        } ?: return null
+        val json = HupuBoardApi.fetchSoccerRankingJson(
+            competitionId, seasonId, forceNetwork = refresh,
+        ) ?: return null
+        return withContext(Dispatchers.Default) { HupuStandingParser.parseSoccerStandings(json) }
+    }
+
     /** 评分树：比赛 → 对局[] → 选手[]（一次请求全量，匿名可用）。失败返回 null。 */
     suspend fun scoreTree(bizType: String, bizNo: String, refresh: Boolean = false): HupuScoreTree? {
         val json = HupuMatchApi.fetchScoreTree(bizType, bizNo, forceNetwork = refresh) ?: return null

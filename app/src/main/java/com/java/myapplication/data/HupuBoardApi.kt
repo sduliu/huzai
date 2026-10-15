@@ -33,6 +33,12 @@ object HupuBoardApi {
     /** 国际足球板块 SSR 资讯页 */
     private const val SOCCER_HOME_URL = "https://m.hupu.com/soccer"
 
+    /** NBA 积分榜 SSR 页（players_table 纯 HTML 表格） */
+    private const val NBA_STANDINGS_URL = "https://nba.hupu.com/standings"
+
+    /** 足球数据服务（football-api，匿名 GET 可用） */
+    private const val FOOTBALL_BASE = "https://football-api.hupu.com/3/8.0.73/football"
+
     /** 与 HupuMatchApi 一致：PC UA 走 mobileapi 无妨（实测）。 */
     private const val UA =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
@@ -106,6 +112,92 @@ object HupuBoardApi {
                     if (!html.contains("__NEXT_DATA__")) return@use null
                     HupuCache.put(cacheKey, html)
                     html
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
+    /**
+     * NBA 积分榜页 HTML（nba.hupu.com/standings，SSR 表格 players_table）。
+     * 失败返回 null。
+     */
+    suspend fun fetchNbaStandingsHtml(forceNetwork: Boolean = false): String? {
+        val cacheKey = "board-standings-nba"
+        return withContext(Dispatchers.IO) {
+            if (!forceNetwork) {
+                HupuCache.get(cacheKey)?.let { return@withContext it }
+            }
+            val request = Request.Builder()
+                .url(NBA_STANDINGS_URL)
+                .header("User-Agent", UA)
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use null
+                    val html = response.body?.string() ?: return@use null
+                    if (!html.contains("players_table")) return@use null
+                    HupuCache.put(cacheKey, html)
+                    html
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
+    /**
+     * 足球赛事的赛季列表（subDataCategory）。result[] 按新到旧排列，
+     * 每项 seasonId + categorys（积分榜/球员榜/球队榜入口）。失败返回 null。
+     */
+    suspend fun fetchSoccerSeasonsJson(competitionId: String, forceNetwork: Boolean = false): String? =
+        fetchFootballJson(
+            "board-fb-seasons-$competitionId",
+            "$FOOTBALL_BASE/category/subDataCategory?competitionId=$competitionId",
+            forceNetwork,
+        )
+
+    /**
+     * 足球积分榜 JSON（competition/ranking）。实测参数三件套：
+     * leagueId=competitionId、seasonId、hupuCompetitionId=competitionId，缺一不可。
+     * 失败返回 null。
+     */
+    suspend fun fetchSoccerRankingJson(
+        competitionId: String,
+        seasonId: String,
+        forceNetwork: Boolean = false,
+    ): String? =
+        fetchFootballJson(
+            "board-fb-rank-$competitionId-$seasonId",
+            "$FOOTBALL_BASE/competition/ranking?leagueId=$competitionId" +
+                "&seasonId=$seasonId&hupuCompetitionId=$competitionId",
+            forceNetwork,
+        )
+
+    private suspend fun fetchFootballJson(
+        cacheKey: String,
+        url: String,
+        forceNetwork: Boolean,
+    ): String? {
+        return withContext(Dispatchers.IO) {
+            if (!forceNetwork) {
+                HupuCache.get(cacheKey)?.let { return@withContext it }
+            }
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", UA)
+                .header("Accept", "application/json, text/plain, */*")
+                .header("Referer", "https://games.mobileapi.hupu.com/")
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use null
+                    val json = response.body?.string() ?: return@use null
+                    if (!HupuMatchApi.isJsonBody(json)) return@use null
+                    HupuCache.put(cacheKey, json)
+                    json
                 }
             } catch (e: Exception) {
                 null
