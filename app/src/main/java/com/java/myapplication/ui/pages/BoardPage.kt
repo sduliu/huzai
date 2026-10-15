@@ -457,6 +457,23 @@ internal fun BoardContent(
                 // 「近期比赛」永远是最先看到的内容，异步赛程落位不会把视口顶下去
                 val listState = remember(state) { LazyListState() }
                 LaunchedEffect(state) { listState.scrollToItem(0) }
+                // 「查看全部赛程」展开 → 定位到当前比赛日（频道版 ScheduleList 同款锚定：
+                // 今天有比赛→今天；无→最近过往日；全是未来→首日），上滑过去、下滑未来。
+                // item 布局：0=标题行，1..n=日块（每日一个 item）→ 锚点 = 1 + 锚定日下标
+                LaunchedEffect(showAllMatches, effDays) {
+                    // 收起回顶：深滚动位置收起后无效，回到「近期比赛」开头
+                    if (!showAllMatches) { listState.scrollToItem(0); return@LaunchedEffect }
+                    val ds = effDays.orEmpty().filter { it.matches.isNotEmpty() }
+                    if (ds.isEmpty()) return@LaunchedEffect
+                    val todayIdx = ds.indexOfFirst { it.dayTime == today }
+                    val lastPast = ds.indexOfLast { it.dayTime <= today }
+                    val anchor = when {
+                        todayIdx >= 0 -> todayIdx
+                        lastPast >= 0 -> lastPast
+                        else -> 0
+                    }
+                    listState.scrollToItem(1 + anchor)
+                }
                 val shouldLoadMore by remember {
                     derivedStateOf {
                         val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
