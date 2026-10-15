@@ -323,7 +323,8 @@ fun PocketLedgerApp() {
                 val tabs = listOf(
                     Triple("首页", Icons.Rounded.Home, "首页"),
                     Triple("专区", Icons.AutoMirrored.Rounded.List, "专区"),
-                    Triple("评分", Icons.Rounded.Star, "评分"),
+                    // fork：对齐官方「比赛」Tab（内容仍是赛程比分页，评分体系收进详情内）
+                    Triple("比赛", Icons.Rounded.Star, "比赛"),
                     Triple("我的", Icons.Rounded.Person, "我的")
                 )
                 tabs.forEachIndexed { index, (label, icon, desc) ->

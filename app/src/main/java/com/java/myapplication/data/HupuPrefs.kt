@@ -365,8 +365,9 @@ object HupuPrefs {
         scoreGamesVersion++
     }
 
-    /** 1.192: 评分页「虎扑评分」固定频道是否隐藏（恒保证「虎扑评分 + 已选赛事」至少一个可见） */
-    fun isScoreCommonHidden(): Boolean = prefs.getBoolean(KEY_SCORE_COMMON_HIDDEN, false)
+    /** 1.192: 评分页「虎扑评分」固定频道是否隐藏（恒保证「虎扑评分 + 已选赛事」至少一个可见）。
+     *  fork：默认隐藏——对齐官方「比赛」页形态（只比分），设置页可开回。 */
+    fun isScoreCommonHidden(): Boolean = prefs.getBoolean(KEY_SCORE_COMMON_HIDDEN, true)
 
     fun setScoreCommonHidden(hidden: Boolean) {
         prefs.edit().putBoolean(KEY_SCORE_COMMON_HIDDEN, hidden).apply()

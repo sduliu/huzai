@@ -60,11 +60,9 @@ import com.java.myapplication.data.HupuPrefs
 import com.java.myapplication.data.isLocalStickerUrl
 import com.java.myapplication.data.HupuMatchDay
 import com.java.myapplication.data.HupuMatchTeam
-import com.java.myapplication.data.HupuPlayerScore
 import com.java.myapplication.data.HupuRepository
 import com.java.myapplication.data.HupuUiSignals
 import com.java.myapplication.data.HupuScoreGroup
-import com.java.myapplication.data.HupuScoreItem
 import com.java.myapplication.data.HupuScoreTree
 import com.java.myapplication.data.HupuAccount
 import com.java.myapplication.data.HupuSelfDetail
@@ -145,7 +143,8 @@ internal fun ScheduleList(
     }
 }
 
-/** 单场比赛卡：队伍比分行 + 选手评分卡（有评分钥匙的已完赛/进行中比赛可点进详情） */
+/** 单场比赛卡：队伍比分行（官方式：只比分，不带选手评分卡）。
+ * 有评分钥匙的已完赛/进行中比赛仍可点进详情——详情页内保留评分体系。 */
 @Composable
 internal fun MatchCard(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
     // 电竞：scoreBizNo 由赛程直接给出；国际足球：赛程无 outBizNo，开赛后（进行中/已结束）
@@ -243,8 +242,6 @@ internal fun MatchCard(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        // 选手评分卡
-        m.playerScore?.let { PlayerScoreCard(it, matchScoreCount = m.scoreCountText) }
     }
 }
 

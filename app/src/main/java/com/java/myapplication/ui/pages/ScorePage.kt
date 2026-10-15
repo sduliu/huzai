@@ -673,7 +673,8 @@ fun ScorePage(modifier: Modifier = Modifier) {
                     onNext = { swipeScoreTab(1) },
                 ),
             header = {
-            PageHeader(title = "评分") {
+            // fork：页头同步「比赛」命名（官方同名页）
+            PageHeader(title = "比赛") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 // board：当前频道有板块页配置 → 「资讯」入口（盖入式板块页）
                 if (!commonOpen && HUPU_BOARDS.containsKey(selectedGame)) {
