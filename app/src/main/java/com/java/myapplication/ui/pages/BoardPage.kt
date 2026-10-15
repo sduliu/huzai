@@ -222,6 +222,17 @@ internal fun BoardPage(
     var newsHasMore by remember { mutableStateOf(false) }
     var refreshTick by remember { mutableIntStateOf(0) }
 
+    fun loadSoccerNews(force: Boolean) {
+        scope.launch {
+            newsLoading = true
+            val list = repo.soccerNews(refresh = force)
+            newsItems = list
+            newsFailed = list.isEmpty()
+            newsHasMore = false      // SSR 单页，无翻页
+            newsLoading = false
+        }
+    }
+
     fun loadNews(first: Boolean, force: Boolean) {
         val tag = cfg.tagCode
         val topic = cfg.newsTopic
@@ -263,17 +274,6 @@ internal fun BoardPage(
             newsFailed = false
             newsLoading = false
             newsLoadingMore = false
-        }
-    }
-
-    fun loadSoccerNews(force: Boolean) {
-        scope.launch {
-            newsLoading = true
-            val list = repo.soccerNews(refresh = force)
-            newsItems = list
-            newsFailed = list.isEmpty()
-            newsHasMore = false      // SSR 单页，无翻页
-            newsLoading = false
         }
     }
 
