@@ -171,6 +171,8 @@ internal fun BoardPage(
     boardId: String,
     onClose: () -> Unit,
     onOpenMatch: (HupuMatch) -> Unit,
+    /** 宿主频道页已加载的赛程（schedules[boardId]）——首帧即用，本页 fetch 仅作兜底/刷新 */
+    hostSchedule: List<HupuMatchDay>? = null,
 ) {
     val cfg = HUPU_BOARDS[boardId] ?: return
     val repo = remember { HupuRepository() }
@@ -324,10 +326,12 @@ internal fun BoardPage(
         loadNews(first = true, force = refreshTick > 0)
     }
 
-    // 顶部热门比赛（官方式：≤4 场）——进行中优先，锚定日（今天/最近过往日/首日）起填充
+    // 顶部热门比赛（官方式：≤4 场）——进行中优先，锚定日（今天/最近过往日/首日）起填充；
+    // 数据源：本页拉到的 days 优先，未落地前用宿主频道的 hostSchedule 首帧直出
     val today = remember { LocalDate.now().toString() }
-    val hotMatches = remember(days) {
-        val ds = days.orEmpty()
+    val effDays = days ?: hostSchedule
+    val hotMatches = remember(days, hostSchedule) {
+        val ds = effDays.orEmpty()
         if (ds.isEmpty()) emptyList() else {
             val live = ds.flatMap { it.matches }.filter { it.status == "INPROGRESS" }
             val todayIdx = ds.indexOfFirst { it.dayTime == today }

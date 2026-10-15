@@ -901,6 +901,7 @@ fun ScorePage(modifier: Modifier = Modifier) {
                     boardId = bg,
                     onClose = { boardGame = null },
                     onOpenMatch = { openMatch(it) },
+                    hostSchedule = schedules[bg],
                 )
             }
         }
