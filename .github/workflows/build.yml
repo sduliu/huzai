@@ -14,6 +14,8 @@ jobs:
   apk:
     name: Build debug APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # action-gh-release 写 release 资产
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
