@@ -74,6 +74,7 @@ import com.java.myapplication.data.HupuPrefs
 import com.java.myapplication.ui.components.HupuIcons
 import com.java.myapplication.ui.components.LiquidIconButton
 import com.java.myapplication.ui.glass.LiquidButton
+import com.java.myapplication.ui.glass.LocalTabActive
 import com.java.myapplication.data.isLocalStickerUrl
 import com.java.myapplication.data.HupuMatchDay
 import com.java.myapplication.data.HupuMatchTeam
@@ -335,9 +336,18 @@ fun ScorePage(modifier: Modifier = Modifier) {
     val commonTrees = remember { mutableStateMapOf<String, HupuCommonTree>() }
 
     // board：进「比赛」Tab 即落在默认频道的板块页（比赛+资讯合并页，官方形态）；
-    // 「虎扑评分」可见时落在它上面，不抢开板块页
-    LaunchedEffect(Unit) {
-        if (!commonOpen && HUPU_BOARDS.containsKey(selectedGame)) boardGame = selectedGame
+    // 「虎扑评分」可见时落在它上面，不抢开板块页。
+    // 主页常驻组合（切 Tab 不重建），故用 LocalTabActive 而非 Unit 触发——首次激活才算"进入"，
+    // 且每轮激活至多自动开一次（否则用户关掉板块页、切走再切回又被弹回）。
+    val tabActive = LocalTabActive.current
+    var boardAutoOpened by remember { mutableStateOf(false) }
+    LaunchedEffect(tabActive) {
+        if (tabActive && !boardAutoOpened) {
+            boardAutoOpened = true
+            if (!commonOpen && boardGame == null && HUPU_BOARDS.containsKey(selectedGame)) {
+                boardGame = selectedGame
+            }
+        }
     }
 
     fun openMatch(m: HupuMatch) {
