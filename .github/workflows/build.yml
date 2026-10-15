@@ -48,3 +48,16 @@ jobs:
           name: huzai-debug-${{ github.sha }}
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+      # 每次 main 构建覆盖更新 nightly-board release 资产：
+      # 固定下载口 https://github.com/sduliu/huzai/releases/download/nightly-board/huzai-debug.apk
+      - name: Rename APK to fixed name
+        run: cp app/build/outputs/apk/debug/app-debug.apk huzai-debug.apk
+
+      - name: Publish to nightly-board release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly-board
+          name: Nightly 板块页构建
+          prerelease: true
+          files: huzai-debug.apk
