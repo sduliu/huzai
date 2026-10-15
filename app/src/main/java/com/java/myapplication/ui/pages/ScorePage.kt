@@ -337,7 +337,7 @@ fun ScorePage(modifier: Modifier = Modifier) {
     // board：进「比赛」Tab 即落在默认频道的板块页（比赛+资讯合并页，官方形态）；
     // 「虎扑评分」可见时落在它上面，不抢开板块页
     LaunchedEffect(Unit) {
-        if (!commonOpen) HUPU_BOARDS[selectedGame]?.let { boardGame = it }
+        if (!commonOpen && HUPU_BOARDS.containsKey(selectedGame)) boardGame = selectedGame
     }
 
     fun openMatch(m: HupuMatch) {
