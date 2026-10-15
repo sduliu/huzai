@@ -141,8 +141,9 @@ internal val HUPU_BOARDS: Map<String, HupuBoardCfg> = mapOf(
     "soccer" to HupuBoardCfg(
         // 国际足球资讯实测走 fifa tagCode（SSR 仅兜底）
         "国际足球", HupuMatchApi.SOCCER_ID, tagCode = "fifa", soccerSsr = true,
-        // 跨联赛场景：原生榜只支持单赛事，聚合页仍用官方 H5（含联赛切换）
-        standingsUrl = "https://games.mobileapi.hupu.com/football#/football/rank_new/1",
+        // 跨联赛场景：原生榜只支持单赛事，聚合页仍用官方 H5（rank_new/{competitionId}，
+        // 81=英超——实测 compId=1 世界杯无当前赛季会显示空态，H5 内可切换联赛）
+        standingsUrl = "https://games.mobileapi.hupu.com/football#/football/rank_new/81",
     ),
     "cs2" to HupuBoardCfg("CS2", "cs2", newsTopic = "/240"),
     "val" to HupuBoardCfg("无畏契约", "val", tagCode = "val"),
@@ -832,7 +833,7 @@ private fun StandingList(data: HupuStandings) {
             // 列头
             item(key = "h-${g.title}") {
                 StandingRowLayout(
-                    rank = "排名", team = "队名", cells = g.columns,
+                    rank = "#", team = "队名", cells = g.columns,
                     isHeader = true, color = "",
                 )
             }
