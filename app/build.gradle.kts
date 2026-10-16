@@ -47,7 +47,7 @@ fun validateSigning(variant: String, options: Map<String, String>) {
 
 android {
     namespace = "com.kudo.android"
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig {
         applicationId = "com.huzai.kudo"
         minSdk = 26
