@@ -125,7 +125,7 @@ fun ErrorState(error: Throwable, retry: () -> Unit, login: () -> Unit, back: (()
     }
     EmptyState(if (kind == FailureKind.VERIFICATION) "和社区连接，只差一步" else if (kind == FailureKind.SIGN_IN) "登录后继续" else "暂时没能加载",
         error.message ?: "请稍后重试", if (auth) Icons.Rounded.VerifiedUser else Icons.Rounded.CloudOff,
-        if (kind == FailureKind.VERIFICATION) "完成网页验证" else if (auth) "登录 Linux.do" else "重新加载", action)
+        if (kind == FailureKind.VERIFICATION) "完成网页验证" else if (auth) "登录虎扑" else "重新加载", action)
 }
 
 @Composable
@@ -152,7 +152,7 @@ fun TopicCard(topic: Topic, category: Category?, onClick: () -> Unit, onUser: (S
         Row(verticalAlignment = Alignment.CenterVertically) {
             Avatar(topic.author, 35.dp) { topic.author?.username?.let(onUser) }
             Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                Text(topic.author?.displayName ?: "Linux.do 社区", style = MaterialTheme.typography.titleSmall, maxLines = 1)
+                Text(topic.author?.displayName ?: "虎扑", style = MaterialTheme.typography.titleSmall, maxLines = 1)
                 TopicAuthorMetadata(topic.bumpedAt, resolvedCategory)
             }
             if (topic.pinned) Icon(Icons.Rounded.PushPin, "置顶", Modifier.size(17.dp), MaterialTheme.colorScheme.primary)

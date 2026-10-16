@@ -102,7 +102,7 @@ private fun GuestProfileScreen(login: () -> Unit, settings: () -> Unit, about: (
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                     GuestMenuRow(Icons.Rounded.Download, "下载管理", "查看文件下载进度和历史", downloads)
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                    GuestMenuRow(Icons.Rounded.Info, "关于酷DO", "一个用心的 Linux.do 原生客户端", about, value = BuildConfig.VERSION_NAME)
+                    GuestMenuRow(Icons.Rounded.Info, "关于虎Do", "一个用心的 虎扑第三方客户端", about, value = BuildConfig.VERSION_NAME)
                 }
             }
             item {

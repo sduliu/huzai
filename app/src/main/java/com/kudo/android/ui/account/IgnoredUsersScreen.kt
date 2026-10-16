@@ -23,7 +23,7 @@ fun IgnoredUsersScreen(viewer: Member?, repository: CommunityRepository, back: (
     var uncertain by remember(viewer?.id) { mutableStateOf(setOf<String>()) }
     MaterialPageScaffold(header = { PageTopBar("已忽略用户", back) }) { padding ->
         LazyColumn(state = scroll, modifier = Modifier.fillMaxSize().quickScrollTarget(scroll), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { Text("与 Linux.do 账号同步。取消忽略后，恢复此用户的内容和正常通知。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            item { Text("与 虎扑账号同步。取消忽略后，恢复此用户的内容和正常通知。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             if (viewer == null) item { EmptyState("登录后管理忽略用户", "使用与社区相同的账号设置。", actionLabel = "登录", action = login) }
             else {
                 if (viewer.ignoredUsers.isEmpty()) item { EmptyState("没有忽略的用户", "在主题列表的操作菜单中选择屏蔽。") }

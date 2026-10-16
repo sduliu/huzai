@@ -37,7 +37,7 @@ import com.kudo.android.ui.theme.LocalDisplaySettings
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
-internal const val KudoAboutText = "酷DO是 LINUX DO 的第三方安卓原生客户端"
+internal const val KudoAboutText = "虎Do是 LINUX DO 的第三方安卓原生客户端"
 
 @Composable
 fun AboutScreen(openLink: (String) -> Unit = {}, openExternal: (String) -> Unit = {},
@@ -52,14 +52,14 @@ fun AboutScreen(openLink: (String) -> Unit = {}, openExternal: (String) -> Unit 
     fun show(value: String) { dialog = value; visibility.targetState = true }
     fun dismiss() { visibility.targetState = false }
     Box(Modifier.fillMaxSize()) {
-        MaterialPageScaffold(header = { PageTopBar("关于酷DO", back) }, modifier = Modifier.fillMaxSize().layerBackdrop(backdrop).background(MaterialTheme.colorScheme.background)
+        MaterialPageScaffold(header = { PageTopBar("关于虎Do", back) }, modifier = Modifier.fillMaxSize().layerBackdrop(backdrop).background(MaterialTheme.colorScheme.background)
             .then(if (showing) Modifier.clearAndSetSemantics {} else Modifier)
             .focusProperties { onEnter = { if (showing) cancelFocusChange() } }.focusGroup()) { padding ->
             LazyColumn(Modifier.fillMaxSize().testTag("about-content").quickScrollTarget(scroll, enabled = !showing), state = scroll, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 24.dp, bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 item {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp), verticalAlignment = Alignment.Top) {
-                        Brand(R.drawable.ic_kudo, "酷DO", Modifier.weight(1f))
+                        Brand(R.drawable.ic_kudo, "虎Do", Modifier.weight(1f))
                         Icon(Icons.Rounded.Favorite, "热爱", Modifier.padding(top = 18.dp).size(28.dp), tint = Color(0xFFFF5B66))
                         Brand(R.drawable.ic_linux_do, "LINUX DO", Modifier.weight(1f))
                     }
@@ -89,7 +89,7 @@ fun AboutScreen(openLink: (String) -> Unit = {}, openExternal: (String) -> Unit 
             maxDialogHeightFraction = if (dialog == "licenses") .7f else 1f,
             actions = { LiquidModalAction("知道了", ::dismiss, Modifier.fillMaxWidth(), primary = true) }) {
             if (dialog == "privacy") {
-                Text("酷DO 直接连接 Linux.do。登录在官网页面完成；应用不收集密码，不接入统计或广告服务。Cookie 与草稿保存在应用私有目录，禁用系统备份，退出登录后清除。帖子中的外部图片会向其来源站点发起请求。DoH 默认关闭；开启后所选解析服务器可看到查询域名，应用不会向其发送社区登录凭据。",
+                Text("虎Do 直接连接虎扑。登录在官网页面完成；应用不收集密码，不接入统计或广告服务。Cookie 与草稿保存在应用私有目录，禁用系统备份，退出登录后清除。帖子中的外部图片会向其来源站点发起请求。DoH 默认关闭；开启后所选解析服务器可看到查询域名，应用不会向其发送社区登录凭据。",
                     style = MaterialTheme.typography.bodyMedium, color = LocalContentColor.current.copy(alpha = 0.8f))
             } else {
                 ModalLink("Backdrop 项目与许可") { openLink("https://github.com/Kyant0/AndroidLiquidGlass") }

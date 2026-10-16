@@ -109,7 +109,7 @@ private fun FlagChoice(reason: FlagReason, username: String, selected: Boolean, 
 @Composable
 internal fun TopicIgnoreContent(state: TopicActionState, viewer: Member?, duration: (IgnoreDuration) -> Unit) {
     Text("忽略 @${state.post?.author?.username.orEmpty()}", style = MaterialTheme.typography.titleMedium)
-    Text("你将不会收到与此用户相关的任何通知，其所有内容也将被隐藏。这项设置与 Linux.do 账号同步。", style = MaterialTheme.typography.bodyMedium)
+    Text("你将不会收到与此用户相关的任何通知，其所有内容也将被隐藏。这项设置与 虎扑账号同步。", style = MaterialTheme.typography.bodyMedium)
     if (viewer?.canIgnoreUsers != true || state.post?.author?.id == viewer.id) {
         Text("当前账号无法忽略此用户。", color = MaterialTheme.colorScheme.error)
         return

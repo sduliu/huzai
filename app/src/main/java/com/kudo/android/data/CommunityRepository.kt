@@ -95,8 +95,40 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
 
     suspend fun recordReading(batch: TopicReadingBatch) = Unit
 
-    /** 回复分页：详情已全量内嵌首页回复，翻页暂不支持。 */
-    suspend fun posts(topicId: Int, ids: List<Int>): List<Post> = emptyList()
+    /**
+     * 回复分页。ids 为 stream 中的 post id（编码 tid+floor，占位项 pid 为空）。
+     * 按 floor 定位页码调用虎扑回复分页，返回的 Post 沿用请求方占位 id 以匹配 stream，
+     * 真实 pid 回写进 HupuIds 侧表供楼中楼展开用。
+     */
+    suspend fun posts(topicId: Int, ids: List<Int>): List<Post> {
+        val tid = HupuIds.tid(topicId) ?: return emptyList()
+        val wanted = ids.mapNotNull { id ->
+            HupuIds.postRef(id)?.takeUnless { it.isOp }?.takeIf { it.tid == tid }
+                ?.let { id to it.floor }
+        }
+        if (wanted.isEmpty()) return emptyList()
+        val byFloor = wanted.groupBy({ it.second }, { it.first })
+        val found = mutableMapOf<Int, Post>()
+        for (p in byFloor.keys.map { (it - 1) / 20 + 1 }.toSet()) {
+            val d = hupu.threadReplies(tid, p) ?: continue
+            for (r in d.replies) {
+                for (id in byFloor[r.floor].orEmpty()) {
+                    found[id] = r.toPost(tid).copy(id = id)
+                    HupuIds.bindPid(id, r.pid)
+                }
+            }
+        }
+        return ids.mapNotNull(found::get)
+    }
+
+    /** 楼中楼：postId → (tid,pid,floor) → 虎扑 floorReplies；after=已加载数，取末位 pid 作 maxpid 游标。 */
+    suspend fun replies(postId: Int, after: Int): List<Post> {
+        val ref = HupuIds.postRef(postId)?.takeIf { it.pid.isNotEmpty() } ?: return emptyList()
+        val parent = com.kudo.android.hupu.HupuReply(pid = ref.pid, floor = ref.floor)
+        val r = hupu.floorReplies(ref.tid, parent, HupuIds.subPidCursor(postId, after)) ?: return emptyList()
+        HupuIds.recordSubPids(postId, r.subReplies.map { it.pid })
+        return r.subReplies.map { it.toPost(ref.tid, ref.floor) }
+    }
 
     suspend fun post(id: Int): Post = throw ApiFailure(FailureKind.NOT_FOUND, "内容不存在或暂无权限")
 

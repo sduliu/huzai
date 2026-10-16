@@ -118,7 +118,7 @@ fun SettingsScreen(settings: DisplaySettings, update: (DisplaySettings) -> Unit,
                 item { SectionLabel("链接打开") }
                 item {
                     Column(Modifier.clip(RoundedCornerShape(19.dp)).background(MaterialTheme.colorScheme.surface)) {
-                        SettingRow("站内链接", "在系统中允许酷DO打开支持的链接", !showing) {
+                        SettingRow("站内链接", "在系统中允许虎Do打开支持的链接", !showing) {
                             val action = if (Build.VERSION.SDK_INT >= 31) Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS else Settings.ACTION_APPLICATION_DETAILS_SETTINGS
                             context.startActivity(Intent(action, Uri.parse("package:${context.packageName}")))
                         }
@@ -126,7 +126,7 @@ fun SettingsScreen(settings: DisplaySettings, update: (DisplaySettings) -> Unit,
                         SettingRow("外部链接打开方式", settings.externalLinkMode.label, !showing) { show("external-links") }
                     }
                 }
-                item { Text("外部链接不包含 linux.do 及其子域名。系统打开会使用浏览器或关联应用。", Modifier.padding(horizontal = 9.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+                item { Text("外部链接不包含 hupu.com 及其子域名。系统打开会使用浏览器或关联应用。", Modifier.padding(horizontal = 9.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
                 if (user != null) item {
                     Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surface)
                         .clickable(enabled = !showing) { show("logout") }.heightIn(min = 48.dp)
@@ -139,7 +139,7 @@ fun SettingsScreen(settings: DisplaySettings, update: (DisplaySettings) -> Unit,
             "theme" -> "主题风格"; "glass" -> "界面材质效果"; "font" -> "字体大小"
             "list" -> "主题列表样式"; "navigation" -> "底栏中间按钮"
             "external-links" -> "外部链接打开方式"
-            "logout" -> "退出登录？"; else -> "酷DO"
+            "logout" -> "退出登录？"; else -> "虎Do"
         }
         LiquidModal(visibility, title, actionSheet, backdrop, settings.glass, ::dismiss,
             sheetBackground = MaterialTheme.colorScheme.background,

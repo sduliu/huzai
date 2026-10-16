@@ -14,11 +14,13 @@ data class CommunityDirectory(
     val tags: List<DirectoryTag>, val showTags: Boolean,
 )
 
-internal suspend fun CommunityRepository.communityDirectory(accountId: Int?): CommunityDirectory =
-    parseCommunityDirectory(client.siteSettingsHtml(), accountId)
+internal suspend fun CommunityRepository.communityDirectory(accountId: Int?): CommunityDirectory {
+    val all = categories()
+    if (all.isEmpty()) invalidDirectory()
+    return CommunityDirectory(accountId, "", all, all, emptyList(), showTags = false)
+}
 
-internal suspend fun CommunityRepository.directoryTagGroups(): List<DirectoryTagGroup> =
-    parseDirectoryTagGroups(client.get("/tags.json"))
+internal suspend fun CommunityRepository.directoryTagGroups(): List<DirectoryTagGroup> = emptyList()
 
 private fun invalidDirectory(): Nothing = throw ApiFailure(FailureKind.SERVER, "服务器未返回有效的类别与标签目录，请重试")
 
