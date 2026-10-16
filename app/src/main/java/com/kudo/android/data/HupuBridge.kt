@@ -5,6 +5,7 @@ import com.kudo.android.hupu.HupuCategory
 import com.kudo.android.hupu.HupuReply
 import com.kudo.android.hupu.HupuThread
 import com.kudo.android.hupu.HupuThreadDetail
+import com.kudo.android.hupu.HupuTopic
 import com.kudo.android.hupu.HupuTopicInfo
 import java.time.Instant
 
@@ -43,7 +44,7 @@ private fun HupuAuthor?.toMember(): Member =
         avatar = "",
     )
 
-private fun HupuTopicInfo?.categoryIdOf(fallbackFid: String): Int = when {
+private fun HupuTopic?.categoryIdOf(fallbackFid: String): Int = when {
     this?.url?.isNotBlank() == true -> HupuIds.boardId(url)
     fallbackFid.isNotBlank() -> HupuIds.boardId("fid:$fallbackFid")
     else -> 0

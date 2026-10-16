@@ -237,7 +237,7 @@ fun AboutPage(onClose: () -> Unit) {
                 // 两种形态都安全；失败则回退到主题色字母块。
                 val appIcon = remember(context) {
                     runCatching {
-                        ContextCompat.getDrawable(context, R.mipmap.ic_launcher_round)
+                        ContextCompat.getDrawable(context, R.drawable.ic_kudo)
                             ?.toBitmap(width = 192, height = 192)
                             ?.asImageBitmap()
                     }.getOrNull()
