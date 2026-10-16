@@ -1,0 +1,574 @@
+package com.kudo.android.hupuui.pages
+
+import androidx.activity.BackEventCompat
+import androidx.activity.compose.PredictiveBackHandler
+import kotlin.coroutines.cancellation.CancellationException
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.kudo.android.hupuui.components.animateChipCenterTo
+import com.kudo.android.hupuui.theme.isAppDarkTheme
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Search
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kudo.android.hupuui.glass.LiquidGlassDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import com.kudo.android.hupuui.components.huzaiFieldColors
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import coil.compose.AsyncImage
+import com.kudo.android.hupu.HupuCategory
+import com.kudo.android.hupu.HupuPrefs
+import com.kudo.android.hupu.HupuRepository
+import com.kudo.android.hupu.HupuTopicInfo
+import com.kudo.android.hupuui.components.Chip
+import com.kudo.android.hupuui.components.FixedChannelRow
+import com.kudo.android.hupuui.components.ErrorRetry
+import com.kudo.android.hupuui.components.SecondaryPage
+import com.kudo.android.hupuui.components.normalizeCover
+import com.kudo.android.hupuui.components.tapGuard
+import kotlinx.coroutines.delay
+import com.kudo.android.hupuui.components.CenteredTopBar
+import com.kudo.android.hupuui.components.LiquidBackButton
+import com.kudo.android.hupuui.components.LiquidIconButton
+import com.kudo.android.hupuui.glass.liquidElevation
+import com.kudo.android.hupuui.components.chipBarClip
+
+/**
+ * 主页频道自定义页（盖入式二级页）：
+ * 已选条（长按拖拽排序 / 点按移除）+ 搜索 + 大类过滤 + 版块勾选列表，上限 20 个。
+ */
+@Composable
+fun TopicPickerPage(onClose: () -> Unit) {
+    val repo = remember { HupuRepository() }
+    var loading by remember { mutableStateOf(true) }
+    var failed by remember { mutableStateOf(false) }
+    var loadTick by remember { mutableIntStateOf(0) }
+    var hotTopics by remember { mutableStateOf<List<HupuTopicInfo>>(emptyList()) }
+    var categories by remember { mutableStateOf<List<HupuCategory>>(emptyList()) }
+    // 已选频道（有序），勾选/拖拽实时持久化
+    var selected by remember { mutableStateOf<List<HupuTopicInfo>>(emptyList()) }
+    var query by remember { mutableStateOf("") }
+    var selectedCate by remember { mutableStateOf<String?>(null) } // null=全部
+    var limitHintTick by remember { mutableIntStateOf(0) }
+    // 1.192: 「热帖」固定频道的隐藏开关——恒保证「热帖 + 已选话题」≥ 1 个 tab
+    var hotHidden by remember { mutableStateOf(HupuPrefs.isHomeHotHidden()) }
+    // 1.192: 开关是否可操作——「关掉它就会变成 0 个 tab」时不可操作（置灰 + 红字说明）。
+    // 注意方向：开关已关（热帖隐藏）→ 永远可以再打开；开关开着 → 只有还有别的话题才能关。
+    val canHideHot = hotHidden || selected.isNotEmpty()
+    val onlyOneLeft = hotHidden && selected.size == 1
+
+    // 盖入动画：进入 0→1；返回动画结束后由父级移除本组件
+    val progress = remember { Animatable(0f) }
+    // 1.192: 计数 flag 门控——多页叠加 / 重挂载时不会多减，离开组合时兜底回收
+    var pageEntered by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        pageEntered = true
+        SecondaryPage.enter()
+        progress.animateTo(1f, tween(280))
+    }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose { if (pageEntered) { pageEntered = false; SecondaryPage.exit() } }
+    }
+    var closing by remember { mutableStateOf(false) }
+    LaunchedEffect(closing) {
+        if (closing) {
+            if (pageEntered) { pageEntered = false; SecondaryPage.exit() }
+            progress.animateTo(0f, tween(280))
+            onClose()
+        }
+    }
+    // 系统返回手势：预测性返回（单一 handler——多个 handler 共存时后组合者永远优先）。
+    // - 退场动画播放中：吞掉手势（防止漏到系统直接退出应用）
+    // - 其余：页面跟随手指实时滑出（progress: 0→1 跟手），松手未过阈值弹回、过阈值退出
+    PredictiveBackHandler { events ->
+        if (closing) {
+            events.collect { } // 吞掉
+            return@PredictiveBackHandler
+        }
+        try {
+            events.collect { event ->
+                // 手势进度实时驱动盖出动画（页面跟手右滑）
+                progress.snapTo(1f - event.progress)
+            }
+            // 越过系统提交阈值 → 播完剩余动画并退出
+            progress.animateTo(0f, tween(120))
+            closing = true
+        } catch (e: CancellationException) {
+            // 未过阈值松手 → 弹回原位
+            progress.animateTo(1f, tween(200))
+            throw e
+        }
+    }
+
+    LaunchedEffect(loadTick) {
+        loading = true
+        failed = false
+        val b = repo.board()
+        val c = repo.categories()
+        if ((b?.hotTopics.isNullOrEmpty()) && c.isEmpty()) {
+            failed = true
+        } else {
+            hotTopics = b?.hotTopics ?: emptyList()
+            categories = c
+            selected = if (HupuPrefs.hasCustomHomeTopics()) HupuPrefs.loadHomeTopics() else hotTopics
+            // 1.192: 自愈——「热帖隐藏 + 一个话题都没有」是非法态（首页会兜底显示热帖，
+            // 于是开关显示关闭、页面却仍有热帖）。这里恢复成「显示热帖」，保证两者一致。
+            if (HupuPrefs.isHomeHotHidden() && selected.isEmpty()) {
+                hotHidden = false
+                HupuPrefs.setHomeHotHidden(false)
+            }
+        }
+        loading = false
+    }
+
+    fun toggle(t: HupuTopicInfo) {
+        // 1.192: 热帖已隐藏时，不允许取消最后一个频道（否则首页会出现 0 个 tab）
+        if (hotHidden && selected.size == 1 && selected.any { it.url == t.url }) return
+        val cur = selected
+        if (cur.any { it.url == t.url }) {
+            val next = cur.filterNot { it.url == t.url }
+            selected = next
+            HupuPrefs.saveHomeTopics(next)
+        } else if (cur.size < HupuPrefs.MAX_HOME_TOPICS) {
+            val next = cur + t
+            selected = next
+            HupuPrefs.saveHomeTopics(next)
+        } else {
+            limitHintTick++
+        }
+    }
+
+    fun remove(t: HupuTopicInfo) {
+        // 1.192: 同上——热帖已隐藏时，最后一个频道不可移除
+        if (hotHidden && selected.size == 1) return
+        val next = selected.filterNot { it.url == t.url }
+        selected = next
+        HupuPrefs.saveHomeTopics(next)
+    }
+
+    fun reorder(newList: List<HupuTopicInfo>) {
+        selected = newList
+        HupuPrefs.saveHomeTopics(newList)
+    }
+
+    var resetAsk by remember { mutableStateOf(false) }
+    // 1.191: 记录层——供 Liquid Glass 弹窗采样背后像素（挂在内容层上，弹窗在其后）
+    // 1.191: 先铺一层不透明页面底色再画内容——与 ThreadDetailPage 的
+    // actionBackdrop 同一套做法。记录层若透明，卡片会显得「非常透明」
+    val dialogBg = MaterialTheme.colorScheme.background
+    val backdrop = rememberLayerBackdrop {
+        drawRect(dialogBg)
+        drawContent()
+    }
+    fun resetDefault() {
+        // 1.192: 「重置」= 清空所有已添加的频道，只保留「热帖」。
+        // 必须写「空的自定义列表」而不是删掉这个 key：删 key 会被当成「未配置」，
+        // 反而回退到官方热门全量话题；写空列表才是「一个话题都不显示」。
+        HupuPrefs.saveHomeTopics(emptyList())
+        selected = emptyList()
+        if (hotHidden) {
+            hotHidden = false
+            HupuPrefs.setHomeHotHidden(false)
+        }
+    }
+
+    // 版块全集 + 过滤（搜索优先于大类过滤）
+    val allTopics = remember(categories) { categories.flatMap { it.topics }.distinctBy { it.url } }
+    val filtered = remember(allTopics, query, selectedCate, categories) {
+        val base = if (selectedCate == null) allTopics
+        else categories.firstOrNull { it.cateId == selectedCate }?.topics ?: allTopics
+        if (query.isBlank()) base.distinctBy { it.url }
+        else allTopics.filter { it.name.contains(query.trim(), ignoreCase = true) }.distinctBy { it.url }
+    }
+
+    // 上限提示闪现
+    var limitHintVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(limitHintTick) {
+        if (limitHintTick > 0) {
+            limitHintVisible = true
+            delay(1600)
+            limitHintVisible = false
+        }
+    }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .zIndex(2f)
+            .graphicsLayer { translationX = (1f - progress.value) * size.width }
+            .background(MaterialTheme.colorScheme.background)
+            // 穿透守卫：空白点击不落穿到下层页面
+            .tapGuard(),
+    ) {
+        Column(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
+            // 顶栏：返回 + 标题 + 计数 + 恢复默认
+            CenteredTopBar(
+                title = "自定义首页频道",
+                onBack = { closing = true },
+                actions = {
+                    Text(
+                        "${selected.size}/${HupuPrefs.MAX_HOME_TOPICS}",
+                        fontSize = 14.sp,
+                        color = if (selected.size >= HupuPrefs.MAX_HOME_TOPICS) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    // 1.223: 升级为与返回键同源的液态玻璃按钮（同款落影 + 按压手感）
+                    LiquidIconButton(
+                        icon = Icons.Rounded.Refresh,
+                        contentDescription = "重置频道",
+                        onClick = { resetAsk = true },
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
+            when {
+                loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+                failed -> ErrorRetry { loadTick++ }
+                else -> {
+                    // 1.192: 「热帖」固定频道开关（不参与排序）
+                    FixedChannelRow(
+                        name = "热帖",
+                        subtitle = if (canHideHot) "首页默认内容流 · 不参与排序" else "至少保留一个频道",
+                        checked = !hotHidden,
+                        enabled = canHideHot,
+                    ) { on ->
+                        // on = 开关的新状态（true=显示热帖）；存的是「是否隐藏」，需取反
+                        hotHidden = !on
+                        HupuPrefs.setHomeHotHidden(!on)
+                    }
+                    // 已选条（长按拖动排序 / 点按移除）
+                    if (selected.isEmpty()) {
+                        Text(
+                            "还没有选择频道，从下方勾选吧",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+                        )
+                    } else {
+                        SelectedBar(selected = selected, onReorder = ::reorder, onRemove = ::remove, removable = !onlyOneLeft)
+                    }
+                    Text(
+                        "长按拖动排序 · 点按移除",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                    )
+
+                    // 搜索
+                    OutlinedTextField(
+                        colors = huzaiFieldColors(container = false),
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+                        placeholder = { Text("搜索版块", fontSize = 14.sp) },
+                        leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        trailingIcon = {
+                            if (query.isNotEmpty()) {
+                                IconButton(onClick = { query = "" }) {
+                                    Icon(Icons.Rounded.Close, contentDescription = "清空", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(22.dp),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
+                    )
+
+                    // 大类过滤（1.192c: 补「选中项居中」便捷特性，与主页话题条一致）
+                    val cateBarState = rememberLazyListState()
+                    val cateSelIdx =
+                        if (selectedCate == null) 0
+                        else 1 + categories.indexOfFirst { it.cateId == selectedCate }
+                    LaunchedEffect(selectedCate) {
+                        if (cateSelIdx >= 0) cateBarState.animateChipCenterTo(cateSelIdx)
+                    }
+                    LazyRow(
+                        state = cateBarState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            // 1.197：裁剪边界退到 8dp，给首个/末个 chip 的浮起阴影留空间（内容仍从 16dp 起）
+                            .chipBarClip()
+                            .padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        item(key = "cate-all") {
+                            Chip(text = "全部", selected = selectedCate == null) { selectedCate = null }
+                        }
+                        items(categories, key = { it.cateId }) { c ->
+                            Chip(
+                                text = c.name,
+                                selected = selectedCate == c.cateId,
+                            ) { selectedCate = if (selectedCate == c.cateId) null else c.cateId }
+                        }
+                    }
+
+                    // 上限提示
+                    AnimatedVisibility(visible = limitHintVisible) {
+                        Text(
+                            "最多添加 ${HupuPrefs.MAX_HOME_TOPICS} 个频道",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                        )
+                    }
+
+                    // 版块勾选列表
+                    LazyColumn(
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 140.dp),
+                        // 1.192: 条目之间留出间距——否则两个相邻选中项的圆角高亮块会贴在一起、
+                        // 视觉上连成一片
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        items(filtered, key = { it.url }) { t ->
+                            val isSelected = selected.any { it.url == t.url }
+                            TopicPickRow(
+                                topic = t,
+                                isSelected = isSelected,
+                                locked = onlyOneLeft && isSelected,
+                                onToggle = { toggle(t) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        // 1.191: 清空首页频道确认弹窗（Liquid Glass 同款外观 + Q 弹出入场）
+        // 放在根 Box 内、内容层之后（兄弟顺序在记录层之后）——毛玻璃才能采到页面像素
+        if (resetAsk) {
+            LiquidGlassDialog(
+                backdrop = backdrop,
+                title = "重置首页频道",
+                message = "将清空所有已添加的频道，只保留「热帖」。此操作不可恢复。",
+                confirmText = "重置",
+                dismissText = "取消",
+                onConfirm = { resetDefault() },
+                onDismiss = { resetAsk = false },
+            )
+        }
+    }
+}
+
+/** 版块勾选行：logo + 名称 + 关注数 + 选中态图标（达到上限时点未选项只弹提示） */
+@Composable
+private fun TopicPickRow(
+    topic: HupuTopicInfo,
+    isSelected: Boolean,
+    onToggle: () -> Unit,
+    /** 1.192: 锁定（不可取消）——热帖已隐藏且它是最后一个频道时 */
+    locked: Boolean = false,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                else Color.Transparent
+            )
+            .clickable(enabled = !locked) { onToggle() }
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AsyncImage(
+            model = normalizeCover(topic.logo),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.size(36.dp).clip(CircleShape),
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                topic.name,
+                fontSize = 15.sp,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (topic.hotText.isNotEmpty()) {
+                Text(
+                    "${topic.hotText} 关注",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Icon(
+            if (isSelected) Icons.Rounded.Check else Icons.Rounded.Add,
+            contentDescription = null,
+            tint = when {
+                locked -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                isSelected -> MaterialTheme.colorScheme.primary
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            },
+        )
+    }
+}
+
+/** 已选条：长按拖拽排序（跨位交换式），点按移除 */
+@Composable
+private fun SelectedBar(
+    selected: List<HupuTopicInfo>,
+    onReorder: (List<HupuTopicInfo>) -> Unit,
+    onRemove: (HupuTopicInfo) -> Unit,
+    /** 1.192: 仅剩它一个 tab 时置灰移除（避免 0 个 tab） */
+    removable: Boolean = true,
+) {
+    val listState = rememberLazyListState()
+    var draggingIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val currentList by rememberUpdatedState(selected)
+    val currentOnReorder by rememberUpdatedState(onReorder)
+    val dark = isAppDarkTheme()
+
+    LazyRow(
+        state = listState,
+        modifier = Modifier
+            .fillMaxWidth()
+            // 1.197：裁剪边界退到 8dp，给首个/末个 chip 的浮起阴影留空间（内容仍从 16dp 起）
+            .chipBarClip()
+            .padding(vertical = 8.dp)
+            .pointerInput(Unit) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { off ->
+                        listState.layoutInfo.visibleItemsInfo
+                            .firstOrNull { off.x.toInt() in it.offset..(it.offset + it.size) }
+                            ?.let { draggingIndex = it.index }
+                    },
+                    onDrag = { change, amount ->
+                        change.consume()
+                        val from = draggingIndex ?: return@detectDragGesturesAfterLongPress
+                        dragOffset += amount.x
+                        val info = listState.layoutInfo.visibleItemsInfo
+                            .firstOrNull { it.index == from }
+                            ?: return@detectDragGesturesAfterLongPress
+                        // 拖动中心越过相邻项中心则交换
+                        val center = info.offset + info.size / 2f + dragOffset
+                        val target = listState.layoutInfo.visibleItemsInfo.firstOrNull { t ->
+                            t.index != from && center > t.offset && center < (t.offset + t.size)
+                        } ?: return@detectDragGesturesAfterLongPress
+                        val list = currentList
+                        if (target.index < list.size) {
+                            val mutable = list.toMutableList()
+                            mutable.add(target.index, mutable.removeAt(from))
+                            currentOnReorder(mutable)
+                            draggingIndex = target.index
+                            dragOffset = 0f
+                        }
+                    },
+                    onDragEnd = { draggingIndex = null; dragOffset = 0f },
+                    onDragCancel = { draggingIndex = null; dragOffset = 0f },
+                )
+            },
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        itemsIndexed(selected, key = { _, t -> t.url }) { index, t ->
+            val dragging = index == draggingIndex
+            Row(
+                Modifier
+                    .zIndex(if (dragging) 1f else 0f)
+                    .graphicsLayer { translationX = if (dragging) dragOffset else 0f }
+                    .animateItem()
+                    .clip(RoundedCornerShape(999.dp))
+                    // 1.192c: 与顶部玻璃胶囊同源材质（拖动中仍保持 primaryContainer 反馈）
+                    .background(
+                        if (dragging) MaterialTheme.colorScheme.primaryContainer
+                        else if (dark) Color.White.copy(0.075f) else Color.Black.copy(0.045f)
+                    )
+                    .border(
+                        0.6.dp,
+                        if (dark) Color.White.copy(0.06f) else Color.Black.copy(0.03f),
+                        RoundedCornerShape(999.dp),
+                    )
+                    .clickable(enabled = removable) { onRemove(t) }
+                    .padding(start = 10.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                AsyncImage(
+                    model = normalizeCover(t.logo),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(24.dp).clip(CircleShape),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    t.name,
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.width(2.dp))
+                Icon(
+                    Icons.Rounded.Close,
+                    contentDescription = "移除",
+                    modifier = Modifier.size(16.dp),
+                    tint = if (removable) MaterialTheme.colorScheme.onSurfaceVariant
+                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                )
+            }
+        }
+    }
+}

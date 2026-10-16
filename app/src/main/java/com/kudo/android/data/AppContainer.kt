@@ -19,6 +19,14 @@ class AndroidSessionCookies : SessionCookies {
 
 class AppContainer(context: Context) {
     val settings = AppSettings(context.applicationContext)
+    init {
+        com.kudo.android.hupu.HupuPrefs.init(context.applicationContext)
+        com.kudo.android.hupu.HupuAccount.init(context.applicationContext)
+        com.kudo.android.hupu.HupuCrashLog.init(context.applicationContext)
+        com.kudo.android.hupu.HupuFollowStore.init(context.applicationContext)
+        com.kudo.android.hupu.HupuSyncNet.init(context.applicationContext)
+        com.kudo.android.hupu.HupuCache.init(java.io.File(context.cacheDir, "hupu"))
+    }
     val network = com.kudo.android.network.DohNetwork(context.applicationContext, DohSettings(context.applicationContext))
     val requestSettings = RequestSettings(context.applicationContext)
     val notifications = com.kudo.android.notifications.LocalNotifications(context.applicationContext)

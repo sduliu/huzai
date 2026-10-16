@@ -1,0 +1,416 @@
+package com.kudo.android.hupuui.pages
+
+import androidx.activity.BackEventCompat
+import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.animation.Crossfade
+import kotlin.coroutines.cancellation.CancellationException
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import coil.compose.AsyncImage
+import com.kudo.android.hupu.HupuCommonSubject
+import com.kudo.android.hupu.HupuCommonTree
+import com.kudo.android.hupu.HupuScoreItem
+import com.kudo.android.hupuui.components.ErrorRetry
+import com.kudo.android.hupuui.components.SkeletonHome
+import com.kudo.android.hupuui.components.normalizeCover
+import com.kudo.android.hupuui.components.tapGuard
+import com.kudo.android.hupuui.components.CenteredTopBar
+import com.kudo.android.hupuui.components.LiquidBackButton
+
+/**
+ * 虎扑通用评分（非赛事体系）：
+ * - 首页：m.hupu.com/score-home SSR 主题卡流（每次刷新换一批）
+ * - 主题详情：盖入式 overlay，子项流（分页），点子项进叶子详情（复用 PlayerDetailOverlay）
+ * - 返回：预测性返回（跟手滑出/弹回），与赛事评分各页同构
+ */
+
+/** 通用评分卡片流（评分页「虎扑评分」chip 内容区） */
+@Composable
+internal fun CommonSubjectsFeed(
+    subjects: List<HupuCommonSubject>,
+    onOpenSubject: (HupuCommonSubject) -> Unit,
+    onOpenItem: (HupuScoreItem) -> Unit,
+    scrollToTopTick: Int = 0,
+    /** 1.198：浮空顶栏时的顶部内边距（关闭该效果时为 0，布局与原来完全一致） */
+    topInset: Dp = 0.dp,
+) {
+    // 1.179: 显式持有列表状态。「虎扑评分」每次刷新会整批换新卡，
+    // 刷新完必须回顶——否则会停在刷新前的位置（旧卡已不存在，体验错乱）。
+    // 仅本 feed 回顶；赛事/电竞 tab 走另一分支，不受影响。
+    val listState = rememberLazyListState()
+    LaunchedEffect(scrollToTopTick) {
+        if (scrollToTopTick > 0) listState.scrollToItem(0)
+    }
+    LazyColumn(
+        state = listState,
+        contentPadding = PaddingValues(
+            start = 16.dp, end = 16.dp, top = 8.dp + topInset, bottom = 140.dp,
+        ),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        items(
+            subjects,
+            key = { "${it.bizType}-${it.bizNo}" },
+        ) { s ->
+            CommonSubjectCard(s, onOpen = onOpenSubject, onOpenItem = onOpenItem)
+        }
+    }
+}
+
+/** 主题卡：名称 + 均分 + 评分人数 + 简介 + 预置子项行 */
+@Composable
+private fun CommonSubjectCard(
+    s: HupuCommonSubject,
+    onOpen: (HupuCommonSubject) -> Unit,
+    onOpenItem: (HupuScoreItem) -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable { onOpen(s) }
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    s.name,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "${formatCount(s.scoreCountNum)}人评分",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (s.desc.isNotBlank()) {
+            Text(
+                s.desc,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 18.sp,
+            )
+        }
+        // 预置子项行（最多 3 个，点击直接进该子项的叶子详情）
+        if (s.items.isNotEmpty()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                s.items.take(3).forEach { item ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .clickable { onOpenItem(item) }
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                    ) {
+                        if (item.image != null) {
+                            AsyncImage(
+                                model = normalizeCover(item.image),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.size(22.dp).clip(RoundedCornerShape(6.dp)),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                        }
+                        Text(
+                            item.name,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 通用评分主题详情页（盖入式 overlay：主题头 + 子项流，分页续拉） */
+@Composable
+internal fun CommonDetailOverlay(
+    subject: HupuCommonSubject,
+    tree: HupuCommonTree?,
+    loading: Boolean,
+    loadingMore: Boolean,
+    closing: Boolean,
+    onBack: () -> Unit,
+    /** 1.183: 退场动画开始即回调——父级据此同步减二级页计数，使 Tab 栏与页面同步 Q 弹回归（与「我的」页二级页同款手感） */
+    onExitStart: () -> Unit = {},
+    onClosed: () -> Unit,
+    onRefresh: () -> Unit,
+    onOpenItem: (HupuScoreItem) -> Unit,
+    onLoadMore: () -> Unit,
+) {
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(closing) {
+    if (closing) {
+            onExitStart()
+            progress.animateTo(0f, tween(280))
+            onClosed()
+        } else {
+        // 1.223r: 退场途中再次打开（含同一帖子）→ 重播入场，避免「看不见」
+        progress.snapTo(0f)
+        progress.animateTo(1f, tween(280))
+        }
+    }
+    // 系统返回手势：预测性返回（单一 handler——多个 handler 共存时后组合者永远优先）。
+    // - 退场动画播放中：吞掉手势（防止漏到系统直接退出应用）
+    // - 其余：页面跟随手指实时滑出（progress: 0→1 跟手），松手未过阈值弹回、过阈值退出
+    PredictiveBackHandler { events ->
+        if (closing) {
+            events.collect { } // 吞掉
+            return@PredictiveBackHandler
+        }
+        try {
+            events.collect { event ->
+                // 手势进度实时驱动盖出动画（页面跟手右滑）
+                progress.snapTo(1f - event.progress)
+            }
+            // 越过系统提交阈值 → 播完剩余动画并退出
+            progress.animateTo(0f, tween(120))
+            onBack()
+        } catch (e: CancellationException) {
+            // 未过阈值松手 → 弹回原位
+            progress.animateTo(1f, tween(200))
+            throw e
+        }
+    }
+    val listState = rememberLazyListState()
+    // 滚动到底部附近自动加载下一页（页码分页）
+    val shouldLoadMore by remember {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+            last >= info.totalItemsCount - 3
+        }
+    }
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore && !loading && !loadingMore) onLoadMore()
+    }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .zIndex(2f)
+            .graphicsLayer { translationX = (1f - progress.value) * size.width }
+            .background(MaterialTheme.colorScheme.background)
+            // 穿透守卫：失败态/加载态空白点击由本层兜底，不落穿到下层页面
+            .tapGuard(),
+    ) {
+        val state = if (tree != null) "ok" else if (loading) "loading" else "error"
+        Crossfade(targetState = state, animationSpec = tween(180), label = "commonDetailSwitch") { st ->
+            when (st) {
+                "loading" -> SkeletonHome()
+                "error" -> ErrorRetry { onRefresh() }
+                else -> {
+                    val t = tree
+                    if (t == null) {
+                        ErrorRetry { onRefresh() }
+                    } else {
+                        // 与赛事侧（MatchDetailPage）同构：顶栏固定在页面顶部、贴屏幕左缘，
+                        // 不随子项列表滚动；滚动区只含子项流
+                        Column(Modifier.fillMaxSize()) {
+                            CommonHeader(t, onBack)
+                            LazyColumn(
+                                state = listState,
+                                contentPadding = PaddingValues(
+                                    start = 16.dp, end = 16.dp, top = 8.dp, bottom = 140.dp,
+                                ),
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxSize(),
+                            ) {
+                                items(
+                                    t.items,
+                                    key = { it.bizId },
+                                ) { item ->
+                                    CommonItemRow(item, onClick = { onOpenItem(item) })
+                                }
+                                if (loadingMore) {
+                                    item(key = "loading-more") {
+                                        Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
+                                            Text(
+                                                "加载中…",
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 主题详情顶栏：与赛事侧（MatchDetailPage）同构——返回 + 标题 + 「N人评分」 */
+@Composable
+private fun CommonHeader(t: HupuCommonTree, onBack: () -> Unit) {
+    CenteredTopBar(
+        title = t.name,
+        onBack = { onBack() },
+        subtitle = "${formatCount(t.scorePersonCount)}人评分",
+    )
+    if (t.desc.isNotBlank()) {
+        Text(
+            t.desc,
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+            lineHeight = 18.sp,
+            // 顶栏移出列表后不再吃 contentPadding，水平边距需自带（与子项流 16dp 左缘对齐）
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp),
+        )
+    }
+}
+
+/** 子项行（评分对象）：头像 + 名称/说明 + 均分（人数在分数下方） + 热评（头像下方另起一行） */
+@Composable
+private fun CommonItemRow(item: HupuScoreItem, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+    ) {
+        // 1.224k：整行**顶部对齐**（此前是 CenterVertically，说明文本没显示时名称被压到行中间，
+        // 看着比"原来"低了一截）。顶部对齐后名称与头像顶边齐平，说明文本紧随其下。
+        Row(verticalAlignment = Alignment.Top) {
+            if (item.image != null) {
+                AsyncImage(
+                    model = normalizeCover(item.image),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(42.dp).clip(RoundedCornerShape(10.dp)),
+                )
+                Spacer(Modifier.width(10.dp))
+            }
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
+                Text(
+                    item.name,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    // 1.224k：名称**左对齐**（不居中）——只有右侧「分数 / N人」才做居中对齐。
+                    textAlign = TextAlign.Start,
+                )
+                // 1.224k：名称下方改为**评分对象说明文本**。
+                // 此前这行说明只有点进叶子详情页（评分评价页）才看得到；现在二级页每行直接展示。
+                // 没有说明的对象不占位（不画空行）。
+                if (item.intro.isNotBlank()) {
+                    Text(
+                        item.intro,
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Start,
+                    )
+                }
+            }
+            Spacer(Modifier.width(10.dp))
+            // 1.224k：评分人数从名称下方**移到分数下方**，并补上单位「人」——
+            // 与比赛评分二级页的选手行（分数大字 / 「N人」小字）保持同一口径；
+            // 两者**居中对齐**（右对齐时小字被顶到右边、与分数中轴不齐）。
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    item.scoreAvg,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = scoreColor(item.scoreAvg),
+                )
+                Text(
+                    "${formatCount(item.scorePersonCount)}人",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        // 1.224k：热评文本**另起一行，位于头像下方**（与赛程卡的选手评分卡同款）。
+        if (item.hotComment.isNotBlank()) {
+            Text(
+                "「${item.hotComment}」",
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+    }
+}
+
+/** 官方分数色（首页卡带的日间色，深色模式回落主题色） */
+private fun officialColor(hex: String?): Color? {
+    if (hex == null || !hex.matches(Regex("#[0-9A-Fa-f]{6}"))) return null
+    return try {
+        Color(android.graphics.Color.parseColor(hex))
+    } catch (e: Exception) {
+        null
+    }
+}

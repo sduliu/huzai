@@ -1,0 +1,400 @@
+package com.kudo.android.hupuui.pages
+import com.kudo.android.hupuui.player.VideoHost
+import com.kudo.android.hupuui.player.VideoPlayer
+import androidx.activity.compose.PredictiveBackHandler
+import androidx.activity.BackEventCompat
+import kotlin.coroutines.cancellation.CancellationException
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.ThumbUp
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.kudo.android.hupuui.components.HupuIcons
+import com.kudo.android.hupuui.components.pressScale
+import com.kudo.android.hupuui.components.rememberInstantPressScale
+import com.kudo.android.hupuui.glass.buttonBorder
+import com.kudo.android.hupuui.glass.buttonFill
+import com.kudo.android.hupuui.theme.isAppDarkTheme
+import com.kudo.android.hupuui.components.StickerAddCell
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import kotlin.math.roundToInt
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.zIndex
+import androidx.media3.common.MediaItem
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.compose.ui.platform.LocalView
+import android.content.pm.ActivityInfo
+import android.app.Activity
+import coil.compose.AsyncImage
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.combinedClickable
+import com.kudo.android.hupuui.components.HUPU_EMOJI
+import coil.compose.AsyncImagePainter
+import coil.request.ImageRequest
+import com.kudo.android.hupu.HupuFilter
+import com.kudo.android.hupu.HupuImage
+import com.kudo.android.hupu.HupuPostApi
+import com.kudo.android.hupu.HupuPrefs
+import com.kudo.android.hupu.isLocalStickerUrl
+import com.kudo.android.hupu.HupuFloorReplies
+import com.kudo.android.hupu.HupuReply
+import com.kudo.android.hupu.HupuSubReply
+import com.kudo.android.hupu.HupuThreadDetail
+import com.kudo.android.hupu.HupuVote
+import com.kudo.android.hupu.HupuVoteApi
+import com.kudo.android.hupu.HupuVoteOption
+import com.kudo.android.hupu.HupuVoteResult
+import com.kudo.android.hupu.HupuParser
+import com.kudo.android.hupu.HupuEmbedParser
+import androidx.compose.foundation.text.appendInlineContent
+import com.kudo.android.hupuui.components.EmojiSegment
+import com.kudo.android.hupuui.components.ErrorRetry
+import com.kudo.android.hupuui.components.normalizeCover
+
+import com.kudo.android.hupuui.components.rememberEmojiInline
+import com.kudo.android.hupuui.components.splitEmoji
+
+import com.kudo.android.hupuui.components.SkeletonHome
+import com.kudo.android.hupuui.components.formatCount
+import com.kudo.android.hupuui.components.tapGuard
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
+import com.kudo.android.hupu.HupuAccount
+import com.kudo.android.hupu.HupuSticker
+import com.kudo.android.hupu.HupuAuthor
+import kotlinx.coroutines.launch
+import com.kudo.android.hupuui.glass.liquidElevation
+import com.kudo.android.hupuui.components.LiquidBackButton
+
+/** 顶栏：返回＋居中专区名＋（本人帖的编辑 / 删除入口） */
+@Composable
+internal fun ThreadHeader(
+    forumName: String,
+    onBack: () -> Unit,
+    /** 1.112: 非空时在右侧显示编辑入口（仅本人帖传入） */
+    onEdit: (() -> Unit)? = null,
+    /** 1.119: 非空时在编辑左侧显示删除入口（仅本人帖传入） */
+    onDelete: (() -> Unit)? = null,
+) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            // 1.190: 状态栏避让已上提到列表视口层（LazyColumn 的 windowInsetsPadding），
+            // 这里不再自带 statusBarsPadding —— 否则头条会多留一份状态栏高度。
+            .padding(top = 8.dp, bottom = 10.dp),
+    ) {
+        LiquidBackButton(onClick = { onBack() }, modifier = Modifier.align(Alignment.CenterStart))
+        Text(
+            forumName,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = when {
+                    // 1.223: 右侧「编辑 / 删除」已合并为一个胶囊（约 80dp 宽）→ 标题右侧留白统一
+                    // （胶囊左缘 + 16dp 呼吸位；无动作时保持与左侧返回按钮对称的 48dp）
+                    onEdit != null || onDelete != null -> 100.dp
+                    else -> 48.dp
+                }),
+        )
+        // 1.223: 「编辑 / 删除」合并为一个玻璃胶囊（两个裸图标按钮，参考设计稿形态）
+        if (onEdit != null || onDelete != null) {
+            val dark = isAppDarkTheme()
+            Row(
+                Modifier
+                    .align(Alignment.CenterEnd)
+                    // 1.223d: 去掉右侧 8dp 内缩——顶栏内容本身已带 16dp 横向留白，
+                    // 再缩 8dp 就会比下方正文多缩 8dp（真机反馈「未和下方右对齐」）。
+                    // 1.223j: 补落影——与返回按钮同源同参数（此前只有玻璃底、没有浮起感）。
+                    .liquidElevation(RoundedCornerShape(22.dp), dark)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(buttonFill(dark))
+                    .border(0.6.dp, buttonBorder(dark), RoundedCornerShape(22.dp))
+                    .padding(2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (onDelete != null) ThreadTopAction(Icons.Rounded.Delete, "删除帖子", onDelete)
+                if (onEdit != null) ThreadTopAction(HupuIcons.Edit, "编辑帖子", onEdit)
+            }
+        }
+    }
+}
+
+/** 1.223：顶栏小动作按钮（裸图标 + 全站统一按压缩放；本身不画圆底，由外层胶囊承载）。 */
+@Composable
+private fun ThreadTopAction(icon: ImageVector, desc: String, onClick: () -> Unit) {
+    val (trigger, scale) = rememberInstantPressScale()
+    Box(
+        Modifier
+            .size(38.dp)
+            .then(trigger)
+            .pressScale(scale)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(interactionSource = null, indication = null) { onClick() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon,
+            contentDescription = desc,
+            tint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+/**
+ * 1.189: 帖子分享（顶栏与常驻操作条共用，避免两份实现漂移）。
+ * 分享内容 = 「标题 + 链接」，与官方网页版一致。
+ */
+internal fun shareThreadToSystem(
+    ctx: android.content.Context,
+    shareText: String,
+    shareUrl: String,
+) {
+    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(
+            android.content.Intent.EXTRA_TEXT,
+            if (shareText.isNotEmpty()) "$shareText $shareUrl" else shareUrl,
+        )
+    }
+    runCatching { ctx.startActivity(android.content.Intent.createChooser(send, "分享帖子")) }
+}
+
+/**
+ * 1.223：通用「分享链接」（标题 + 链接）——与 [shareThreadToSystem] 同源，供用户主页分享复用。
+ */
+internal fun shareLinkToSystem(
+    ctx: android.content.Context,
+    chooserTitle: String,
+    shareText: String,
+    shareUrl: String,
+) {
+    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(
+            android.content.Intent.EXTRA_TEXT,
+            if (shareText.isNotEmpty()) "$shareText $shareUrl" else shareUrl,
+        )
+    }
+    runCatching { ctx.startActivity(android.content.Intent.createChooser(send, chooserTitle)) }
+}
+
+/** 主楼：作者行 + 正文 + 视频 + 元信息 */
+@Composable
+internal fun MainPost(
+    d: HupuThreadDetail,
+    host: VideoHost,
+    isFullscreen: Boolean,
+    onToggleFullscreen: (Boolean) -> Unit,
+    onImageClick: (List<String>, Int) -> Unit = { _, _ -> },
+    onOpenUser: (String) -> Unit = {},
+    /** 1.121: 投票交互（未登录/提交失败）提示出口 */
+    onToast: (String) -> Unit = {},
+    /** 1.178: 结构化正文（赛事战报等）点击出口 */
+    onOpenEmbed: (com.kudo.android.hupu.HupuEmbed) -> Unit = {},
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        val fs = remember(HupuPrefs.fontScaleVersion) { HupuPrefs.loadFontScale() }
+        d.thread.author?.let { a ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .then(if (a.euid.isNotEmpty()) Modifier.clickable { onOpenUser(a.euid) } else Modifier),
+            ) {
+                // 作者头像（对齐评分页形态；无头像时隐藏）
+                normalizeCover(a.url)?.let { avatar ->
+                    AsyncImage(
+                        model = avatar,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(
+                    a.name,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+
+        Text(
+            d.thread.title,
+            fontSize = (17 * fs).sp,
+            fontWeight = FontWeight.Bold,
+            lineHeight = (24 * fs).sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+
+        // 1.178: 结构化正文（赛事战报等）——官方存的是 JSON 描述符而非 HTML，
+        // 识别后渲染成卡片并「点开进 WebView」，避免把这段 JSON 当文本原样显示
+        val embed = remember(d.contentHtml) { HupuEmbedParser.parse(d.contentHtml) }
+        if (embed != null) {
+            EmbedCard(embed) { onOpenEmbed(embed) }
+        } else {
+            // 1.122: 投票占位符在正文中内联渲染（与图片同机制）；正文无占位符（旧数据）时兜底挂末尾
+            val voteInline = remember(d.contentHtml) {
+                HupuParser.contentTokens(d.contentHtml).any { it is HupuParser.ContentToken.Vote }
+            }
+            HtmlContent(
+                d.contentHtml,
+                onImageClick = onImageClick,
+                vote = d.vote,
+                onToast = onToast,
+            )
+            if (d.vote != null && !voteInline) VoteCard(d.vote, onToast)
+        }
+        if (d.thread.hasVideo && d.thread.video.isNotBlank()) {
+            VideoPlayer(
+                url = d.thread.video,
+                cover = d.thread.videoCover,
+                host = host,
+                isFullscreen = isFullscreen,
+                onToggleFullscreen = onToggleFullscreen,
+            )
+        }
+        // 1.189: 元信息行——「推荐 / 收藏」已上移到常驻操作条（滚到评论区也能操作），
+        // 这里改显示「发布时间 · 发布于地 · 浏览数」，凑齐三条，与官方网页版口径一致。
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val metas = buildList {
+                if (d.thread.createdAtText.isNotBlank()) add(d.thread.createdAtText)
+                if (d.thread.location.isNotBlank()) add("发布于${d.thread.location}")
+                add("浏览 ${formatCount(d.thread.read)}")
+            }
+            metas.forEachIndexed { i, s ->
+                if (i > 0) {
+                    Spacer(Modifier.width(6.dp))
+                    Text("·", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text(s, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}

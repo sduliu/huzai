@@ -1,0 +1,536 @@
+package com.kudo.android.hupu
+
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+/**
+ * 虎扑比赛评分 API（match-api.hupu.com）
+ * 来源：官方 H5 赛程评分页 team-schedule-v2 使用的接口，匿名 GET 可用（实测）
+ * 注意：参与打分需登录，本客户端只做浏览。
+ */
+object HupuMatchApi {
+
+    private const val BASE = "https://match-api.hupu.com"
+    private const val SCHEDULE_PATH = "/1/8.2.10/matchallapi/bff/standard/getScheduleListByTagForH5"
+
+    /**
+     * 1.196：国际足球频道的 id。
+     * 该频道的赛程**不走 match-api**——官方「国际足球」聚合赛程没有对应的 businessId（实测 20+ 候选全空），
+     * 需抓 m.hupu.com/soccer/schedule 的 Next.js SSR；点开后的详情仍是同一套评分树。
+     */
+    const val SOCCER_ID = "soccer"
+
+    /** 足球比赛 / 球员的评分树 bizType（详情侧与现有体系完全一致） */
+    const val FOOTBALL_MATCH = "football_match"
+
+    private const val UA =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
+    /**
+     * 1.199：「通用热门体育」聚合标签 —— F1 / 斯诺克 / 网球 / 乒乓球 / 排球 / 亚运电竞 等混装。
+     * 无专属 businessId 的项目只能走这里（实测 businessId=snooker → 0 场；
+     * 而本标签一次返回 26 天 / 119 场，含斯诺克 9 场、F1 18 场）。
+     */
+    const val COMMON_HOT_SPORTS_ID = "commonhotsports"
+
+    /**
+     * 全部评分频道（**顺序 = 新用户的默认 tab 顺序**）。
+     *
+     * 1.199：按「虎扑热度 × 赛事时效性」重排，共 **20 个**（正好占满 [HupuPrefs.MAX_SCORE_GAMES] 上限）：
+     *   · 首位「热门赛事」——跨项目高频入口（F1/斯诺克/网球/乒乓球/排球/亚运电竞…），故排第一；
+     *   · 其后按热度：电竞顶流（英雄联盟）→ 传统两大（NBA、英超）→ 国内赛事（王者荣耀、CBA、国际足球/LPL）
+     *     → 其余电竞（CS2、无畏契约、绝地求生、和平精英、LCK）→ 周期赛事（世界杯、奥运会）
+     *     → 长尾专项（网球、乒乓球、羽毛球）；冷门联赛（WNBA、CUBA）垫底。
+     *   · 用户一旦自定义过顺序，本表**只影响新增频道的落位**，不会打断其既有排列。
+     */
+    val GAMES = listOf(
+        COMMON_HOT_SPORTS_ID to "热门赛事",
+        "lol" to "英雄联盟",
+        "nba" to "NBA",
+        "epl" to "英超",
+        "kog" to "王者荣耀",
+        "cba" to "CBA",
+        // 1.196：国际足球聚合赛程（赛程走 m.hupu.com/soccer/schedule 的 SSR，详见 SOCCER_ID）
+        SOCCER_ID to "国际足球",
+        "cs2" to "CS2",
+        "val" to "无畏契约",
+        "lpl" to "LPL",
+        "pubg" to "绝地求生",
+        "pubgmobile" to "和平精英",
+        "lck" to "LCK",
+        "worldcup" to "世界杯",
+        "tennis" to "网球",
+        "tabletennis" to "乒乓球",
+        "badminton" to "羽毛球",
+        "olympics" to "奥运会",
+        "wnba" to "WNBA",
+        "cuba" to "CUBA",
+    )
+
+    // 1.169: 共享 client（HupuHttp）——连接池/线程池复用
+    private val client: OkHttpClient = HupuHttp.client
+
+    /** 拉取某项目的赛程评分（JSON 文本）。失败返回 null。 */
+    /**
+     * 响应体可用性判定（1.151）。
+     * 旧实现用「字节长度」猜有效性（`json.length < 100`），但**合法的「成功但空」响应很短**：
+     * 母评论还没有子回复时 subCommentList 返回
+     * `{"code":1,"type":"COMMON","msg":"成功","data":null,"success":true}`（约 64 字节），
+     * 被长度守卫拦掉 → 返回 null → 上层当网络失败 → 楼中楼/评论列表显示「加载失败」。
+     * 现改为语义判定：必须是非空、可解析的 JSON 对象/数组（HTML 错误页/空体/截断体仍被拒）。
+     */
+    internal fun isJsonBody(body: String?): Boolean {
+        val t = body?.trim() ?: return false
+        if (t.isEmpty()) return false
+        if (!t.startsWith("{") && !t.startsWith("[")) return false
+        return runCatching { org.json.JSONTokener(t).nextValue() }.isSuccess
+    }
+
+    suspend fun fetchSchedule(businessId: String, forceNetwork: Boolean = false): String? {
+        val cacheKey = "match-schedule-$businessId"
+        return withContext(Dispatchers.IO) {
+            if (!forceNetwork) {
+                HupuCache.get(cacheKey)?.let { return@withContext it }
+            }
+            val url = "$BASE$SCHEDULE_PATH?businessType=common&datasource=navigation&businessId=$businessId"
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", UA)
+                .header("Accept", "application/json, text/plain, */*")
+                .header("Referer", "https://bbs.hupu.com/")
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use null
+                    val json = response.body?.string() ?: return@use null
+                    if (!isJsonBody(json)) return@use null
+                    HupuCache.put(cacheKey, json)
+                    json
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
+    /**
+     * 拉取节点详情（getSelfByBizKey，第 4 层选手/对局，匿名可用）。
+     */
+    suspend fun fetchSelf(bizType: String, bizNo: String, forceNetwork: Boolean = false): String? {
+        // 1.64：登录态读 detail.userScore 回显「我的评分」——缓存按登录态分键（L 后缀），
+        // 未登录读匿名主键，互不污染；匿名请求不带空 Cookie 头
+        val logged = HupuAccount.isLoggedIn
+        val baseKey = "score-self-$bizType-$bizNo"
+        val cacheKey = if (logged) "$baseKey-L" else baseKey
+        val cookie = if (logged) HupuAccount.loadCookieHeaderPublic() else ""
+        return withContext(Dispatchers.IO) {
+            if (!forceNetwork) {
+                HupuCache.get(cacheKey)?.let { return@withContext it }
+            }
+            val url = "https://games.mobileapi.hupu.com/1/8.0.99/bplcommentapi/bpl/score_tree/" +
+                "getSelfByBizKey?outBizType=$bizType&outBizNo=$bizNo"
+            val builder = Request.Builder()
+                .url(url)
+                .header("User-Agent", UA)
+                .header("Accept", "application/json, text/plain, */*")
+                .header("Referer", "https://m.hupu.com/")
+            if (cookie.isNotEmpty()) builder.header("Cookie", cookie)
+            val request = builder.build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use null
+                    val json = response.body?.string() ?: return@use null
+                    if (!isJsonBody(json)) return@use null
+                    HupuCache.put(cacheKey, json)
+                    json
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
+    /**
+     * 拉取通用评分主题树（getCurAndSubNodeByBizKey CHILD，common_first/common_second，匿名可用）。
+     * 树分页参数 page/pageSize（pageSize 固定 20）。缓存键带页码。
+     */
+    suspend fun fetchCommonTree(bizType: String, bizNo: String, page: Int, forceNetwork: Boolean = false): String? {
+        val cacheKey = "common-tree-$bizType-$bizNo-$page"
+        return withContext(Dispatchers.IO) {
+            if (!forceNetwork) {
+                HupuCache.get(cacheKey)?.let { return@withContext it }
+            }
+            val url = "https://games.mobileapi.hupu.com/1/8.0.99/bplcommentapi/bpl/score_tree/" +
+                "getCurAndSubNodeByBizKey?outBizType=$bizType&outBizNo=$bizNo&relation=CHILD" +
+                "&page=$page&pageSize=20"
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", UA)
+                .header("Accept", "application/json, text/plain, */*")
+                .header("Referer", "https://m.hupu.com/score/detail.html")
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use null
+                    val json = response.body?.string() ?: return@use null
+                    if (!isJsonBody(json)) return@use null
+                    HupuCache.put(cacheKey, json)
+                    json
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
+    /**
+     * 拉取评分区评论（primarySingleRow，匿名可用，游标分页：cursor=下一页 publishTime 毫秒）。
+     * cursor 传 0 表示取最新一页。
+     * queryType：latest=最晚（order=desc，publishTime=now）/ earliest=最早（order=asc，publishTime=0）
+     * / brightest=最亮（走独立端点 fetchHottestComments，本方法不支持）。
+     * 官方 JS 端点/参数（js-8402.4afb81ca.js）：ew={earliest:"asc",latest:"desc",brightest:""}。
+     */
+    suspend fun fetchComments(bizType: String, bizNo: String, cursor: Long, forceNetwork: Boolean = false, queryType: String = "latest"): String? {
+        val cacheKey = "score-comments-$bizType-$bizNo-$cursor-$queryType"
+        return withContext(Dispatchers.IO) {
+            if (!forceNetwork) {
+                HupuCache.get(cacheKey)?.let { return@withContext it }
+            }
+            val order = if (queryType == "earliest") "asc" else "desc"
+            val publishTime = if (cursor > 0) cursor else if (queryType == "earliest") 0L else System.currentTimeMillis()
+            val url = "https://games.mobileapi.hupu.com/1/8.0.99/bplcommentapi/bpl/comment/list/primarySingleRow" +
+                "?outBizType=$bizType&outBizNo=$bizNo&order=$order&queryType=$queryType&publishTime=$publishTime&page=1&pageSize=20" +
+                "&clientCode=&cid="
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", UA)
+                .header("Accept", "application/json, text/plain, */*")
+                .header("Referer", "https://m.hupu.com/")
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use null
+                    val json = response.body?.string() ?: return@use null
+                    if (!isJsonBody(json)) return@use null
+                    HupuCache.put(cacheKey, json)
+                    json
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
+    /**
+     * 最亮评论（官方主列表「最亮」tab：primarySingleRow/hottest，data 直接是评论数组，无分页）。
+     * 官方 JS：GET /bplcommentapi/bpl/comment/list/primarySingleRow/hottest，params={...outBizKey, clientCode, cid}。
+     */
+    suspend fun fetchHottestComments(bizType: String, bizNo: String, forceNetwork: Boolean = false): String? {
+        val cacheKey = "score-comments-hottest-$bizType-$bizNo"
+        return withContext(Dispatchers.IO) {
+            if (!forceNetwork) {
+                HupuCache.get(cacheKey)?.let { return@withContext it }
+            }
+            val url = "https://games.mobileapi.hupu.com/1/8.0.99/bplcommentapi/bpl/comment/list/primarySingleRow/hottest" +
+                "?outBizType=$bizType&outBizNo=$bizNo&clientCode=&cid="
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", UA)
+                .header("Accept", "application/json, text/plain, */*")
+                .header("Referer", "https://m.hupu.com/")
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use null
+                    val json = response.body?.string() ?: return@use null
+                    if (!isJsonBody(json)) return@use null
+                    HupuCache.put(cacheKey, json)
+                    json
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
+    /**
+     * 楼中楼全量子评论（primarySingleRow/subCommentList，匿名可用）。
+     * cursor 传 0 取第一页（latest：publishTime=now；earliest：publishTime=0）。翻页走 getMore。
+     */
+    suspend fun fetchSubComments(bizType: String, bizNo: String, parentCommentId: String, queryType: String = "latest", cursor: Long = 0L, forceNetwork: Boolean = false): String? {
+        val cacheKey = "score-subcomments-$bizType-$bizNo-$parentCommentId-$queryType-$cursor"
+        return withContext(Dispatchers.IO) {
+            if (!forceNetwork) {
+                HupuCache.get(cacheKey)?.let { return@withContext it }
+            }
+            val publishTime = if (cursor > 0) cursor else if (queryType == "earliest") 0L else System.currentTimeMillis()
+            val url = "https://games.mobileapi.hupu.com/1/8.0.99/bplcommentapi/bpl/comment/list/primarySingleRow/subCommentList" +
+                "?publishTime=$publishTime&outBizType=$bizType&outBizNo=$bizNo&queryType=$queryType" +
+                "&parentCommentId=$parentCommentId&pageSize=20&clientCode=&cid="
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", UA)
+                .header("Accept", "application/json, text/plain, */*")
+                .header("Referer", "https://m.hupu.com/")
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use null
+                    val json = response.body?.string() ?: return@use null
+                    if (!isJsonBody(json)) return@use null
+                    HupuCache.put(cacheKey, json)
+                    json
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
+    /**
+     * 楼中楼翻页（primarySingleRow/getMore，参数同 subCommentList + publishTime=上一页 cursor）。
+     */
+    suspend fun fetchSubCommentsMore(bizType: String, bizNo: String, parentCommentId: String, queryType: String = "latest", cursor: Long, forceNetwork: Boolean = false): String? {
+        val cacheKey = "score-subcomments-more-$bizType-$bizNo-$parentCommentId-$queryType-$cursor"
+        return withContext(Dispatchers.IO) {
+            if (!forceNetwork) {
+                HupuCache.get(cacheKey)?.let { return@withContext it }
+            }
+            val url = "https://games.mobileapi.hupu.com/1/8.0.99/bplcommentapi/bpl/comment/list/primarySingleRow/getMore" +
+                "?publishTime=$cursor&outBizType=$bizType&outBizNo=$bizNo&queryType=$queryType" +
+                "&parentCommentId=$parentCommentId&pageSize=20&clientCode=&cid="
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", UA)
+                .header("Accept", "application/json, text/plain, */*")
+                .header("Referer", "https://m.hupu.com/")
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use null
+                    val json = response.body?.string() ?: return@use null
+                    if (!isJsonBody(json)) return@use null
+                    HupuCache.put(cacheKey, json)
+                    json
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
+    /**
+     * 拉取评分树（games.mobileapi.hupu.com bplcommentapi，匿名 GET，实测可用）。
+     * 注意：顶层 children 是分页返回（pageResult.totalCount），单请求只给前 N 条
+     * （官方 H5 也是先出一部分、滚动再拉下一页）。这里自动翻页聚合全量，
+     * 拼接为单份响应后交给 parser——flat 选手列表与 MOBA 对局列表都可能超一页。
+     */
+    suspend fun fetchScoreTree(bizType: String, bizNo: String, forceNetwork: Boolean = false): String? {
+        // v3：v2 缓存可能缺对局 subNodes 补全，换 key 强制重取
+        val cacheKey = "score-tree3-$bizType-$bizNo"
+        return withContext(Dispatchers.IO) {
+            if (!forceNetwork) {
+                HupuCache.get(cacheKey)?.let { return@withContext it }
+            }
+            val json = try {
+                val root = JSONObject(fetchTreePage(bizType, bizNo, 1) ?: return@withContext null)
+                val pr = root.optJSONObject("data")?.optJSONObject("pageResult")
+                val items = pr?.optJSONArray("data")
+                val total = pr?.optLong("totalCount", -1L) ?: -1L
+                if (items != null && total > items.length()) {
+                    // 一页拿不全 → 循环翻页原地追加（最多 9 页兜底，防异常服务端死循环）
+                    var page = 2
+                    while (items.length() < total && page <= 10) {
+                        val next = fetchTreePage(bizType, bizNo, page)?.let { JSONObject(it) } ?: break
+                        val nextItems = next.optJSONObject("data")
+                            ?.optJSONObject("pageResult")?.optJSONArray("data") ?: break
+                        if (nextItems.length() == 0) break
+                        for (i in 0 until nextItems.length()) items.put(nextItems.get(i))
+                        page++
+                    }
+                }
+                // 第二层（对局）的 subNodes 同样分页截断：如 lol_bo subNodeCount=14 实给 10，
+                // 缺替补/教练/BP聚合项。校验不足时以该对局为 root 子请求 CHILD 补全，
+                // 替换 subNodes（元素结构与本层一致：{node, subNodes}，parser 透传兼容）
+                if (items != null) {
+                    for (i in 0 until items.length()) {
+                        val itObj = items.optJSONObject(i) ?: continue
+                        val node = itObj.optJSONObject("node") ?: continue
+                        val subs = itObj.optJSONArray("subNodes") ?: continue
+                        val subCount = itObj.optLong("subNodeCount", -1L)
+                        if (subCount <= subs.length()) continue
+                        val fullJson = fetchTreePage(node.optString("bizType"), node.optString("bizId"), 1) ?: continue
+                        val full = try { JSONObject(fullJson) } catch (e: Exception) { continue }
+                        val fullItems = full.optJSONObject("data")
+                            ?.optJSONObject("pageResult")?.optJSONArray("data") ?: continue
+                        if (fullItems.length() <= subs.length()) continue
+                        itObj.put("subNodes", fullItems)
+                    }
+                }
+                root.toString()
+            } catch (e: Exception) {
+                null
+            }
+            val jsonOk = json ?: return@withContext null
+            if (!isJsonBody(jsonOk)) return@withContext null
+            HupuCache.put(cacheKey, jsonOk)
+            json
+        }
+    }
+
+    /** 评分树单页请求（page 从 1 起，pageSize=50 常规一页拿全，超额由调用方翻页）。失败返回 null。 */
+    private suspend fun fetchTreePage(bizType: String, bizNo: String, page: Int): String? {
+        val url = "https://games.mobileapi.hupu.com/1/8.0.99/bplcommentapi/bpl/score_tree/" +
+            "getCurAndSubNodeByBizKey?outBizType=$bizType&outBizNo=$bizNo&relation=CHILD&page=$page&pageSize=50"
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", UA)
+            .header("Accept", "application/json, text/plain, */*")
+            .header("Referer", "https://bbs.hupu.com/")
+            .build()
+        return try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                response.body?.string()?.takeIf { it.length >= 100 }
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 服务端分组定义（getSubGroups，官方详情页分类条数据源，实测所有赛事通用）。
+     * 返回各分组（队伍）：groupId/groupName/logo/rootNodeId/childCount。
+     * 无分组（如单人对局）返回空列表。
+     */
+    suspend fun fetchSubGroups(bizType: String, bizNo: String): String? {
+        val cacheKey = "score-groups-$bizType-$bizNo"
+        return withContext(Dispatchers.IO) {
+            HupuCache.get(cacheKey)?.let { return@withContext it }
+            val url = "https://games.mobileapi.hupu.com/1/8.0.99/bplcommentapi/bpl/score_tree/" +
+                "getSubGroups?outBizType=$bizType&outBizNo=$bizNo"
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", UA)
+                .header("Accept", "application/json, text/plain, */*")
+                .header("Referer", "https://m.hupu.com/score/detail.html")
+                .build()
+            val json = try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use null
+                    response.body?.string()
+                }
+            } catch (e: Exception) {
+                null
+            }
+            val jsonOk = json ?: return@withContext null
+            if (!isJsonBody(jsonOk)) return@withContext null
+            HupuCache.put(cacheKey, jsonOk)
+            json
+        }
+    }
+
+    /**
+     * 分组成员节点（groupAndSubNodes，入参 nodeId=getSubGroups 的 rootNodeId）。
+     * 返回该分组的选手节点列表（结构与树 children 一致）。
+     */
+    suspend fun fetchGroupNodes(nodeId: Long): String? {
+        val cacheKey = "score-group-nodes-$nodeId"
+        return withContext(Dispatchers.IO) {
+            HupuCache.get(cacheKey)?.let { return@withContext it }
+            val url = "https://games.mobileapi.hupu.com/1/8.0.99/bplcommentapi/bff/bpl/score_tree/" +
+                "groupAndSubNodes?nodeId=$nodeId&queryType=default&page=1&pageSize=50"
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", UA)
+                .header("Accept", "application/json, text/plain, */*")
+                .header("Referer", "https://m.hupu.com/score/detail.html")
+                .build()
+            val json = try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use null
+                    response.body?.string()
+                }
+            } catch (e: Exception) {
+                null
+            }
+            val jsonOk = json ?: return@withContext null
+            if (!isJsonBody(jsonOk)) return@withContext null
+            HupuCache.put(cacheKey, jsonOk)
+            json
+        }
+    }
+
+    /**
+     * 1.196：国际足球赛程页 HTML（m.hupu.com/soccer/schedule，Next.js SSR）。
+     * 数据全在 `__NEXT_DATA__.props.pageProps.data`；该页**没有分页接口**
+     * （`_next/data` 路由 404、`?day=` 等参数无效），一次返回今天 ±6 天。
+     * 失败返回 null。
+     */
+    suspend fun fetchSoccerScheduleHtml(forceNetwork: Boolean = false): String? {
+        val cacheKey = "soccer-schedule-html"
+        return withContext(Dispatchers.IO) {
+            if (!forceNetwork) {
+                HupuCache.get(cacheKey)?.let { return@withContext it }
+            }
+            val request = Request.Builder()
+                .url("https://m.hupu.com/soccer/schedule")
+                .header("User-Agent", HupuApi.MOBILE_UA)
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                .header("Referer", "https://m.hupu.com/")
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use null
+                    val html = response.body?.string() ?: return@use null
+                    // 必须含 SSR 数据（否则是被风控/降级的壳页，直接当失败）
+                    if (!html.contains("__NEXT_DATA__")) return@use null
+                    HupuCache.put(cacheKey, html)
+                    html
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
+    /**
+     * 1.196：足球比赛的评分钥匙（matchId → outBizNo；outBizType 恒为 [FOOTBALL_MATCH]）。
+     * 来源：足球赛程页点击比赛时调用的官方接口，其 result 是一个形如
+     * `.../detail.html?outBizNo=54687&outBizType=football_match` 的 URL。
+     * 赛程列表里拿不到 outBizNo，故按需换取（结果按 matchId 缓存）。失败返回 null。
+     */
+    suspend fun fetchFootballScoreNo(matchId: String, forceNetwork: Boolean = false): String? {
+        if (matchId.isBlank()) return null
+        val cacheKey = "football-score-no-$matchId"
+        return withContext(Dispatchers.IO) {
+            if (!forceNetwork) {
+                HupuCache.get(cacheKey)?.let { return@withContext it }
+            }
+            val url = "https://football-api.hupu.com/3/8.0.73/match/queryMatchDetailScoreUrl?matchId=$matchId"
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", UA)
+                .header("Accept", "application/json, text/plain, */*")
+                .header("Referer", "https://m.hupu.com/soccer/schedule")
+                .build()
+            val no = try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use null
+                    val body = response.body?.string() ?: return@use null
+                    Regex("[?&]outBizNo=(\\d+)").find(body)?.groupValues?.get(1)
+                }
+            } catch (e: Exception) {
+                null
+            }
+            val ok = no ?: return@withContext null
+            HupuCache.put(cacheKey, ok)
+            ok
+        }
+    }
+}

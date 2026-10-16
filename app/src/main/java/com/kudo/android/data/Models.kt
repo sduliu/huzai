@@ -36,8 +36,8 @@ data class Topic(
 data class TopicPage(val topics: List<Topic>, val next: String?, val tag: TopicTag? = null)
 
 enum class FeedFilter(val value: String, val label: String, val personal: Boolean = false) {
-    UNREAD("unread", "未读", true), LATEST("latest", "最新"), NEW("new", "新", true),
-    HOT("hot", "热门"), TOP("top", "排行榜"), POSTED("posted", "我的帖子", true),
+    UNREAD("unread", "未读", true), LATEST("latest", "综合"), NEW("new", "新", true),
+    HOT("hot", "步行街"), TOP("top", "每日话题"), POSTED("posted", "我的帖子", true),
     READ("read", "已读", true), BOOKMARKS("bookmarks", "书签", true);
 
     companion object {

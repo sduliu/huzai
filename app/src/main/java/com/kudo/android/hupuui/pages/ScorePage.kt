@@ -1,0 +1,1803 @@
+package com.kudo.android.hupuui.pages
+
+import androidx.compose.foundation.background
+import androidx.compose.runtime.DisposableEffect
+import com.kudo.android.hupuui.components.SheetGrabber
+import com.kudo.android.hupuui.components.rememberSheetSideInset
+import com.kudo.android.hupuui.components.sheetTopCornerShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.kudo.android.hupuui.components.animateChipCenterTo
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kudo.android.hupuui.glass.LiquidGlassDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import coil.compose.AsyncImage
+import com.kudo.android.hupu.HupuCommonSubject
+import com.kudo.android.hupu.HupuCommonTree
+import com.kudo.android.hupu.HupuImage
+import com.kudo.android.hupu.HupuMatch
+import com.kudo.android.hupu.HupuMatchApi
+import com.kudo.android.hupu.HotSport
+import com.kudo.android.hupu.HupuPrefs
+import com.kudo.android.hupuui.components.HupuIcons
+import com.kudo.android.hupuui.components.LiquidIconButton
+import com.kudo.android.hupuui.glass.LiquidButton
+import com.kudo.android.hupu.isLocalStickerUrl
+import com.kudo.android.hupu.HupuMatchDay
+import com.kudo.android.hupu.HupuMatchTeam
+import com.kudo.android.hupu.HupuPlayerScore
+import com.kudo.android.hupu.HupuRepository
+import com.kudo.android.hupu.HupuUiSignals
+import com.kudo.android.hupu.HupuScoreGroup
+import com.kudo.android.hupu.HupuScoreItem
+import com.kudo.android.hupu.HupuScoreTree
+import com.kudo.android.hupu.HupuAccount
+import com.kudo.android.hupu.HupuSelfDetail
+import com.kudo.android.hupu.GrandExpandState
+import com.kudo.android.hupu.flattenWithDescendants
+import com.kudo.android.hupu.ScoreCommentState
+import com.kudo.android.hupu.mergeWithOptimistic
+import com.kudo.android.hupu.nbaBeijingDate
+import com.kudo.android.hupu.isNbaStatsSupported
+import com.kudo.android.hupuui.components.Chip
+import com.kudo.android.hupuui.components.ErrorRetry
+import com.kudo.android.hupuui.components.PageHeader
+import com.kudo.android.hupuui.glass.FrostedHeaderLayout
+import com.kudo.android.hupuui.components.SecondaryPage
+import com.kudo.android.hupuui.components.SkeletonHome
+import com.kudo.android.hupuui.components.normalizeCover
+import com.kudo.android.hupuui.components.tabSwipeSwitch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import com.kudo.android.hupuui.components.chipBarClip
+import com.kudo.android.hupuui.components.HuzaiToast
+
+/**
+ * 评分页：6 大电竞项目赛程 + 选手评分（浏览，打分需登录暂不做）
+ * 数据：match-api.hupu.com 匿名接口（实测可用）
+ */
+@Composable
+fun ScorePage(modifier: Modifier = Modifier) {
+    val repo = remember { HupuRepository() }
+    // 1.191: 记录层——供 Liquid Glass 弹窗采样背后像素（挂在内容层上，弹窗在其后）
+    // 1.191: 先铺一层不透明页面底色再画内容——与 ThreadDetailPage 的
+    // actionBackdrop 同一套做法。记录层若透明，卡片会显得「非常透明」
+    val dialogBg = MaterialTheme.colorScheme.background
+    val backdrop = rememberLayerBackdrop {
+        drawRect(dialogBg)
+        drawContent()
+    }
+    // 评分频道（即时生效）：订阅 scoreGamesVersion——ScorePickerPage 每次保存后
+    // version+1，此处 remember 重算，横滑条立即增删/重排，无需重启或重进页面
+    val effectiveGames = remember(HupuPrefs.scoreGamesVersion) {
+        HupuPrefs.effectiveScoreGames(HupuMatchApi.GAMES)
+    }
+    // 1.192: 「虎扑评分」隐藏开关——隐藏后横滑条不再显示它
+    // （设置页已保证「虎扑评分 + 已选赛事」≥1；这里再兜底：赛事为空时仍显示，页面不会 0 tab）
+    val commonHidden = remember(HupuPrefs.scoreGamesVersion) { HupuPrefs.isScoreCommonHidden() }
+    val showCommon = !commonHidden || effectiveGames.isEmpty()
+    // 项目横滑条单选（默认英雄联盟）
+    var selectedGame by remember { mutableStateOf(HupuMatchApi.GAMES.first().first) }
+    // 各项目的赛程缓存（切回不重载）
+    val schedules = remember { mutableStateMapOf<String, List<HupuMatchDay>>() }
+    // 电竞项目赛程的加载态：进电竞 chip 时由 onClick/LaunchedEffect 同步置位
+    var loadingGame by remember { mutableStateOf<String?>(null) }
+    var refreshTick by remember { mutableIntStateOf(0) }
+    var refreshVersion by remember { mutableIntStateOf(0) }
+    // 板块频道状态（非板块频道为 null；key=频道，切换即整套重建）
+    val boardState = rememberBoardState(selectedGame)
+
+    // ---------- 比赛详情二级页（盖入式；状态外置：返回再进不重载） ----------
+    val scope = rememberCoroutineScope()
+    var openedMatch by remember { mutableStateOf<HupuMatch?>(null) }
+    /** 比赛详情 → 记分板点队名/队标 → 盖出的球队页请求 */
+    var openedTeam by remember { mutableStateOf<TeamPageRequest?>(null) }
+    /** 频道条右端「管理」入口 → 频道自定义页（选择+排序） */
+    var pickerOpen by remember { mutableStateOf(false) }
+    // 1.192: 本层「已计数」标记——连点多个条目时 enter 只发生一次，防 Tab 栏计数泄漏
+    var matchEntered by remember { mutableStateOf(false) }
+    var detailClosing by remember { mutableStateOf(false) }
+    var detailLoading by remember { mutableStateOf(false) }
+    val matchTrees = remember { mutableStateMapOf<String, HupuScoreTree>() }
+    // 服务端分组（getSubGroups）：flat 结构的「全部/队名/趣评」分类条数据源（官方所有赛事通用）
+    val matchGroups = remember { mutableStateMapOf<String, List<HupuScoreGroup>>() }
+    // 分组成员缓存（groupAndSubNodes，按 rootNodeId → groupId 键）
+    val groupMembers = remember { mutableStateMapOf<Long, List<HupuScoreItem>>() }
+
+    // ---------- 选手详情三级页（盖入式；评分分布 + 热评 + 评论流） ----------
+    var openedPlayer by remember { mutableStateOf<HupuScoreItem?>(null) }
+    // 1.192: 本层「已计数」标记——连点多个条目时 enter 只发生一次，防 Tab 栏计数泄漏
+    var playerEntered by remember { mutableStateOf(false) }
+    // 评论排序（官方 queryType：brightest=最亮 / latest=最晚 / earliest=最早）。
+    // 默认最亮（对齐官方客户端）；每位选手打开时重置为默认。
+    var playerSort by remember { mutableStateOf(HupuPrefs.loadDefaultScoreSort()) }
+    // 排序是否处于默认态：仅默认态下「最亮无评论」才自动降级到最晚，
+    // 用户手动切到最亮且为空时保持空态（不抢用户的操作）
+    var playerSortIsDefault by remember { mutableStateOf(true) }
+    // 各排序的评论缓存（key = "bizType-bizId-queryType"，切排序/切选手互不干扰、返回不重载）
+    val playerComments = remember { mutableStateMapOf<String, ScoreCommentState>() }
+    // 1.59 切排序「留旧显示」：displaySort=数据源索引（新排序数据到位才切换），
+    // playerSort=排序条高亮（点击即时反馈）；switching=切换加载中角标
+    var playerDisplaySort by remember { mutableStateOf(HupuPrefs.loadDefaultScoreSort()) }
+    var playerSwitching by remember { mutableStateOf(false) }
+    var playerClosing by remember { mutableStateOf(false) }
+    var playerLoading by remember { mutableStateOf(false) }
+    var playerLoadingMore by remember { mutableStateOf(false) }
+    val selfDetails = remember { mutableStateMapOf<String, HupuSelfDetail>() }
+
+    // ---------- 评分评论楼中楼 sheet（subCommentList 全量；母评论 → 子回复流） ----------
+    var scoreSubSheet by remember { mutableStateOf<SubCommentSheetData?>(null) }
+    var subSheetLoading by remember { mutableStateOf(false) }
+    var subSheetLoadingMore by remember { mutableStateOf(false) }
+    var subSheetClosing by remember { mutableStateOf(false) }
+    // 楼中楼内排序（1.2xx：跟随「默认排序」设置；官方 sheet 默认 brightest）
+    var subSheetSort by remember { mutableStateOf(HupuPrefs.loadDefaultScoreSort()) }
+    // 各母评论的子回复缓存（key="bizType-bizId-parentCommentId-sortKey"，切排序互不干扰）
+    val subComments = remember { mutableStateMapOf<String, ScoreCommentState>() }
+    // ---------- 1.64 评分 & 点亮（登录态；key 与 PlayerDetailPage 的 litKey 同构） ----------
+    // 提示条（点亮/打分结果；2600ms 自动清除，点击立即消失——与帖子详情页同手感）
+    // 打分面板（按选手键控：同一时间只挂一个打开位）
+    var scorePanelOpen by remember { mutableStateOf(false) }
+    var scorePanelKey by remember { mutableStateOf("") }
+    var scorePanelSubmitting by remember { mutableStateOf(false) }
+    // 本会话已提交的评分（打分成功即时回显；k=选手键）
+    val myScores = remember { mutableStateMapOf<String, Int>() }
+    // 点亮状态（k=litKey = subjectId:commentId；本地乐观值优先于 hasLight）
+    val scoreLightState = remember { mutableStateMapOf<String, Boolean>() }
+    fun lightKey(c: com.kudo.android.hupu.HupuScoreComment): String =
+        (c.subjectId.ifEmpty { c.commentId }) + ":" + c.commentId
+    fun subCacheKey(bizType: String, bizNo: String, pid: String, sort: String): String =
+        "sub-$bizType-$bizNo-$pid-$sort"
+
+    // ---------- 1.145 评分评论回复（登录态；回复嵌套进被回复评论的楼中楼） ----------
+    var scoreReplyTarget by remember { mutableStateOf<com.kudo.android.hupu.HupuScoreComment?>(null) }
+    var scoreReplyText by remember { mutableStateOf("") }
+    var scoreReplySending by remember { mutableStateOf(false) }
+    // 1.150: 本机刚发送的回复（乐观层）：key = 被回复评论 commentId。
+    // 服务端有延迟（实测发送后不会立刻出现在列表里），本地先上屏；条目用服务端回包的真实
+    // commentId 作 id，服务端稍后返回同一条时按 id 去重——修复 1.148「两条我的回复」。
+    val optimisticScoreReplies = remember {
+        mutableStateMapOf<String, List<com.kudo.android.hupu.HupuScoreComment>>()
+    }
+
+    // ---------- 1.146 回复框扩展（对齐帖子回复框：表情/表情包/图片） ----------
+    // 图片附件（Uri，最多 9 张；发送时顺序上传换 URL）
+    var scoreReplyImages by remember { mutableStateOf<List<android.net.Uri>>(emptyList()) }
+    var scoreReplyImageUploading by remember { mutableStateOf(false) }
+    // 表情面板（覆盖式：贴屏底，键盘盖其上；高度 = IME 峰值）
+    var scoreReplyEmojiOpen by remember { mutableStateOf(false) }
+    var scoreReplyEmojiTab by remember { mutableStateOf(0) }
+    var scoreStickerAdding by remember { mutableStateOf(false) }
+    var scoreStickerToDelete by remember { mutableStateOf<com.kudo.android.hupu.HupuSticker?>(null) }
+    // IME 峰值跟踪（ViewTree insets 监听器，非组合 API——键盘动画每帧零组合开销）
+    var scoreReplyLastImePx by remember { mutableStateOf(0) }
+    // 面板→键盘切换（点输入框先升键盘，IME 到面板高才撤面板——零跳变）
+    var scorePanelToKeyboardPending by remember { mutableStateOf(false) }
+    var scorePanelTargetPx by remember { mutableStateOf(0) }
+    val scoreCtx = androidx.compose.ui.platform.LocalContext.current
+    val scoreDensity = androidx.compose.ui.platform.LocalDensity.current
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val view = (scoreCtx as? android.app.Activity)?.window?.decorView
+        val cb = android.view.View.OnApplyWindowInsetsListener { v, insets ->
+            val ime = androidx.core.view.WindowInsetsCompat.toWindowInsetsCompat(insets, v)
+                .getInsets(androidx.core.view.WindowInsetsCompat.Type.ime()).bottom
+            if (ime > scoreReplyLastImePx) scoreReplyLastImePx = ime
+            insets
+        }
+        if (view != null) view.setOnApplyWindowInsetsListener(cb)
+        onDispose {
+            if (view != null) view.setOnApplyWindowInsetsListener(null)
+        }
+    }
+    // 图片选择器（多选，最多 9 张）
+    val scorePickImages = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        if (uris.isNotEmpty()) scoreReplyImages = (scoreReplyImages + uris).distinct().take(9)
+    }
+    // 表情包下载落盘 → 图片附件（对齐帖子 insertSticker）
+    fun scoreInsertSticker(s: com.kudo.android.hupu.HupuSticker) {
+        if (scoreStickerAdding) return
+        scoreStickerAdding = true
+        scope.launch {
+            HupuPrefs.stickerToast = "表情包处理中…"
+            // 1.165: 本地导入的表情直接读盘；远程收藏的表情走下载
+            val bytes = if (isLocalStickerUrl(s.url)) {
+                runCatching { java.io.File(s.url.removePrefix("file://")).readBytes() }.getOrNull()
+            } else {
+                // 1.191: adoutu 图片有防盗链，下载必须带 Referer（虎扑图床返回 null → 原样请求）
+                HupuAccount.downloadImageBytes(s.url, com.kudo.android.hupu.stickerReferer(s.url))
+            }
+            if (bytes == null || bytes.isEmpty()) {
+                scoreStickerAdding = false
+                HupuPrefs.stickerToast = "表情包下载失败"
+                return@launch
+            }
+            val lower = s.url.lowercase()
+            val ext = when {
+                lower.contains(".gif") -> "gif"
+                lower.contains(".png") -> "png"
+                lower.contains(".webp") -> "webp"
+                else -> "jpg"
+            }
+            val file = try {
+                val dir = java.io.File(scoreCtx.cacheDir, "stickers").apply { mkdirs() }
+                val f = java.io.File(dir, "sticker_" + System.currentTimeMillis() + "." + ext)
+                f.writeBytes(bytes)
+                f
+            } catch (e: Exception) {
+                scoreStickerAdding = false
+                HupuPrefs.stickerToast = "表情包写入失败：" + (e.message ?: e.javaClass.simpleName)
+                return@launch
+            }
+            scoreReplyImages = scoreReplyImages + android.net.Uri.fromFile(file)
+            scoreStickerAdding = false
+            HupuPrefs.stickerToast = "已加入图片，发送时随回复一起上传"
+        }
+    }
+    // 面板→键盘翻转超时兜底（800ms 无 IME 变化直接切换——悬浮键盘等场景）
+    LaunchedEffect(scorePanelToKeyboardPending) {
+        if (!scorePanelToKeyboardPending) return@LaunchedEffect
+        if (scoreReplyLastImePx <= 0) {
+            if (scoreReplyEmojiOpen) scoreReplyEmojiOpen = false
+            scorePanelToKeyboardPending = false
+            return@LaunchedEffect
+        }
+        withTimeoutOrNull(800) {
+            androidx.compose.runtime.snapshotFlow { scorePanelToKeyboardPending }.first { !it }
+        }
+        if (scorePanelToKeyboardPending && scoreReplyEmojiOpen) scoreReplyEmojiOpen = false
+        scorePanelToKeyboardPending = false
+    }
+    // 收藏表情包 toast 自动消失（2s）
+    LaunchedEffect(HupuPrefs.stickerToast) {
+        val t = HupuPrefs.stickerToast
+        if (t != null) {
+            kotlinx.coroutines.delay(2000)
+            if (HupuPrefs.stickerToast == t) HupuPrefs.stickerToast = null
+        }
+    }
+    // 回复框关闭统一复位表情面板（点空白/发送/返回，防止下次打开键盘+面板同时出现）
+    LaunchedEffect(scoreReplyTarget) {
+        if (scoreReplyTarget == null) {
+            scoreReplyEmojiOpen = false
+            scorePanelToKeyboardPending = false
+        }
+    }
+
+    // ---------- 虎扑通用评分（非赛事体系）：独立 chip + 主题卡流 + 主题详情 overlay ----------
+    // 默认选中虎扑评分（用户指定）
+    // 1.192: 「虎扑评分」被隐藏时，默认直接落在第一个赛事上
+    var commonOpen by remember { mutableStateOf(!HupuPrefs.isScoreCommonHidden()) }
+    var commonSubjects by remember { mutableStateOf<List<HupuCommonSubject>>(emptyList()) }
+    var commonLoading by remember { mutableStateOf(false) }
+    var commonFailed by remember { mutableStateOf(false) }
+    var commonScrollTick by remember { mutableIntStateOf(0) } // 1.179: 虎扑评分刷新完回顶信号
+    var openedCommon by remember { mutableStateOf<HupuCommonSubject?>(null) }
+    // 1.192: 本层「已计数」标记——连点多个条目时 enter 只发生一次，防 Tab 栏计数泄漏
+    var commonEntered by remember { mutableStateOf(false) }
+    var commonClosing by remember { mutableStateOf(false) }
+    var commonDetailLoading by remember { mutableStateOf(false) }
+    var commonLoadingMore by remember { mutableStateOf(false) }
+    val commonTrees = remember { mutableStateMapOf<String, HupuCommonTree>() }
+
+    fun openMatch(m: HupuMatch) {
+        // 1.196：国际足球的赛程项没有 outBizNo——先盖章式打开（骨架屏第一帧），
+        // 再后台换取评分钥匙并回填；LaunchedEffect(openedMatch?.scoreBizNo) 会在
+        // scoreBizNo 落地后自动续拉评分树，用户体验与其它赛事一致。
+        if (m.scoreBizType == HupuMatchApi.FOOTBALL_MATCH && m.scoreBizNo == null) {
+            detailClosing = false
+            if (!matchEntered) { matchEntered = true; SecondaryPage.enter() }
+            openedMatch = m
+            detailLoading = true
+            scope.launch {
+                val no = repo.footballScoreNo(m.matchId)
+                if (openedMatch?.matchId != m.matchId) return@launch // 已切到别的比赛，丢弃结果
+                if (no != null) {
+                    openedMatch = m.copy(scoreBizNo = no)
+                } else {
+                    detailLoading = false // 换取失败：交给 overlay 的失败态
+                }
+            }
+            return
+        }
+        if (m.scoreBizNo == null) return
+        val key = "${m.scoreBizType}-${m.scoreBizNo}"
+        detailClosing = false
+        if (!matchEntered) { matchEntered = true; SecondaryPage.enter() }
+        openedMatch = m
+        // 加载态在交互瞬间同步置位（自定义频道同款策略）：无缓存 → 骨架屏第一帧
+        // 就出现；失败态只在网络真正失败后才出现，打开瞬间不再闪「加载失败」
+        detailLoading = !matchTrees.containsKey(key)
+    }
+
+    fun closeMatch() {
+        // 先播返回动画（overlay 滑回右侧），动画结束后真正移除
+        detailClosing = true
+    }
+
+    fun openPlayer(p: HupuScoreItem) {
+        val key = "${p.bizType}-${p.bizId}"
+        playerClosing = false
+        if (!playerEntered) { playerEntered = true; SecondaryPage.enter() }
+        // 每位选手都从「默认排序」设置开始（排序选择不跨选手沿用）
+        val defaultSort = HupuPrefs.loadDefaultScoreSort()
+        playerSort = defaultSort
+        playerDisplaySort = defaultSort
+        playerSwitching = false
+        playerSortIsDefault = true
+        openedPlayer = p
+        // 同上：同步置位，骨架屏第一帧出现，失败只在真实网络失败后出现
+        playerLoading = !selfDetails.containsKey(key)
+    }
+
+    fun closePlayer() {
+        playerClosing = true
+    }
+
+    // ---------- 虎扑通用评分：打开/关闭/加载（同款「同步置位 + 错峰请求」策略） ----------
+    /**
+     * 1.132: 冷启动时评分页与首页/专区并发发起首屏请求，评分首页 SSR（桌面 UA）偶发超时 /
+     * 返回不含 __NEXT_DATA__ 的页面 → 空列表被判为失败。这里做三件事：
+     *  ① 首次加载 [stagger] 延后错峰，不与冷启动其余页面首屏请求争网络；
+     *  ② 失败自动重试（递增退避，共 3 次尝试），消除偶发失败；
+     *  ③ 已有数据时刷新失败不清空（保留旧数据，不闪失败态）。
+     * commonLoading 同步置位——骨架屏第一帧出现，失败态只在真实失败后出现。
+     */
+    fun loadCommonSubjects(forceNetwork: Boolean = false, stagger: Boolean = false) {
+        commonLoading = true
+        commonFailed = false
+        scope.launch {
+            if (stagger) delay(400) // 错峰：等冷启动首屏请求先发
+            var list = repo.commonSubjects(refresh = forceNetwork)
+            var tries = 0
+            while (list.isEmpty() && tries < 2) {
+                tries++
+                delay(600L * tries)
+                list = repo.commonSubjects(refresh = forceNetwork)
+            }
+            if (list.isNotEmpty()) {
+                commonSubjects = list
+                // 1.179: 刷新（forceNetwork）拿到的是全新一批卡 → 回顶
+                if (forceNetwork) commonScrollTick++
+            } else if (commonSubjects.isEmpty()) {
+                commonFailed = true
+            }
+            commonLoading = false
+        }
+    }
+
+    fun openCommon(s: HupuCommonSubject) {
+        val key = "${s.bizType}-${s.bizNo}"
+        commonClosing = false
+        if (!commonEntered) { commonEntered = true; SecondaryPage.enter() }
+        openedCommon = s
+        commonDetailLoading = !commonTrees.containsKey(key)
+        if (commonSubjects.isEmpty()) loadCommonSubjects()
+    }
+
+    fun closeCommon() {
+        commonClosing = true
+    }
+
+    // 默认选中虎扑评分：首帧即触发加载（chip 的 onClick 在默认态不会执行）
+    // 同款「同步置位」：commonLoading 同步置 true，第一帧就是骨架屏；
+    // 1.132: 首次加载错峰（stagger）——避开冷启动其余页面的首屏请求洪峰
+    LaunchedEffect(Unit) {
+        if (commonSubjects.isEmpty() && !commonLoading && !commonFailed) loadCommonSubjects(stagger = true)
+    }
+
+    fun loadMoreCommon() {
+        val s = openedCommon ?: return
+        val key = "${s.bizType}-${s.bizNo}"
+        val t = commonTrees[key] ?: return
+        if (commonLoadingMore || t.items.size >= t.totalCount) return
+        scope.launch {
+            commonLoadingMore = true
+            val next = repo.commonTree(s.bizType, s.bizNo, page = t.items.size / 20 + 1)
+            if (next != null) {
+                val merged = (t.items + next.items).distinctBy { it.bizId }
+                commonTrees[key] = next.copy(items = merged, totalCount = maxOf(t.totalCount, next.totalCount))
+            }
+            commonLoadingMore = false
+        }
+    }
+
+    // Tab 重选刷新信号：已选中时再点评分 Tab → 当前视图强刷（虎扑评分主题流 / 电竞赛程）
+    LaunchedEffect(HupuUiSignals.scoreTabTap) {
+        if (HupuUiSignals.scoreTabTap == 0) return@LaunchedEffect
+        if (commonOpen) loadCommonSubjects(forceNetwork = true) else refreshTick++
+    }
+    // 1.132: 切入评分页时补偿重试——页面常驻组合，冷启动首屏加载若失败（含重试后仍失败），
+    // 用户切过来会看到残留失败态；此时若仍为空且不在加载中，再补一次加载。
+    LaunchedEffect(HupuUiSignals.scoreTabShown) {
+        if (HupuUiSignals.scoreTabShown == 0) return@LaunchedEffect
+        if (commonOpen && commonSubjects.isEmpty() && !commonLoading) loadCommonSubjects()
+    }
+    // 评分频道自定义：当前选中的赛事项目被移除 → 回落到虎扑评分
+    // （effectiveGames 即上面的订阅值，保存后立即重跑）
+    LaunchedEffect(effectiveGames) {
+        if (commonOpen) return@LaunchedEffect
+        if (effectiveGames.none { it.first == selectedGame }) commonOpen = true
+    }
+    // 1.192: 「虎扑评分」被隐藏后不允许停在它上面 → 回落到第一个赛事
+    LaunchedEffect(showCommon, effectiveGames) {
+        if (showCommon || effectiveGames.isEmpty()) return@LaunchedEffect
+        if (commonOpen) commonOpen = false
+        if (effectiveGames.none { it.first == selectedGame }) {
+            selectedGame = effectiveGames.first().first
+            if (!schedules.containsKey(selectedGame)) loadingGame = selectedGame
+        }
+    }
+
+    // 服务端分组：树就绪后加载分组定义+全部成员，全部完成才一次性写入状态（分类条与内容
+        // 同帧出现，无中途闪态/插入跳动）。维度：flat=比赛维度；CS2 等 common_sports 三层=
+        // 按地图(second)维度并行请求按 groupId 去重合并；LOL（lol_match）无服务端分组 →
+        // 写空列表标记已解析（该类赛事走赛程卡两队 teamId 方案）
+        suspend fun loadGroupsResolved(key: String, m: HupuMatch, t: HupuScoreTree) {
+            if (matchGroups.containsKey(key)) return
+            val no = m.scoreBizNo ?: return
+            val base = m.scoreBizType ?: "lol_match"
+            val groups = when {
+                t.flat -> repo.scoreGroups(base, no)
+                base == "common_sports_first" && t.rounds.isNotEmpty() -> {
+                    val subType = base.removeSuffix("first") + "second"
+                    coroutineScope {
+                        t.rounds.map { r -> async { repo.scoreGroups(subType, r.bizId) } }
+                            .flatMap { it.await() }
+                            .distinctBy { it.groupId }
+                    }
+                }
+                else -> emptyList()
+            }
+            val resolved = if (groups.isEmpty()) groups else coroutineScope {
+                groups.map { g -> async { g to repo.scoreGroupNodes(g.rootNodeId) } }
+                    .map { it.await() }
+                    .mapNotNull { (g, mem) ->
+                        if (mem.isNotEmpty()) { groupMembers[g.groupId] = mem; g } else null
+                    }
+            }
+            matchGroups[key] = resolved
+        }
+
+    // 当前打开的比赛：树+分组都就绪后才关 loading——内容与分类条同帧出现，不跳动；
+    // 二次进入（此前提前 return 导致分组丢失的 bug）也走同一入口补齐分组
+    LaunchedEffect(openedMatch?.scoreBizNo) {
+        val m = openedMatch ?: return@LaunchedEffect
+        val no = m.scoreBizNo ?: return@LaunchedEffect
+        val key = "${m.scoreBizType}-$no"
+        if (matchTrees.containsKey(key) && matchGroups.containsKey(key)) {
+            detailLoading = false
+            return@LaunchedEffect
+        }
+        delay(120) // 盖入动画 280ms + 余量（首个网络请求前）
+        // 1.224n（真机反馈「趣评 tab 一闪而过」）：
+        // 树与分组必须**同帧**进组合。此前是这里先把树写进 matchTrees，而 MatchDetailPage 只要
+        // `tree != null` 就立刻渲染（忽略 loading）→ 那一帧里 groups 还是空的，分类条先按
+        // 「赛程卡两队 teamId」的本地方案画一条（其中会凭空多出一个「趣评」），
+        // 等分组到位再整条换成服务端分组 → 趣评就"出现又消失"了。
+        // 改法：分组解析完再写树（两次状态写入在同一个同步块内 → 同一帧生效）。
+        val cached = matchTrees[key]
+        val t = cached ?: repo.scoreTree(m.scoreBizType ?: "lol_match", no)
+        if (t == null) {
+            if (openedMatch?.scoreBizNo == no) detailLoading = false
+            return@LaunchedEffect
+        }
+        loadGroupsResolved(key, m, t)
+        if (cached == null) matchTrees[key] = t
+        if (openedMatch?.scoreBizNo == no) detailLoading = false
+    }
+
+    // 当前打开的选手：无缓存则拉详情 + 首页评论（loading 已在打开瞬间置位；仅错峰网络请求）
+    LaunchedEffect(openedPlayer?.bizId, playerSort) {
+        val p = openedPlayer ?: return@LaunchedEffect
+        val key = "${p.bizType}-${p.bizId}"
+        val cKey = "$key-$playerSort"
+        if (selfDetails.containsKey(key) && playerComments[cKey] != null) {
+            // 缓存已填充：零延迟同步显示，清 loading 与切换角标（缓存秒开不与动画争帧）
+            if (openedPlayer?.bizId == p.bizId) {
+                playerDisplaySort = playerSort
+                playerSwitching = false
+                playerLoading = false
+            }
+            return@LaunchedEffect
+        }
+        // 1.60 恢复 delay(120)：盖入动画 280ms + 余量错峰，网络请求不与转场动画争帧
+        // （1.59 误删导致打开即卡——一边加载一边动画，缓存未命中时尤其明显）
+        if (!selfDetails.containsKey(key)) {
+            delay(120)
+        }
+        if (!selfDetails.containsKey(key)) {
+            val d = repo.scoreSelf(p.bizType, p.bizId)
+            if (d != null) selfDetails[key] = d
+        }
+        if (playerComments[cKey] == null) {
+            val c = repo.scoreComments(p.bizType, p.bizId, cursor = 0L, queryType = playerSort)
+            if (c != null) playerComments[cKey] = c
+            // 最亮默认降级：hottest 端点无评论（scoreComments 返回 null）且排序仍处于
+            // 默认态（非用户手动选择）→ 自动切到最晚；playerSort 变化触发本 effect 重跑。
+            // 降级时保持 loading=true（骨架屏无缝衔接最晚加载，不闪空态帧）
+            val fallback = c == null && playerSort == "brightest" && playerSortIsDefault &&
+                openedPlayer?.bizId == p.bizId
+            if (fallback) playerSort = "latest"
+            if (!fallback && openedPlayer?.bizId == p.bizId) {
+                playerLoading = false
+                playerDisplaySort = playerSort
+                playerSwitching = false
+            }
+        } else if (openedPlayer?.bizId == p.bizId) {
+            playerLoading = false
+            playerDisplaySort = playerSort
+            playerSwitching = false
+        }
+    }
+
+    // 当前打开的通用评分主题：无缓存则拉树（loading 已在打开瞬间置位；仅错峰网络请求）
+    LaunchedEffect(openedCommon?.bizNo) {
+        val s = openedCommon ?: return@LaunchedEffect
+        val key = "${s.bizType}-${s.bizNo}"
+        if (commonTrees.containsKey(key)) return@LaunchedEffect
+        delay(120) // 盖入动画 280ms + 余量
+        if (commonTrees.containsKey(key)) {
+            if (openedCommon?.bizNo == s.bizNo) commonDetailLoading = false
+            return@LaunchedEffect
+        }
+        val t = repo.commonTree(s.bizType, s.bizNo)
+        if (t != null) commonTrees[key] = t
+        if (openedCommon?.bizNo == s.bizNo) commonDetailLoading = false
+    }
+
+    // 首次进入某项目：缓存优先加载，有缓存直接跳过（切回不重载）
+    // 默认选中虎扑评分：首帧不再拉 lol 赛程，仅当切到电竞 chip（commonOpen=false）时才加载
+    LaunchedEffect(selectedGame, commonOpen) {
+        if (commonOpen) return@LaunchedEffect
+        if (schedules.containsKey(selectedGame)) return@LaunchedEffect
+        loadingGame = selectedGame
+        val days = repo.matchSchedule(selectedGame)
+        if (days.isNotEmpty()) schedules[selectedGame] = days
+        if (loadingGame == selectedGame) loadingGame = null
+    }
+
+    // 下拉刷新 / 失败重试：强制走网络（绕过缓存），成功后回顶
+    LaunchedEffect(refreshTick) {
+        if (refreshTick == 0) return@LaunchedEffect
+        loadingGame = selectedGame
+        val days = repo.matchSchedule(selectedGame, refresh = true)
+        if (days.isNotEmpty()) {
+            schedules[selectedGame] = days
+            refreshVersion++
+        }
+        if (loadingGame == selectedGame) loadingGame = null
+    }
+
+    // 1.186: 顶部 Tab 左右滑动切换（仅本大页面内；顺序与横滑条一致：虎扑评分 + 各赛事项目）
+    fun swipeScoreTab(delta: Int) {
+        // 1.192: 偏移随「虎扑评分」是否显示而变（隐藏时第一个赛事就是下标 0）
+        val offset = if (showCommon) 1 else 0
+        val cur = if (commonOpen) 0 else {
+            val i = effectiveGames.indexOfFirst { it.first == selectedGame }
+            if (i < 0) 0 else i + offset
+        }
+        val ni = cur + delta
+        if (ni < 0 || ni > offset + effectiveGames.size - 1) return
+        if (ni == 0 && showCommon) {
+            if (commonOpen) return
+            commonOpen = true
+            if (commonSubjects.isEmpty() && !commonFailed) commonLoading = true
+            if (commonSubjects.isEmpty()) loadCommonSubjects()
+        } else {
+            val gi = ni - offset
+            if (gi !in effectiveGames.indices) return
+            val id = effectiveGames[gi].first
+            if (!commonOpen && selectedGame == id) return
+            commonOpen = false
+            selectedGame = id
+            if (!schedules.containsKey(id)) loadingGame = id
+        }
+    }
+
+    Box(modifier.fillMaxSize()) {
+        // 1.198：顶栏浮空（可选效果，默认关；关闭时退回原形态）
+        // 1.224l：热门赛事的「项目筛选」—— **改为持久化**。
+        // 1.199 起是不持久化（当时用户要求"不记"），但真机反馈正是"重启就被清了"，
+        // 所以这里按用户诉求记住它。过滤按**类别名**匹配（见 HupuPrefs.loadHotExcluded），
+        // 与列表顺序 / 当前场次 / 某项今天有没有比赛都无关 —— 不会因列表变化而出错。
+        var hotExcluded by remember { mutableStateOf(HupuPrefs.loadHotExcluded()) }
+        // 统一出口：改内存 + 落盘，保证重启后仍生效
+        fun setHotExcluded(next: Set<String>) {
+            hotExcluded = next
+            HupuPrefs.saveHotExcluded(next)
+        }
+        var hotFilterOpen by remember { mutableStateOf(false) }
+        // 注意：切到「虎扑评分」（commonOpen）时 selectedGame 仍停留在上一个频道，
+        // 所以要同时排除 commonOpen，否则评分 tab 上也会冒出筛选按钮。
+        val isHotChannel = !commonOpen && selectedGame == HupuMatchApi.COMMON_HOT_SPORTS_ID
+        FrostedHeaderLayout(
+            modifier = Modifier
+                .fillMaxSize()
+                .tabSwipeSwitch(
+                    onPrevious = { swipeScoreTab(-1) },
+                    onNext = { swipeScoreTab(1) },
+                ),
+            header = {
+            // fork：页头同步「比赛」命名（官方同名页）
+            PageHeader(title = "比赛") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // 1.199：热门赛事是混装聚合 → 右上角给「筛选项目」入口
+                //     （组件与首页搜索键同源：LiquidIconButton 液态玻璃圆钮，24dp 图标）
+                //     过滤生效时图标转主题色，避免「明明有比赛却看不到」的困惑
+                //     板块频道走 BoardContent（无赛程筛选对象），隐藏入口
+                if (isHotChannel && !HUPU_BOARDS.containsKey(selectedGame)) {
+                    LiquidIconButton(
+                        icon = HupuIcons.FilterAlt,
+                        contentDescription = "筛选项目",
+                        onClick = { hotFilterOpen = true },
+                        iconSize = 24.dp,
+                        tint = if (hotExcluded.isEmpty()) MaterialTheme.colorScheme.onSurface
+                        else MaterialTheme.colorScheme.primary,
+                    )
+                }
+                }
+            }
+        // 项目横滑条（与首页/专区同款裁剪）——首项为通用评分（虎扑评分，非赛事体系）
+        val barState = rememberLazyListState()
+        // 1.192: 虎扑评分被隐藏时，赛事 chip 的下标整体前移 1
+        val selIdx = if (commonOpen) 0
+        else (if (showCommon) 1 else 0) + effectiveGames.indexOfFirst { it.first == selectedGame }
+        LaunchedEffect(commonOpen, selectedGame) { if (selIdx >= 0) barState.animateChipCenterTo(selIdx) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+        LazyRow(
+            state = barState,
+            modifier = Modifier
+                .weight(1f)
+                // 1.197：裁剪边界退到 8dp，给首个/末个 chip 的浮起阴影留空间（内容仍从 16dp 起）
+                .chipBarClip()
+                .padding(bottom = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            // 1.192: 「虎扑评分」可在设置页隐藏
+            if (showCommon) {
+            item(key = "common") {
+                Chip(
+                    text = "虎扑评分",
+                    selected = commonOpen,
+                ) {
+                    if (commonOpen) return@Chip
+                    commonOpen = true
+                    // 同步置位：首次切换骨架屏第一帧出现，不闪「加载失败」
+                    if (commonSubjects.isEmpty() && !commonFailed) commonLoading = true
+                    if (commonSubjects.isEmpty()) loadCommonSubjects()
+                }
+            }
+            }
+            items(effectiveGames, key = { it.first }) { (id, name) ->
+                Chip(text = name, selected = !commonOpen && selectedGame == id) {
+                    if (!commonOpen && selectedGame == id) return@Chip
+                    commonOpen = false
+                    selectedGame = id
+                    // 同步置位（频道页同款）：无缓存的项目切过去骨架屏第一帧出现，
+                    // 不闪「加载失败」；有缓存则直接出内容
+                    if (!schedules.containsKey(id)) loadingGame = id
+                }
+            }
+}
+            // 官方同款：频道条右端常驻「管理」入口（固定不随横滑走）——关注哪些频道、谁排第一
+            Box(
+                Modifier
+                    .padding(end = 12.dp, bottom = 10.dp)
+                    .clip(RoundedCornerShape(50))
+                    .clickable { pickerOpen = true }
+                    .padding(8.dp),
+            ) {
+                Icon(
+                    HupuIcons.Tune,
+                    contentDescription = "频道管理",
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+            },
+        ) { topInset ->
+        // 1.191: 内容层挂记录层——弹窗画在根 Box 里本层之后的兄弟位置
+        Column(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
+        // 列表区：通用评分与赛事赛程二选一
+        if (commonOpen) {
+            when {
+                // 1.198：骨架也从浮空栏下开始（否则首行骨架块会被顶栏盖住）
+                commonSubjects.isEmpty() && commonLoading -> SkeletonHome(Modifier.padding(top = topInset))
+                commonSubjects.isEmpty() && commonFailed -> ErrorRetry { loadCommonSubjects(forceNetwork = true) }
+                else -> {
+                    // 与电竞侧同款：下拉刷新（虎扑评分首页每次刷新换一批）
+                    val pullState = rememberPullToRefreshState()
+                    PullToRefreshBox(
+                        isRefreshing = commonLoading,
+                        onRefresh = { loadCommonSubjects(forceNetwork = true) },
+                        state = pullState,
+                        modifier = Modifier.fillMaxSize(),
+                        // 1.198：指示器落在浮空顶栏下方（关闭该效果时 topInset = 0，位置不变）
+                        indicator = {
+                            PullToRefreshDefaults.Indicator(
+                                state = pullState,
+                                isRefreshing = commonLoading,
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(top = topInset),
+                            )
+                        },
+                    ) {
+                        CommonSubjectsFeed(
+                            subjects = commonSubjects,
+                            onOpenSubject = { openCommon(it) },
+                            onOpenItem = { openPlayer(it) },
+                            scrollToTopTick = commonScrollTick,
+                            topInset = topInset,
+                        )
+                    }
+                }
+            }
+        } else {
+        val days = schedules[selectedGame]
+        // 1.199：只在「热门赛事」下按项目过滤；被排除项目的比赛整条不显示，
+        // 过滤后为空的**日期块会被丢掉** —— 这样列表的「定位到最近比赛日」不会落到空日子上。
+        val shownDays = remember(days, hotExcluded, isHotChannel) {
+            if (isHotChannel) HotSport.filterDays(days.orEmpty(), hotExcluded) else days.orEmpty()
+        }
+        // board：有板块配置的频道，内容区直接是「比赛+资讯」合并视图（官方形态）；
+        // boardState 按频道重建，滚动/资讯/赛程互不串台
+        if (boardState != null) {
+            BoardContent(
+                boardState,
+                onOpenMatch = { openMatch(it) },
+                hostSchedule = days,
+                topInset = topInset,
+            )
+        } else {
+        val pullState = rememberPullToRefreshState()
+        val refreshing = loadingGame == selectedGame
+        PullToRefreshBox(
+            isRefreshing = refreshing,
+            onRefresh = {
+                scope.launch {
+                    loadingGame = selectedGame
+                    val ds = repo.matchSchedule(selectedGame, refresh = true)
+                    if (ds.isNotEmpty()) {
+                        schedules[selectedGame] = ds
+                        refreshVersion++
+                    }
+                    if (loadingGame == selectedGame) loadingGame = null
+                }
+            },
+            state = pullState,
+            modifier = Modifier.fillMaxSize(),
+            // 1.198：指示器落在浮空顶栏下方（关闭该效果时 topInset = 0，位置不变）
+            indicator = {
+                PullToRefreshDefaults.Indicator(
+                    state = pullState,
+                    isRefreshing = refreshing,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = topInset),
+                )
+            },
+        ) {
+            when {
+                days == null && refreshing -> SkeletonHome(Modifier.padding(top = topInset))
+                days == null -> ErrorRetry { refreshTick++ }
+                days.isEmpty() -> EmptySchedule()
+                // 1.199：筛选把比赛全筛掉了 → 给一条「清除筛选」的出路，而不是白屏
+                // （1.224l：清除 = 清空整个排除集，连带清掉历史遗留项）
+                shownDays.isEmpty() -> HotFilterEmpty { setHotExcluded(emptySet()) }
+                else -> ScheduleList(
+                    shownDays,
+                    resetKey = "$selectedGame-$refreshVersion",
+                    topInset = topInset,
+                    onOpenMatch = { openMatch(it) },
+                )
+            }
+        }
+        }
+        }
+        }
+        }
+
+        // ---------- 1.199：热门赛事「项目筛选」底部 sheet ----------
+        if (hotFilterOpen) {
+            // 类别与场次随当前数据动态生成（只列此刻真实出现的项目）
+            val hotCounts = HotSport.counts(schedules[HupuMatchApi.COMMON_HOT_SPORTS_ID].orEmpty())
+            // 1.224l：面板列表 = **当前出现的类别 ∪ 已被排除的类别**。
+            // 历史遗留的排除项（今天没有该项目的比赛）必须也列出来，否则它**没有任何入口能取消**
+            // —— 比赛被静默隐藏、用户却看不出原因；而且会让「所有 chip 都勾着、右上角却写着全选」
+            // 的矛盾状态出现（旧代码的 allSelected = excluded.isEmpty() 就是这么来的）。
+            val hotItems = remember(hotCounts, hotExcluded) {
+                hotCounts + hotExcluded
+                    .filter { n -> hotCounts.none { it.first == n } }
+                    .sorted()
+                    .map { it to 0 }
+            }
+            // 「全不选 ⇄ 全选」的判据用**可见项**，而不是 excluded 是否为空
+            val hotAllSelected = hotItems.none { (name, _) -> name in hotExcluded }
+            HotSportFilterSheet(
+                counts = hotItems,
+                excluded = hotExcluded,
+                onToggle = { name ->
+                    setHotExcluded(if (name in hotExcluded) hotExcluded - name else hotExcluded + name)
+                },
+                // 全部可见项都已勾选 → 点一下「全不选」；否则「全选」= 清空整个排除集（连带历史项）
+                onToggleAll = {
+                    setHotExcluded(
+                        if (hotAllSelected) hotItems.map { it.first }.toSet() else emptySet(),
+                    )
+                },
+                onDismiss = { hotFilterOpen = false },
+            )
+        }
+
+        // 板块内部 overlay（帖子详情/嵌入页/积分榜）——挂根层，避免被浮空页头压住
+        boardState?.let { BoardOverlays(it) }
+
+        // ---------- 比赛详情二级页：盖入式转场 ----------
+        val om = openedMatch
+        if (om != null) {
+            // 1.192: 本层离开组合时兜底回收计数（正常退场已由 onExitStart 提前回收）
+            androidx.compose.runtime.DisposableEffect(Unit) {
+                onDispose { if (matchEntered) { matchEntered = false; SecondaryPage.exit() } }
+            }
+            // 1.198b：赛程卡的「进行中」判定 ——
+            // 解析器（HupuMatchParser.soccerMatchFrom）对足球/score 分支产出的是**无下划线**的 INPROGRESS，
+            // 与 match-api 的约定一致（ScorePageSchedule 也是用 "INPROGRESS"）。原书写成 "IN_PROGRESS" 不命中，
+            // 导致：① 状态胶囊不走主题色分支 ② live=false → 30s 轮询根本没起来（真机反馈）。
+            // 这里两种拼写都认，并用中文状态字面兜底。
+            val liveMatch = om.status.equals("INPROGRESS", true) ||
+                om.status.equals("IN_PROGRESS", true) ||
+                om.statusDesc.contains("进行") || om.statusDesc.contains("中场")
+            // 1.199：**只有一对一对抗才显示记分板与轮询**。
+            // match-api 的 matchType: against = 对抗、not_against = 多人/非对抗；
+            // 后者的 memberName / memberBaseScore 全为 null（实测 pubg 100/100 not_against），
+            // 记分板画出来只有空白 —— 这类比赛（绝地求生、和平精英小组赛、举重、F1 练习赛…）直接不显示。
+            val isVersus = om.matchType.equals("against", true) &&
+                !om.home?.name.isNullOrBlank() && !om.away?.name.isNullOrBlank()
+            val key = "${om.scoreBizType}-${om.scoreBizNo}"
+            MatchDetailOverlay(
+                title = om.introduction.ifBlank { om.matchName.ifBlank { om.startTimeText } },
+                tree = matchTrees[key],
+                loading = detailLoading,
+                closing = detailClosing,
+                teams = listOfNotNull(
+                    om.home?.let { it.memberId to it.name },
+                    om.away?.let { it.memberId to it.name },
+                ),
+                groups = matchGroups[key] ?: emptyList(),
+                groupMembers = groupMembers,
+                // 1.198：顶部记分板（数据全部来自赛程卡，无需新接口）
+                scoreboard = if (isVersus) MatchScoreboard(
+                    stage = om.introduction.ifBlank { om.matchName },
+                    statusDesc = om.statusDesc,
+                    live = liveMatch && isVersus,
+                    bestOf = om.home?.bigScore?.takeIf { it.isNotBlank() },
+                    homeName = om.home?.name.orEmpty(),
+                    homeLogo = om.home?.logo,
+                    homeScore = om.home?.baseScore.orEmpty(),
+                    awayName = om.away?.name.orEmpty(),
+                    awayLogo = om.away?.logo,
+                    awayScore = om.away?.baseScore.orEmpty(),
+                    homeId = om.home?.memberId.orEmpty(),
+                    awayId = om.away?.memberId.orEmpty(),
+                    homeWon = om.winnerMemberId != null && om.winnerMemberId == om.home?.memberId,
+                    awayWon = om.winnerMemberId != null && om.winnerMemberId == om.away?.memberId,
+                    timeText = om.startTimeText,
+                ) else null,
+                live = liveMatch,
+                // 1.200：NBA（basketball_match + NBA 联赛）→ 详情页多出「数据统计 / 文字实录」两个入口。
+                // 两套 id 空间互不相通（评分侧 outBizNo vs nba 侧 match_id），唯一桥梁是按「北京时间日期」
+                // 抓 nba.hupu.com/games/{date} 再用两队中文名 join 出 gameId（比分兜底）。
+                // CBA 也是 basketball_match，但其 introduction 为「CBA夏季联赛」，不含 NBA → 自动排除。
+                nbaQuery = if (isNbaStatsSupported(om.scoreBizType, om.introduction) && isVersus) {
+                    NbaStatsQuery(
+                        date = nbaBeijingDate(om.startTimestamp),
+                        home = om.home?.name.orEmpty(),
+                        away = om.away?.name.orEmpty(),
+                        homeScore = om.home?.baseScore.orEmpty(),
+                        awayScore = om.away?.baseScore.orEmpty(),
+                        live = liveMatch,
+                    )
+                } else null,
+                onLiveTick = {
+                    // 1.198：实时记分板 —— 静默刷新（**不动 detailLoading**，否则会闪骨架）
+                    val no = om.scoreBizNo
+                    val game = selectedGame
+                    scope.launch {
+                        // ① 赛程卡：比分/状态/胜队（顺带把 openedMatch 换成新对象，banner 才会更新）
+                        val ds = repo.matchSchedule(game, refresh = true)
+                        if (ds.isNotEmpty()) {
+                            schedules[game] = ds
+                            ds.asSequence().flatMap { it.matches.asSequence() }
+                                .firstOrNull { it.matchId == om.matchId }
+                                ?.let { openedMatch = it }
+                        }
+                        // ② 评分树：总分/评分人数/选手分
+                        if (no != null) {
+                            val t = repo.scoreTree(om.scoreBizType ?: "lol_match", no, refresh = true)
+                            if (t != null) matchTrees[key] = t
+                        }
+                    }
+                },
+                onBack = { closeMatch() },
+                onExitStart = { if (matchEntered) { matchEntered = false; SecondaryPage.exit() } },
+                onClosed = {
+                    detailClosing = false
+                    openedMatch = null
+                },
+                onRefresh = {
+                    val no = om.scoreBizNo ?: return@MatchDetailOverlay
+                    scope.launch {
+                        detailLoading = true
+                        val t = repo.scoreTree(om.scoreBizType ?: "lol_match", no, refresh = true)
+                        if (t != null) matchTrees[key] = t
+                        detailLoading = false
+                    }
+                },
+                onOpenPlayer = { openPlayer(it) },
+                onOpenTeam = { id, name, logo ->
+                    val cfg = boardState?.cfg
+                    openedTeam = TeamPageRequest(
+                        memberId = id,
+                        name = name,
+                        logo = logo,
+                        scheduleId = cfg?.scheduleId ?: selectedGame,
+                        standingKind = cfg?.standing ?: HupuBoardStanding.NONE,
+                        standingCompId = cfg?.standingCompId ?: "",
+                    )
+                },
+            )
+        }
+
+        // ---------- 球队页（比赛详情 → 记分板点队进入，zIndex 2.6 盖在详情之上） ----------
+        openedTeam?.let { ot ->
+            TeamDetailOverlay(
+                req = ot,
+                onOpenMatch = { m -> openMatch(m) },
+                onBack = { openedTeam = null },
+            )
+        }
+
+        // ---------- 频道自定义页（频道条右端「管理」入口，盖入式；同 zIndex 时组合序决定层叠 → 放最后） ----------
+        if (pickerOpen) {
+            ScorePickerPage(onClose = { pickerOpen = false })
+        }
+
+        // ---------- 虎扑通用评分主题详情（盖入式，zIndex 2；叶子详情 3 盖其上） ----------
+        val oc = openedCommon
+        if (oc != null) {
+            // 1.192: 本层离开组合时兜底回收计数（正常退场已由 onExitStart 提前回收）
+            androidx.compose.runtime.DisposableEffect(Unit) {
+                onDispose { if (commonEntered) { commonEntered = false; SecondaryPage.exit() } }
+            }
+            val cKey = "${oc.bizType}-${oc.bizNo}"
+            CommonDetailOverlay(
+                subject = oc,
+                tree = commonTrees[cKey],
+                loading = commonDetailLoading,
+                loadingMore = commonLoadingMore,
+                closing = commonClosing,
+                onBack = { closeCommon() },
+                onExitStart = { if (commonEntered) { commonEntered = false; SecondaryPage.exit() } },
+                onClosed = {
+                    commonClosing = false
+                    openedCommon = null
+                },
+                onRefresh = {
+                    scope.launch {
+                        commonDetailLoading = true
+                        val t = repo.commonTree(oc.bizType, oc.bizNo, refresh = true)
+                        if (t != null) commonTrees[cKey] = t
+                        commonDetailLoading = false
+                    }
+                },
+                onOpenItem = { openPlayer(it) },
+                onLoadMore = { loadMoreCommon() },
+            )
+        }
+
+        // ---------- 选手详情三级页：盖入式转场 ----------
+        val op = openedPlayer
+        if (op != null) {
+            // 1.192: 本层离开组合时兜底回收计数（正常退场已由 onExitStart 提前回收）
+            androidx.compose.runtime.DisposableEffect(Unit) {
+                onDispose { if (playerEntered) { playerEntered = false; SecondaryPage.exit() } }
+            }
+            val pKey = "${op.bizType}-${op.bizId}"
+            // 1.59 数据源索引 displaySort（切排序时留旧数据），高亮仍用 playerSort（即时）
+            val cState = playerComments["$pKey-$playerDisplaySort"]
+            PlayerDetailOverlay(
+                bizType = op.bizType,
+                bizNo = op.bizId,
+                playerName = op.name,
+                self = selfDetails[pKey],
+                comments = cState?.comments ?: emptyList(),
+                commentCount = cState?.commentCount ?: 0L,
+                hasMore = cState?.hasMore ?: false,
+                loadingMore = playerLoadingMore,
+                loading = playerLoading,
+                closing = playerClosing,
+                onBack = { closePlayer() },
+                onExitStart = { if (playerEntered) { playerEntered = false; SecondaryPage.exit() } },
+                onClosed = {
+                    playerClosing = false
+                    openedPlayer = null
+                },
+                onRefresh = {
+                    scope.launch {
+                        playerLoading = true
+                        val d = repo.scoreSelf(op.bizType, op.bizId, refresh = true)
+                        if (d != null) selfDetails[pKey] = d
+                        val c = repo.scoreComments(op.bizType, op.bizId, cursor = 0L, refresh = true, queryType = playerSort)
+                        if (c != null) playerComments["$pKey-$playerSort"] = c
+                        playerLoading = false
+                    }
+                },
+                onLoadMore = {
+                    val cur = playerComments["$pKey-$playerSort"] ?: return@PlayerDetailOverlay
+                    if (playerLoadingMore || !cur.hasMore) return@PlayerDetailOverlay
+                    scope.launch {
+                        playerLoadingMore = true
+                        val next = repo.scoreComments(op.bizType, op.bizId, cursor = cur.cursor, queryType = playerSort)
+                        if (next != null) {
+                            val merged = (cur.comments + next.comments).distinctBy { it.commentId }
+                            playerComments["$pKey-$playerSort"] = next.copy(
+                                comments = merged,
+                                hasMore = next.hasMore,
+                            )
+                        }
+                        playerLoadingMore = false
+                    }
+                },
+                sortKey = playerSort,
+                switching = playerSwitching,
+                onSortChange = {
+                    playerSort = it
+                    playerSortIsDefault = false
+                    val cKey = "$pKey-$it"
+                    if (playerComments[cKey] != null) {
+                        // 有缓存：零延迟切换（本地内存读取，无网络）
+                        playerDisplaySort = it
+                        playerSwitching = false
+                    } else {
+                        // 无缓存：留旧列表 + 顶部小转圈，数据到达后原位替换
+                        // （与楼中楼切排序同款手感，1.59）
+                        playerSwitching = true
+                    }
+                },
+                subSheet = scoreSubSheet,
+                onOpenSubSheet = { parent ->
+                    subSheetSort = HupuPrefs.loadDefaultScoreSort()
+                    val ck = subCacheKey(op.bizType, op.bizId, parent.commentId, subSheetSort)
+                    val cached = subComments[ck]
+                    if (cached != null) {
+                        // 缓存命中：直接出数据，无 loading（二次打开秒开，不与弹入动画争帧）
+                        scoreSubSheet = SubCommentSheetData(parent = parent, data = cached, sortKey = subSheetSort)
+                        subSheetLoading = false
+                    } else {
+                        // 同步置位 loading：sheet 第一帧就是骨架屏，网络失败才显示失败态
+                        subSheetLoading = true
+                        scoreSubSheet = SubCommentSheetData(parent = parent, data = null, sortKey = subSheetSort)
+                        val sort0 = subSheetSort
+                        scope.launch {
+                            // 1.60 恢复 delay(120)：sheet 弹入 280ms + 余量。骨架屏已同步置位，
+                            // 但网络解析/重组仍会与弹入动画争帧（1.59 删 delay 后实测打开卡顿）
+                            delay(120)
+                            val d = repo.scoreSubComments(op.bizType, op.bizId, parent.commentId, queryType = sort0)
+                            if (d != null) subComments[ck] = d
+                            // 1.60 三重匹配：sheet 开着、母评论没换、排序没被切——加载途中切排序/切
+                            // 母评论/关闭重开时，旧回调不得污染新 sheet，也不得错清新请求的 loading
+                            if (scoreSubSheet != null && scoreSubSheet?.parent?.commentId == parent.commentId && subSheetSort == sort0) {
+                                scoreSubSheet = scoreSubSheet?.copy(data = subComments[ck])
+                                subSheetLoading = false
+                            }
+                        }
+                    }
+                },
+                // 1.61 修复：1.60 补丁块替换时误删了楼中楼宿主接线，参数落回默认值
+                // （loading 恒 false → 打开/切排序闪「加载失败」；onCloseSubSheet 恒空操作
+                // → 点遮罩/返回手势关不掉 sheet；subSheetClosing 恒 false → 退场动画不触发）
+                subSheetLoading = subSheetLoading,
+                subSheetLoadingMore = subSheetLoadingMore,
+                subSheetClosing = subSheetClosing,
+                onCloseSubSheet = { subSheetClosing = true },
+                onClosedSubSheet = {
+                    subSheetClosing = false
+                    scoreSubSheet = null
+                },
+                onLoadMoreSub = {
+                    val cur = scoreSubSheet?.data ?: return@PlayerDetailOverlay
+                    // 1.58 切排序加载中不翻页：当前显示的是旧排序数据，其 cursor 不能
+                    // 用于新排序（否则新排序列表会把旧排序下一页混进来）。1.60 切排序即清
+                    // data 退回 loading，本守卫继续兜底
+                    if (subSheetLoadingMore || subSheetLoading || !cur.hasMore) return@PlayerDetailOverlay
+                    val pid = scoreSubSheet?.parent?.commentId ?: return@PlayerDetailOverlay
+                    // 1.60 发起时固定排序与缓存键：完成后仅当排序未变才更新 sheet——
+                    // 请求途中切排序时旧排序分页结果不得写进新排序缓存键污染数据
+                    val reqSort = subSheetSort
+                    val ck = subCacheKey(op.bizType, op.bizId, pid, reqSort)
+                    scope.launch {
+                        subSheetLoadingMore = true
+                        val next = repo.scoreSubCommentsMore(
+                            op.bizType, op.bizId, pid,
+                            queryType = reqSort, cursor = cur.cursor,
+                        )
+                        if (next != null && scoreSubSheet != null) {
+                            val merged = (cur.comments + next.comments).distinctBy { it.commentId }
+                            val newState = next.copy(comments = merged, hasMore = next.hasMore)
+                            subComments[ck] = newState
+                            if (scoreSubSheet?.parent?.commentId == pid && subSheetSort == reqSort) {
+                                scoreSubSheet = scoreSubSheet?.copy(data = newState)
+                            }
+                        }
+                        subSheetLoadingMore = false
+                    }
+                },
+                onSubSheetSortChange = { sort ->
+                    subSheetSort = sort
+                    val pid = scoreSubSheet?.parent?.commentId ?: return@PlayerDetailOverlay
+                    val ck = subCacheKey(op.bizType, op.bizId, pid, sort)
+                    // 1.60 恢复旧交互并修「切换后内容不变」：点击瞬间立即切高亮 + 清 data
+                    // （sheet 退回 loading 骨架——先切换过去、再播加载动画、再加载）。
+                    // 1.58 的「留旧数据」有两宗罪：①缓存命中分支只切 sortKey 不换 data，
+                    // 来回切换已加载过的排序时内容永远停在旧排序（确定性复现）；②留旧列表
+                    // +小角标偏离此前确认的旧交互。grandMap 经 copy 跨排序保留
+                    scoreSubSheet = scoreSubSheet?.copy(sortKey = sort, data = null)
+                    subSheetLoading = true
+                    scope.launch {
+                        // 1.60 恢复 delay(120)：tab 点击→请求错峰（避免与 tab 切换+列表
+                        // 重组同帧争抢）；同时对同 pid 并发请求去重
+                        delay(120)
+                        val live = subComments[ck]
+                        if (live == null) {
+                            val d = repo.scoreSubComments(op.bizType, op.bizId, pid, queryType = sort)
+                            if (d != null) subComments[ck] = d
+                        }
+                        // 三重匹配：sheet 开着、母评论没换、排序仍是要切的目标——
+                        // 快速连点排序时旧请求只回填缓存，不得污染新排序的 sheet/loading
+                        if (scoreSubSheet != null && scoreSubSheet?.parent?.commentId == pid && subSheetSort == sort) {
+                            scoreSubSheet = scoreSubSheet?.copy(data = subComments[ck])
+                            subSheetLoading = false
+                        }
+                    }
+                },
+                onSubSheetRetry = {
+                    val pid = scoreSubSheet?.parent?.commentId ?: return@PlayerDetailOverlay
+                    // 1.60 发起时固定排序与缓存键：重试途中切排序时不得把旧排序结果
+                    // 写进新排序缓存键，也不得错清新请求的 loading
+                    val reqSort = subSheetSort
+                    val ck = subCacheKey(op.bizType, op.bizId, pid, reqSort)
+                    subSheetLoading = true
+                    scope.launch {
+                        val d = repo.scoreSubComments(op.bizType, op.bizId, pid, queryType = reqSort)
+                        if (d != null) subComments[ck] = d
+                        // 三重匹配：sheet 还开着、parent 没换、排序没被切换，才换数据并清 loading
+                        if (scoreSubSheet != null && scoreSubSheet?.parent?.commentId == pid && subSheetSort == reqSort) {
+                            scoreSubSheet = scoreSubSheet?.copy(data = subComments[ck])
+                            subSheetLoading = false
+                        }
+                    }
+                },
+                scorePanelOpen = scorePanelOpen && scorePanelKey == pKey,
+                onScorePanelOpen = { open ->
+                    if (open) {
+                        if (!HupuAccount.isLoggedIn) {
+                            com.kudo.android.hupuui.components.HuzaiToast.show("请先在「我的」页登录")
+                        } else {
+                            scorePanelKey = pKey
+                            scorePanelOpen = true
+                        }
+                    } else scorePanelOpen = false
+                },
+                myScore = myScores[pKey] ?: (selfDetails[pKey]?.userScore ?: 0),
+                onScoreSubmit = { v, comment ->
+                    if (scorePanelSubmitting) return@PlayerDetailOverlay
+                    scorePanelSubmitting = true
+                    scope.launch {
+                        val err = HupuAccount.scoreSave(op.bizType, op.bizId, v)
+                        if (err != null) {
+                            scorePanelSubmitting = false
+                            com.kudo.android.hupuui.components.HuzaiToast.show(err)
+                            return@launch
+                        }
+                        myScores[pKey] = v
+                        scorePanelOpen = false
+                        // 1.153: 打分随带评论——官方打分弹窗本就是「打分 + 评论」一体流：
+                        // 先落分，紧接着把评论以一级评论发出（parentCommentId 空、subjectId 空）。
+                        if (comment.isNotEmpty()) {
+                            val res = HupuAccount.publishScoreComment(
+                                op.bizType, op.bizId, comment,
+                                parentCommentId = "",
+                                subjectId = "",
+                            )
+                            val cKey = "$pKey-$playerSort"
+                            if (res.error == null) {
+                                // 乐观上屏（服务端有延迟）：用回包真实 commentId 建一级评论条目，
+                                // 服务端稍后返回同一条时按 id 去重，不会出现两条。
+                                val me = HupuAccount.profile
+                                val local = com.kudo.android.hupu.HupuScoreComment(
+                                    commentId = res.commentId.ifEmpty { "local-" + System.currentTimeMillis() },
+                                    userName = me?.name ?: "我",
+                                    userHead = me?.avatar,
+                                    // 1.163: 本机评论也带自己的 euid（点头像/昵称同样可进主页）
+                                    userId = me?.euid.orEmpty(),
+                                    content = comment,
+                                    score = v,
+                                    lightCount = 0L,
+                                    date = "刚刚",
+                                    ipLocation = "",
+                                    parentCommentId = "",
+                                    subjectId = "",
+                                )
+                                val cur = playerComments[cKey]
+                                playerComments[cKey] = if (cur == null) {
+                                    ScoreCommentState(comments = listOf(local), commentCount = 1L, cursor = 0L, hasMore = false)
+                                } else {
+                                    cur.copy(
+                                        comments = mergeWithOptimistic(cur.comments, listOf(local)),
+                                        commentCount = maxOf(cur.commentCount, cur.commentCount + 1),
+                                    )
+                                }
+                                com.kudo.android.hupuui.components.HuzaiToast.show("已打 $v 分，评论已发布")
+                                // 静默重拉第一页并合并（服务端数据到位后接管，本地条目同 id 去重）
+                                val c = repo.scoreComments(
+                                    op.bizType, op.bizId, cursor = 0L,
+                                    refresh = true, queryType = playerSort,
+                                )
+                                if (c != null) {
+                                    val base = playerComments[cKey]
+                                    playerComments[cKey] = if (base == null) c else c.copy(
+                                        comments = mergeWithOptimistic(c.comments, listOf(local)),
+                                        commentCount = maxOf(c.commentCount, base.commentCount),
+                                    )
+                                }
+                            } else {
+                                com.kudo.android.hupuui.components.HuzaiToast.show("已打 $v 分，评论发布失败：" + res.error)
+                            }
+                        } else {
+                            com.kudo.android.hupuui.components.HuzaiToast.show("已打 $v 分")
+                        }
+                        scorePanelSubmitting = false
+                        // 强刷 self：更新评分分布/均分/评分人数（登录态缓存分键）
+                        val d = repo.scoreSelf(op.bizType, op.bizId, refresh = true)
+                        if (d != null) selfDetails[pKey] = d
+                    }
+                },
+                onScoreDelete = {
+                    if (scorePanelSubmitting) return@PlayerDetailOverlay
+                    scorePanelSubmitting = true
+                    scope.launch {
+                        val err = HupuAccount.scoreDelete(op.bizType, op.bizId)
+                        scorePanelSubmitting = false
+                        if (err == null) {
+                            myScores[pKey] = 0
+                            scorePanelOpen = false
+                            com.kudo.android.hupuui.components.HuzaiToast.show("已取消评分")
+                            val d = repo.scoreSelf(op.bizType, op.bizId, refresh = true)
+                            if (d != null) selfDetails[pKey] = d
+                        } else {
+                            com.kudo.android.hupuui.components.HuzaiToast.show(err)
+                        }
+                    }
+                },
+                scorePanelSubmitting = scorePanelSubmitting,
+                onLightComment = { target ->
+                    if (!HupuAccount.isLoggedIn) {
+                        com.kudo.android.hupuui.components.HuzaiToast.show("请先在「我的」页登录")
+                        return@PlayerDetailOverlay
+                    }
+                    val k = lightKey(target)
+                    val cur = scoreLightState[k] ?: target.hasLight
+                    scoreLightState[k] = !cur
+                    scope.launch {
+                        val state = ArrayList<String>(1)
+                        val err = HupuAccount.scoreLight(target.subjectId, target.commentId, !cur, state)
+                        if (err != null) {
+                            scoreLightState[k] = cur  // 失败回滚
+                            com.kudo.android.hupuui.components.HuzaiToast.show(err)
+                        } else if (state.isNotEmpty()) {
+                            scoreLightState[k] = state.first() == "lit"  // 服务端真相自愈
+                        }
+                    }
+                },
+                lightState = scoreLightState,
+                replyTarget = scoreReplyTarget,
+                replyText = scoreReplyText,
+                replySending = scoreReplySending,
+                optimisticReplies = optimisticScoreReplies,
+                // ---------- 1.146 回复框扩展接线 ----------
+                replyImages = scoreReplyImages,
+                onAddReplyImages = { scorePickImages.launch("image/*") },
+                onRemoveReplyImage = { u -> scoreReplyImages = scoreReplyImages - u },
+                replyImageUploading = scoreReplyImageUploading,
+                replyEmojiOpen = scoreReplyEmojiOpen,
+                onReplyEmojiToggle = { scoreReplyEmojiOpen = !scoreReplyEmojiOpen },
+                // 1.191: 表情搜索入口弹出半屏面板前，显式收起表情面板（不用 toggle，避免误反转）
+                onReplyEmojiClose = { scoreReplyEmojiOpen = false },
+                replyEmojiTab = scoreReplyEmojiTab,
+                onReplyEmojiTabChange = { scoreReplyEmojiTab = it },
+                stickerAdding = scoreStickerAdding,
+                onInsertSticker = { scoreInsertSticker(it) },
+                onStickerLongClick = { scoreStickerToDelete = it },
+                stickerToast = HupuPrefs.stickerToast,
+                replyLastImePx = scoreReplyLastImePx,
+                replyPanelToKeyboardPending = scorePanelToKeyboardPending,
+                onReplyPanelToKeyboard = {
+                    scorePanelTargetPx = maxOf(scoreReplyLastImePx, 280)
+                    scorePanelToKeyboardPending = true
+                },
+                onReply = { _, target ->
+                    if (!HupuAccount.isLoggedIn) {
+                        com.kudo.android.hupuui.components.HuzaiToast.show("请先在「我的」页登录")
+                    } else {
+                        scoreReplyTarget = target
+                        scoreReplyText = ""
+                    }
+                },
+                onReplyTextChange = { scoreReplyText = it },
+                onReplyCancel = {
+                    scoreReplyTarget = null
+                    scoreReplyText = ""
+                    scoreReplyImages = emptyList()
+                },
+                onReplySend = {
+                    val target = scoreReplyTarget
+                    if (target != null && !scoreReplySending && !scoreReplyImageUploading) {
+                        val text = scoreReplyText.trim()
+                        if (text.isNotEmpty() || scoreReplyImages.isNotEmpty()) {
+                            scope.launch {
+                                scoreReplySending = true
+                                // 图片先上传拿 URL（顺序上传，失败跳过该张）——对齐帖子回复链路
+                                val urls = ArrayList<String>()
+                                val uploadErrs = ArrayList<String>()
+                                if (scoreReplyImages.isNotEmpty()) {
+                                    scoreReplyImageUploading = true
+                                    val cr = scoreCtx.contentResolver
+                                    for (u in scoreReplyImages) {
+                                        try {
+                                            // 1.170: 带上限读取（>32MB 或读取失败 → null）
+                                            val bytes = HupuImage.readCapped(cr, u)
+                                            if (bytes == null) {
+                                                uploadErrs.add("图片过大或无法读取")
+                                                continue
+                                            }
+                                            // 1.157: 统一走魔数嗅探（与帖子回复同一实现），
+                                            // GIF/动画 WebP 原样上传，不再被误标成 jpeg 丢动画
+                                            val img = HupuImage.prepareForUpload(
+                                                bytes,
+                                                cr.getType(u) ?: "",
+                                                u.lastPathSegment ?: "",
+                                            )
+                                            if (img == null) {
+                                                uploadErrs.add("不支持的图片格式")
+                                                continue
+                                            }
+                                            val r = HupuAccount.uploadReplyImage(img.bytes, img.ext, img.width, img.height)
+                                            if (r.url != null) {
+                                                urls.add(r.url)
+                                            } else uploadErrs.add(r.error ?: "未知错误")
+                                        } catch (e: Exception) {
+                                            uploadErrs.add("读取图片失败: " + (e.message ?: e.javaClass.simpleName))
+                                        }
+                                    }
+                                    scoreReplyImageUploading = false
+                                    if (uploadErrs.any { it.contains("登录已过期") }) {
+                                        scoreReplySending = false
+                                        com.kudo.android.hupuui.components.HuzaiToast.show("登录已过期，请在「我的」页重新登录")
+                                        return@launch
+                                    }
+                                    if (urls.isEmpty() && scoreReplyImages.isNotEmpty()) {
+                                        // 图片全失败：仅当文本也空时终止；否则仅发文本
+                                        if (text.isEmpty()) {
+                                            scoreReplySending = false
+                                            com.kudo.android.hupuui.components.HuzaiToast.show("图片上传失败：" + (uploadErrs.firstOrNull() ?: "未知错误"))
+                                            return@launch
+                                        }
+                                    }
+                                    if (urls.size < scoreReplyImages.size) {
+                                        com.kudo.android.hupuui.components.HuzaiToast.show("部分图片上传失败(${uploadErrs.firstOrNull() ?: ")"} ，已发送${urls.size}张")
+                                    }
+                                }
+                                val res = HupuAccount.publishScoreComment(
+                                    op.bizType, op.bizId, text,
+                                    parentCommentId = target.commentId,
+                                    subjectId = target.subjectId,
+                                    images = urls,
+                                )
+                                if (res.error == null) {
+                                    // 1.150: 恢复乐观层——实测服务端有延迟，发送后不会立刻返回这条回复，
+                                    // 本地先上屏。id 用服务端回包的真实 commentId（缺失才退回 local-临时 id），
+                                    // 服务端稍后返回同一条时按 commentId 去重，不会再出现「两条我的回复」。
+                                    val me = HupuAccount.profile
+                                    val realId = res.commentId.ifEmpty { "local-" + System.currentTimeMillis() }
+                                    val local = com.kudo.android.hupu.HupuScoreComment(
+                                        commentId = realId,
+                                        userName = me?.name ?: "我",
+                                        userHead = me?.avatar,
+                                        // 1.163: 本机回复也带自己的 euid
+                                        userId = me?.euid.orEmpty(),
+                                        content = text,
+                                        score = 0,
+                                        lightCount = 0,
+                                        date = "刚刚",
+                                        ipLocation = "",
+                                        parentCommentId = target.commentId,
+                                        subjectId = res.subjectId.ifEmpty { target.subjectId },
+                                        images = urls,
+                                    )
+                                    optimisticScoreReplies[target.commentId] =
+                                        (optimisticScoreReplies[target.commentId].orEmpty() + local)
+                                            .distinctBy { it.commentId }
+                                    com.kudo.android.hupuui.components.HuzaiToast.show("回复成功")
+                                    scoreReplyTarget = null
+                                    scoreReplyText = ""
+                                    scoreReplyImages = emptyList()
+                                    // ① 楼中楼正开着：强制重拉该层（绕缓存），拿到服务端真实数据
+                                    val sheetNow = scoreSubSheet
+                                    if (sheetNow != null) {
+                                        val pid = sheetNow.parent.commentId
+                                        val sort0 = subSheetSort
+                                        val ck = subCacheKey(op.bizType, op.bizId, pid, sort0)
+                                        subComments.remove(ck)
+                                        // 孙评论展开态失效：回复可能落在已展开的子评论下，重开会重新拉
+                                        scoreSubSheet = sheetNow.copy(grandMap = emptyMap())
+                                        scope.launch {
+                                            val d = repo.scoreSubComments(
+                                                op.bizType, op.bizId, pid,
+                                                queryType = sort0, refresh = true,
+                                            )
+                                            if (d != null) {
+                                                subComments[ck] = d
+                                                if (scoreSubSheet != null &&
+                                                    scoreSubSheet?.parent?.commentId == pid &&
+                                                    subSheetSort == sort0
+                                                ) {
+                                                    scoreSubSheet = scoreSubSheet?.copy(data = d)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    // ② 楼层列表：静默重拉第一页并原位替换同 id 条目（保序、不缩列表、不闪骨架）
+                                    val curKey = "$pKey-$playerSort"
+                                    val prev = playerComments[curKey]
+                                    scope.launch {
+                                        val c = repo.scoreComments(
+                                            op.bizType, op.bizId, cursor = 0L,
+                                            refresh = true, queryType = playerSort,
+                                        )
+                                        if (c != null) {
+                                            if (prev == null) {
+                                                playerComments[curKey] = c
+                                            } else {
+                                                val fresh = c.comments.associateBy { it.commentId }
+                                                val kept = prev.comments.map { fresh[it.commentId] ?: it }
+                                                val added = c.comments.filter { n ->
+                                                    prev.comments.none { it.commentId == n.commentId }
+                                                }
+                                                playerComments[curKey] = prev.copy(
+                                                    comments = kept + added,
+                                                    commentCount = maxOf(prev.commentCount, c.commentCount),
+                                                )
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    com.kudo.android.hupuui.components.HuzaiToast.show(res.error)
+                                }
+                                scoreReplySending = false
+                            }
+                        }
+                    }
+                },
+                onExpandGrand = { sub ->
+                    // 孙评论「展开更多回复」：拉该子评论的孙评论端点（subCommentList?parentCommentId=子评论id），
+                    // 返回 direct 孙评论（每条自带全量内嵌后代树）；分页 getMore 可多次点击
+                    val sheet0 = scoreSubSheet ?: return@PlayerDetailOverlay
+                    val cur = sheet0.grandMap[sub.commentId]
+                    if (cur?.loading == true) return@PlayerDetailOverlay
+                    scoreSubSheet = sheet0.copy(
+                        grandMap = sheet0.grandMap + (sub.commentId to (cur ?: GrandExpandState()).copy(loading = true)),
+                    )
+                    scope.launch {
+                        val existing = scoreSubSheet?.grandMap?.get(sub.commentId) ?: GrandExpandState()
+                        // Official behavior (verified against official JS + live API): the expand
+                        // button ALWAYS pages via getMore as long as a cursor exists. The first
+                        // subCommentList response's hasMore is unreliable (it reports false even
+                        // when deeper descendants exist), so gating the second click on hasMore
+                        // made it re-fetch page 1 -> zero new items -> attempted -> button gone.
+                        // Fix: cursor > 0 means we have a paging position -> continue with getMore.
+                        val next: ScoreCommentState? = if (existing.cursor > 0L) {
+                            repo.scoreSubCommentsMore(op.bizType, op.bizId, sub.commentId, queryType = "latest", cursor = existing.cursor)
+                        } else {
+                            repo.scoreSubComments(op.bizType, op.bizId, sub.commentId, queryType = "latest")
+                        }
+                        val sheetNow = scoreSubSheet
+                        if (sheetNow != null) {
+                            val base = sheetNow.grandMap[sub.commentId] ?: GrandExpandState()
+                            val updated = if (next != null) {
+                                // 端点返回 direct 孙（自带嵌套深层后代树）——拉平后合并去重
+                                val flat = next.comments.flatMap { flattenWithDescendants(it) }
+                                val merged = (base.comments + flat).distinctBy { it.commentId }
+                                base.copy(
+                                    comments = merged,
+                                    cursor = next.cursor,
+                                    hasMore = next.hasMore,
+                                    loading = false,
+                                    // 无新增且无下一页：置 attempted（按钮退场，防端点空转）；有进展则按钮保留
+                                    attempted = merged.size == base.comments.size && !next.hasMore,
+                                )
+                            } else {
+                                // 失败：解除 loading 保留按钮可重试
+                                base.copy(loading = false)
+                            }
+                            scoreSubSheet = sheetNow.copy(
+                                grandMap = sheetNow.grandMap + (sub.commentId to updated),
+                            )
+                        }
+                    }
+                },
+            )
+        }
+        // 1.64 评分/点亮提示条（与帖子详情页同形态：顶部胶囊、点击消失）
+        // 1.146: 删除收藏表情确认弹窗（评分回复框「我的表情」长按触发）
+        // 1.191: 换成 Liquid Glass 同款外观（Q 弹出入场）
+        scoreStickerToDelete?.let { st ->
+            LiquidGlassDialog(
+                backdrop = backdrop,
+                title = "删除表情",
+                message = "确定从「我的表情」中移除这个表情吗？",
+                confirmText = "删除",
+                dismissText = "取消",
+                onConfirm = {
+                    HupuPrefs.removeSticker(st.url)
+                    HupuPrefs.stickerToast = "已删除"
+                },
+                onDismiss = { scoreStickerToDelete = null },
+            )
+        }
+    }
+}
+
+/**
+ * 1.199：热门赛事的「项目筛选」底部 sheet。
+ *
+ * · 多选 = 勾选要显示的项目（默认全勾）；每个项目后面带**当前场次数**，方便取舍；
+ * · 「全选」一键恢复；点遮罩或「完成」关闭；
+ * · **1.224l 起持久化**（1.199 时是不记的，真机反馈要记）——排除项存在 [com.kudo.android.hupu.HupuPrefs]，
+ *   重启后仍生效；面板里的类别列表 = 当前出现的类别 ∪ 已被排除的类别。
+ */
+/**
+ * 1.199：热门赛事的「项目筛选」底部 sheet。
+ *
+ * chrome（抓手条 / 左标题 / 右侧动作）**与楼中楼面板同源** —— 直接复用
+ * [SheetGrabber] 与 [sheetTopCornerShape]，标题字号 15sp SemiBold、行留白
+ * （start 16dp / end 12dp / top 10dp / bottom 8dp）与 [SheetTopBar] 一致；
+ * 大圆角机型用 [rememberSheetSideInset] 让标题与右侧按钮落进圆角内侧直边区。
+ *
+ * · 多选 = 勾选要显示的项目（默认全勾）；每个项目后面带**当前场次数**；
+ * · 右上角一键「全不选 / 全选」：全部选中时显示「全不选」，否则显示「全选」；
+ * · 打开期间让底部悬浮 Tab 栏神隐（[SecondaryPage]），否则面板会被它盖住；
+ * · **1.224l 起持久化**（见调用方与 [com.kudo.android.hupu.HupuPrefs.saveHotExcluded]）。
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun HotSportFilterSheet(
+    counts: List<Pair<String, Int>>,
+    excluded: Set<String>,
+    onToggle: (String) -> Unit,
+    onToggleAll: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    // 打开期间隐藏底部悬浮 Tab 栏（与二级页/其它半屏面板同源做法），关闭后 Q 弹回来
+    DisposableEffect(Unit) {
+        SecondaryPage.enter()
+        onDispose { SecondaryPage.exit() }
+    }
+    // 1.199b（真机反馈）：面板必须自己接管返回 —— 之前按返回直接退出了 App
+    // （ScorePage 是主页，面板只是覆盖层，没接管就会一路冒泡到 Activity.finish）。
+    BackHandler { onDismiss() }
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { progress.animateTo(1f, tween(220)) }
+    val scrimSource = remember { MutableInteractionSource() }
+    val panelSource = remember { MutableInteractionSource() }
+    val side = rememberSheetSideInset(depth = 25.dp)
+    // 1.224l：「全不选 ⇄ 全选」按**可见项**判断，而不是 excluded 是否为空 ——
+    // 持久化之后可能出现「排除集里只剩一个今天不出现的类别」，
+    // 那种情况下列表里所有 chip 都是勾着的，若按 excluded.isEmpty() 判断，
+    // 右上角却会写着「全选」，与肉眼所见自相矛盾。
+    val allSelected = counts.none { (name, _) -> name in excluded }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .zIndex(4f)
+            .background(Color.Black.copy(alpha = 0.25f * progress.value))
+            .clickable(indication = null, interactionSource = scrimSource) { onDismiss() },
+    ) {
+        Column(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .graphicsLayer { translationY = (1f - progress.value) * size.height }
+                // 顶部圆角跟随屏幕物理圆角（与楼中楼面板同一套）
+                .clip(sheetTopCornerShape())
+                .background(MaterialTheme.colorScheme.background)
+                // 面板内点击不穿透到遮罩
+                .clickable(indication = null, interactionSource = panelSource) {}
+                .navigationBarsPadding(),
+        ) {
+            // 抓手条：与楼中楼面板完全同款
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                SheetGrabber()
+            }
+            // 标题行：左标题 + 右「全选 / 全不选」（留白与 SheetTopBar 一致）
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = maxOf(16.dp, side),
+                        end = maxOf(12.dp, side),
+                        top = 10.dp,
+                        bottom = 6.dp,
+                    ),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    "筛选项目",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    if (allSelected) "全不选" else "全选",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .clickable { onToggleAll() }
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                )
+            }
+            // 内容：类别 chips + 完成
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    "只显示勾选的项目 · 共 ${counts.sumOf { it.second }} 场比赛",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    counts.forEach { (name, count) ->
+                        // 1.224l：count = 0 的是"历史遗留的排除项"（今天没有该项目的比赛），
+                        // 仍然列出来，好让用户能取消它。
+                        Chip(
+                            text = if (count > 0) "$name $count" else "$name（暂无）",
+                            selected = name !in excluded,
+                        ) { onToggle(name) }
+                    }
+                }
+                LiquidButton(
+                    onClick = onDismiss,
+                    fill = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    height = 44.dp,
+                ) {
+                    Text(
+                        "完成",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 1.199：筛选后没有任何比赛时的兜底（给「清除筛选」的出路，而不是白屏） */
+@Composable
+private fun HotFilterEmpty(onClear: () -> Unit) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                "没有符合当前筛选的比赛",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            // 1.199b（真机反馈）：改用 kyant 液态玻璃按钮（与「关注/发布」同源），
+            // 不再自绘文字胶囊
+            LiquidButton(
+                onClick = onClear,
+                fill = MaterialTheme.colorScheme.primary,
+                shape = RoundedCornerShape(50),
+                height = 40.dp,
+                contentPadding = 18.dp,
+            ) {
+                Text(
+                    "清除筛选",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
+        }
+    }
+}

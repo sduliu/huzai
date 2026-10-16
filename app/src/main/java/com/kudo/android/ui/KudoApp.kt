@@ -209,8 +209,7 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                                             { nav.navigate("category/${it.id}") }, ::openTag, ::openWebPage, inHome = true) })
                                     1 -> CommunityDirectoryHost(directory, account.user?.id, account.sessionReady, ::login,
                                         { nav.navigate("category/${it.id}") }, ::openTag, ::openWebPage)
-                                    3 -> NotificationsScreen(account, ::login, ::topic, ::openWebPage,
-                                        { nav.navigate("personal/${AccountDestination.MESSAGES.name}") })
+                                    3 -> com.kudo.android.hupuui.pages.ScorePage()
                                     4 -> ProfileScreen(account.user, ::login, { nav.navigate("settings") }, { nav.navigate("bookmarks") }, { account.user?.username?.let(::user) }, repository = app.repository, about = { nav.navigate("about") }, downloads = { nav.navigate("downloads") },
                                         destination = { destination ->
                                             when (destination) {
