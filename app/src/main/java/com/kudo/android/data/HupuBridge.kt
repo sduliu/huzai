@@ -142,7 +142,7 @@ fun HupuThreadDetail.toTopicDetail(): TopicDetail {
     val pidByFloor = replies.associate { it.floor to it.pid }
     val stream = buildList {
         add(op.id)
-        for (f in 1..thread.replyCount.coerceAtLeast(replies.size)) {
+        for (f in 1..replyCount.coerceAtLeast(replies.size)) {
             add(HupuIds.postId(thread.tid, pidByFloor[f].orEmpty(), f))
         }
     }
