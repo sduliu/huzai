@@ -107,7 +107,8 @@ val buildDoh by tasks.registering(Exec::class) {
     inputs.files(rootProject.fileTree("native/doh/licenses"))
     outputs.file(layout.buildDirectory.file("generated/dohJni/arm64-v8a/libkudo_doh.so"))
     commandLine(if (System.getProperty("os.name").startsWith("Windows")) "python" else "python3",
-        rootProject.file("scripts/build_doh.py"), "--sdk", android.sdkDirectory.absolutePath)
+        rootProject.file("scripts/build_doh.py"), "--sdk",
+        androidComponents.sdkComponents.sdkDirectory.get().asFile.absolutePath)
 }
 tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(buildDoh) }
 
