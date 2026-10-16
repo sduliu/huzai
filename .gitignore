@@ -1,40 +1,17 @@
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-build/
-/captures
-.externalNativeBuild
-.cxx
-local.properties
-
-# 构建产物 / 本地环境
-*.apk
+.gradle/
 .kotlin/
-.operit/
-.backup/
-
-# 本地接口探测/实现记录（不公开）
-docs/
-
-# 本地 proot 构建用二进制（体积大，不入库；正常环境由 AGP 自动获取 aapt2）
-tools/aapt2/
-# tools/ 下的开发与发版脚本一律本地使用、不入库（每次迭代的临时脚本不再上传）；
-# 只保留下列通用工具 / 资源作为例外。
-tools/*
-!tools/genicon.py
-!tools/sum_tests.py
-!tools/huzai_mark.otf
-
-# 签名与密钥（绝不入库）
+.idea/
+**/build/
+local.properties
+*.iml
 *.jks
 *.keystore
-!app/debug.keystore
-keystore.properties
-keystore/
+*.p12
+!ci/hudo-debug.p12
+*.pfx
+/signing/
+/signing.properties
+__pycache__/
+node_modules/
+captures/
+artifacts/

@@ -1,0 +1,13 @@
+# Copy to signing.properties, or run: python scripts/generate_signing.py
+# Paths are relative to the repository root. Never commit passwords or private keys.
+debug.storeFile=signing/kudo-debug.p12
+debug.storePassword=
+debug.keyAlias=kudo-debug
+debug.keyPassword=
+debug.storeType=PKCS12
+
+release.storeFile=signing/kudo-release.p12
+release.storePassword=
+release.keyAlias=kudo-release
+release.keyPassword=
+release.storeType=PKCS12

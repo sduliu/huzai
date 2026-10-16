@@ -1,124 +1,165 @@
 import java.util.Properties
 
 plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.compose)
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// 1.176: 正式签名配置——签名信息从 keystore.properties 读取（该文件与 keystore/ 均不入库）
-val keystoreProps = Properties().apply {
-    val f = rootProject.file("keystore.properties")
-    if (f.exists()) f.inputStream().use { load(it) }
+val signingProperties = Properties().apply {
+    val path = providers.gradleProperty("signingPropertiesFile").orElse("signing.properties").get()
+    val configuration = rootProject.file(path)
+    if (configuration.isFile) {
+        configuration.inputStream().use { load(it) }
+    } else if (providers.gradleProperty("signingPropertiesFile").isPresent) {
+        throw GradleException("The specified signingPropertiesFile does not exist.")
+    }
+}
+
+fun signingOptions(variant: String): Map<String, String> = mapOf(
+    "storeFile" to "KEYSTORE_PATH",
+    "storePassword" to "STORE_PASSWORD",
+    "keyAlias" to "KEY_ALIAS",
+    "keyPassword" to "KEY_PASSWORD",
+    "storeType" to "KEYSTORE_TYPE",
+).mapNotNull { (property, environment) ->
+    val value = providers.environmentVariable("${variant.uppercase()}_$environment").orNull
+        ?: signingProperties.getProperty("$variant.$property")
+    value?.takeIf { it.isNotBlank() }?.let { property to it }
+}.toMap()
+
+val requiredSigningOptions = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+val debugSigning = signingOptions("debug")
+val releaseSigning = signingOptions("release")
+
+fun validateSigning(variant: String, options: Map<String, String>) {
+    val missing = requiredSigningOptions.filter { it !in options }
+    if (missing.isNotEmpty()) {
+        throw GradleException(
+            "$variant signing is incomplete: ${missing.joinToString()}. " +
+                "Configure signing.properties or the ${variant.uppercase()}_* environment variables.",
+        )
+    }
+    if (!rootProject.file(options.getValue("storeFile")).isFile) {
+        throw GradleException("$variant keystore does not exist. Check the signing storeFile configuration.")
+    }
 }
 
 android {
-    namespace = "com.java.myapplication"
-    compileSdk = 37
-
+    namespace = "com.kudo.android"
+    compileSdk = 36
     defaultConfig {
-        // 1.133: 自有包名（发布后不可更改）。namespace 保留为 com.java.myapplication——
-        // 代码里 ImageViewer 引用了 com.java.myapplication.R，改 namespace 需大规模搬包，
-        // 而对外可见的是 applicationId，改这一项即可（AGP 允许两者不同）。
-        applicationId = "com.huzai.app"
-        minSdk = 24
-        targetSdk = 35
-        versionCode = 212
-        versionName = "1.202"
-
+        applicationId = "com.huzai.kudo"
+        minSdk = 26
+        targetSdk = 36
+        versionCode = providers.gradleProperty("versionCode").orElse("1").get()
+            .toIntOrNull()?.takeIf { it in 1..2_100_000_000 }
+            ?: throw GradleException("versionCode must be an integer between 1 and 2100000000.")
+        versionName = providers.gradleProperty("versionName").orElse("0.1.0").get()
+        ndk { abiFilters += "arm64-v8a" }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        vectorDrawables {
-            useSupportLibrary = true
-        }
     }
-
-    // 1.176: 正式签名（仅当 keystore.properties 存在时启用，仓库内不含密钥）
     signingConfigs {
-        if (keystoreProps.isNotEmpty()) {
-            create("release") {
-                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
-                storePassword = keystoreProps.getProperty("storePassword")
-                keyAlias = keystoreProps.getProperty("keyAlias")
-                keyPassword = keystoreProps.getProperty("keyPassword")
+        if (debugSigning.isNotEmpty()) {
+            validateSigning("Debug", debugSigning)
+            getByName("debug") {
+                storeFile = rootProject.file(debugSigning.getValue("storeFile"))
+                storePassword = debugSigning.getValue("storePassword")
+                keyAlias = debugSigning.getValue("keyAlias")
+                keyPassword = debugSigning.getValue("keyPassword")
+                storeType = debugSigning["storeType"] ?: "PKCS12"
             }
         }
-        // 仓库内置固定 debug 签名（口令即安卓惯例 android）——CI 每台 runner 随机
-        // keystore 会导致每版签名漂移、覆盖安装被拒；固定后 nightly 可增量升级。
-        create("ci-debug") {
-            storeFile = file("debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+        create("release") {
+            storeFile = releaseSigning["storeFile"]?.let { rootProject.file(it) }
+            storePassword = releaseSigning["storePassword"]
+            keyAlias = releaseSigning["keyAlias"]
+            keyPassword = releaseSigning["keyPassword"]
+            storeType = releaseSigning["storeType"] ?: "PKCS12"
         }
     }
     buildTypes {
-        debug {
-            signingConfig = signingConfigs.getByName("ci-debug")
-        }
         release {
-            isMinifyEnabled = false
-            if (keystoreProps.isNotEmpty()) {
-                signingConfig = signingConfigs.getByName("release")
-            }
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
         }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    buildFeatures {
-        compose = true
-        // 1.133: 开启 BuildConfig——供「关于」页展示真实版本，并让崩溃取证等
-        // 调试代码按 BuildConfig.DEBUG 分级（release 不含）
-        buildConfig = true
-    }
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
+    buildFeatures { compose = true; buildConfig = true }
+    testOptions { unitTests.isReturnDefaultValues = true }
+    packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+    sourceSets.getByName("main").jniLibs.srcDir(layout.buildDirectory.dir("generated/dohJni"))
+    if (providers.gradleProperty("dohProbe").orNull == "true") {
+        sourceSets.getByName("androidTest").jniLibs.srcDir(layout.buildDirectory.dir("generated/dohProbeJni"))
     }
 }
 
-// Force use of ARM64 binaries for AAPT2 in Proot environment
-configurations.all {
-    resolutionStrategy.eachDependency {
-        if (requested.group == "com.android.tools.build" && requested.name == "aapt2") {
-            useTarget("com.android.tools.build:aapt2:${'$'}{requested.version}:linux-aarch64")
-        }
-    }
+val buildDoh by tasks.registering(Exec::class) {
+    group = "build"
+    description = "Builds the Rust arm64 DoH/ECH transport with 16KB alignment."
+    inputs.files(rootProject.fileTree("native/doh") { include("Cargo.toml", "Cargo.lock", "src/**") })
+    inputs.file(rootProject.file("scripts/build_doh.py"))
+    inputs.file(rootProject.file("scripts/native_notices.py"))
+    inputs.file(rootProject.file("app/src/main/assets/licenses/native-doh-NOTICES.txt"))
+    inputs.files(rootProject.fileTree("native/doh/licenses"))
+    outputs.file(layout.buildDirectory.file("generated/dohJni/arm64-v8a/libkudo_doh.so"))
+    commandLine(if (System.getProperty("os.name").startsWith("Windows")) "python" else "python3",
+        rootProject.file("scripts/build_doh.py"), "--sdk", android.sdkDirectory.absolutePath)
 }
+tasks.matching { it.name == "preBuild" }.configureEach { dependsOn(buildDoh) }
+
+val validateReleaseSigning by tasks.registering {
+    group = "verification"
+    description = "Rejects Release builds without a complete, private signing configuration."
+    doLast { validateSigning("Release", releaseSigning) }
+}
+
+tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+    dependsOn(validateReleaseSigning)
+}
+
+kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
 dependencies {
-
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.activity.compose)
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.ui)
-    implementation(libs.androidx.ui.graphics)
-    implementation(libs.androidx.ui.tooling.preview)
-    implementation(libs.androidx.material3)
-    implementation("androidx.compose.material:material-icons-core")
-    testImplementation(libs.junit)
-    testImplementation(libs.org.json)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(libs.androidx.ui.test.junit4)
-    debugImplementation(libs.androidx.ui.tooling)
-    debugImplementation(libs.androidx.ui.test.manifest)
-    implementation(libs.backdrop)
-    implementation(libs.capsule)
-    implementation(libs.kyant.shapes)
-    implementation(libs.okhttp)
-    implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.coil.compose)
-    implementation(libs.coil.gif)
-    implementation(libs.media3.exoplayer)
-    implementation(libs.media3.ui)
-    // 1.224n：媒体下载改走 OkHttp（见 HupuVideoPlayer.buildPlayer 的说明）
-    implementation(libs.media3.datasource.okhttp)
+    implementation(platform("androidx.compose:compose-bom:2026.03.00"))
+    implementation("androidx.activity:activity-compose:1.12.4")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
+    implementation("androidx.navigation:navigation-compose:2.9.7")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended:1.7.8")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    debugImplementation("androidx.compose.ui:ui-tooling")
+    implementation("io.github.kyant0:backdrop:1.0.6")
+    implementation("io.github.kyant0:shapes:1.2.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("io.coil-kt.coil3:coil-compose:3.3.0")
+    implementation("io.coil-kt.coil3:coil-network-okhttp:3.3.0")
+    implementation("io.coil-kt.coil3:coil-gif:3.3.0")
+    implementation("io.coil-kt.coil3:coil-svg:3.3.0")
+    implementation("com.github.penfeizhou.android.animation:apng:3.0.5")
+    implementation("com.github.penfeizhou.android.animation:awebp:3.0.5")
+    implementation("com.github.penfeizhou.android.animation:avif:3.0.5")
+    implementation("org.aomedia.avif.android:avif:1.1.1.14d8e3c4")
+    implementation("androidx.vectordrawable:vectordrawable-animated:1.2.0")
+    implementation("org.jsoup:jsoup:1.18.3")
+    implementation("org.commonmark:commonmark:0.24.0")
+    implementation("org.commonmark:commonmark-ext-gfm-tables:0.24.0")
+    implementation("org.commonmark:commonmark-ext-gfm-strikethrough:0.24.0")
+    implementation("org.commonmark:commonmark-ext-task-list-items:0.24.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20250107")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    androidTestImplementation(platform("androidx.compose:compose-bom:2026.03.00"))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    androidTestImplementation("com.squareup.okhttp3:okhttp-tls:4.12.0")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

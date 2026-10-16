@@ -1,0 +1,8 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="72" android:viewportHeight="72">
+    <!-- Based on ic_kudo, with a gap before the dot; Android tints this transparent alpha mask. -->
+    <group android:translateX="-21" android:translateY="-18">
+        <path android:fillColor="#FFFFFFFF" android:pathData="M26,27L37,27L37,48L54,27L68,27L48,52L69,81L55,81L37,57L37,81L26,81Z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M79,63a9,9 0,1 0,0 18a9,9 0,1 0,0 -18" />
+    </group>
+</vector>

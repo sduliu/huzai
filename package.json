@@ -1,0 +1,7 @@
+{
+  "name": "kudo-android-tooling",
+  "private": true,
+  "scripts": {
+    "verify-notes": "npx --yes tsx@4.21.0 .agents/skills/write-notes-like-deepseek/scripts/verify-agent-note-tree.ts && npx --yes tsx@4.21.0 .agents/skills/write-notes-like-deepseek/scripts/verify-agent-note-format.ts && npx --yes tsx@4.21.0 .agents/skills/write-notes-like-deepseek/scripts/verify-archived-agent-notes.ts"
+  }
+}
