@@ -91,9 +91,9 @@ android {
     buildFeatures { compose = true; buildConfig = true }
     testOptions { unitTests.isReturnDefaultValues = true }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
-    sourceSets.getByName("main").jniLibs.srcDir(layout.buildDirectory.dir("generated/dohJni"))
+    sourceSets.getByName("main").jniLibs.srcDir(layout.buildDirectory.dir("generated/dohJni").get().asFile)
     if (providers.gradleProperty("dohProbe").orNull == "true") {
-        sourceSets.getByName("androidTest").jniLibs.srcDir(layout.buildDirectory.dir("generated/dohProbeJni"))
+        sourceSets.getByName("androidTest").jniLibs.srcDir(layout.buildDirectory.dir("generated/dohProbeJni").get().asFile)
     }
 }
 
