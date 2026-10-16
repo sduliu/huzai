@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "Kudo"
+rootProject.name = "HuDo"
 include(":app")
