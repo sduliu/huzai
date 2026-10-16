@@ -2,7 +2,6 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
@@ -121,8 +120,6 @@ val validateReleaseSigning by tasks.registering {
 tasks.matching { it.name == "preReleaseBuild" }.configureEach {
     dependsOn(validateReleaseSigning)
 }
-
-kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2026.03.00"))
