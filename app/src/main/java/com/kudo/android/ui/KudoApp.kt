@@ -181,7 +181,7 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                     popEnterTransition = { fadeIn(tween(220)) }, popExitTransition = { fadeOut(tween(220)) }) {
                     composable("root") {
                         val directory = model("community-directory") { CommunityDirectoryViewModel(app.repository) }
-                        val feed = model("feed") { FeedViewModel(app.repository, initialUser = account.user, updates = DiscourseMessageBus(app.client, userAgent = app.userAgent, route = app.network::client)) }
+                        val feed = model("feed") { FeedViewModel(app.repository, initialUser = account.user) }
                         val state by feed.state.collectAsStateWithLifecycle()
                         val pages by feed.pages.collectAsStateWithLifecycle()
                         val backdrop = rememberLayerBackdrop()
@@ -195,9 +195,7 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                         LaunchedEffect(readingEpoch, account.user?.id) {
                             feed.refreshReadListsIfRequested(readingEpoch, account.user?.id)
                         }
-                        LaunchedEffect(selected, account.user?.id) {
-                            if (selected == 3) account.loadNotices()
-                        }
+
                         CompositionLocalProvider(LocalQuickScrollBottomPadding provides
                             (WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 88.dp)) {
                         HomeUpdateHost(homeUpdate, selected == 0, ::openBrowser) {
