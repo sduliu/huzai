@@ -88,7 +88,7 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
         ArticleFootnoteHost {
         QuickScrollToTopHost {
         val account = model("account") { AccountViewModel(app) }
-        val homeUpdate = model("home-update") { HomeUpdateViewModel { throw UnsupportedOperationException("虎Do 不做自动更新检查") } }
+        val homeUpdate = model("home-update") { HomeUpdateViewModel(check = { throw UnsupportedOperationException("虎Do 不做自动更新检查") }) }
         val nav = rememberNavController()
         LaunchedEffect(incomingDownloads, linkSequence) {
             if (incomingDownloads) { nav.navigate("downloads") { launchSingleTop = true }; consumeDownloads() }
