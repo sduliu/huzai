@@ -78,6 +78,13 @@ android {
         }
     }
     buildTypes {
+        debug {
+            // 卡帧优化：nightly 以 debug 签名分发但走 R8 全量优化
+            // （debuggable 开销保留，字节码/资源已收缩，接近 release 流畅度）
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+        }
         release {
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
