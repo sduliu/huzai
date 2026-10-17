@@ -150,9 +150,9 @@ fun TopicCard(topic: Topic, category: Category?, onClick: () -> Unit, onUser: (S
         .clickable(onClick = onClick)
         .testTag("topic-card-${topic.id}").padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Avatar(topic.author, 35.dp) { topic.author?.username?.let(onUser) }
+            if (topic.author != null) Avatar(topic.author, 35.dp) { topic.author?.username?.let(onUser) }
             Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                Text(topic.author?.displayName ?: "虎扑", style = MaterialTheme.typography.titleSmall, maxLines = 1)
+                if (topic.author != null) Text(topic.author?.displayName.orEmpty(), style = MaterialTheme.typography.titleSmall, maxLines = 1)
                 TopicAuthorMetadata(topic.bumpedAt, resolvedCategory)
             }
             if (topic.pinned) Icon(Icons.Rounded.PushPin, "置顶", Modifier.size(17.dp), MaterialTheme.colorScheme.primary)
@@ -165,7 +165,7 @@ fun TopicCard(topic: Topic, category: Category?, onClick: () -> Unit, onUser: (S
         mediaUrl(topic.image)?.let { TopicPreviewImage(topic.id, it, onClick) }
         if (topic.tagDetails.isNotEmpty()) TopicTags(topic.tagDetails)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Stat(Icons.Rounded.Visibility, compactNumber(topic.views))
+            if (topic.views > 0) Stat(Icons.Rounded.Visibility, compactNumber(topic.views)) else Spacer(Modifier)
             Stat(Icons.Rounded.ChatBubbleOutline, compactNumber(topic.replies))
             Stat(Icons.Rounded.FavoriteBorder, compactNumber(topic.likes))
         }

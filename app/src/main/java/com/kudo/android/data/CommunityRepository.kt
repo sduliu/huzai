@@ -43,7 +43,6 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
         }
         val threads = when (filter) {
             FeedFilter.HOT.value -> hupu.board("/all-gambia")?.threads
-            FeedFilter.TOP.value -> hupu.topicPage("/topic-daily")?.threads
             else -> hupu.mobileHome()
         }.orEmpty()
         return TopicPage(threads.map { it.toTopic() }, null)
@@ -56,7 +55,8 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
 
     suspend fun categories(): List<Category> {
         val token = synchronized(categoryLock) { categoryGeneration }
-        val categories = hupu.categories().flatMap { it.toCategories() }
+        // 虎扑大类树里同一板块会在多个分组重复（如「步行街主干道」），按名去重
+        val categories = hupu.categories().flatMap { it.toCategories() }.distinctBy { it.name }
         synchronized(categoryLock) {
             if (token == categoryGeneration && categories.isNotEmpty()) _categoryCatalog.value = categories
         }

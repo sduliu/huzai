@@ -298,7 +298,8 @@ fun TopicScreen(state: TopicState, glass: GlassMode, back: () -> Unit, retry: ()
                 floors = { floorRaw = currentFloor.toString(); floorVisibility.targetState = true },
                 floorEditing = floorShowing, floorRaw = floorRaw,
                 floorChange = { floorRaw = it }, floorHighest = detail?.highestPostNumber ?: 1,
-                floorJumping = state.jumping, floorError = state.jumpError, floorConfirm = jumpTo, floorClose = ::closeFloor)
+                floorJumping = state.jumping, floorError = state.jumpError, floorConfirm = jumpTo, floorClose = ::closeFloor,
+                floorEnabled = false)
         }
         LiquidModal(tocVisibility, "目录", false, modalBackdrop, glass, { tocVisibility.targetState = false },
             showActions = false, maxDialogHeightFraction = .72f,

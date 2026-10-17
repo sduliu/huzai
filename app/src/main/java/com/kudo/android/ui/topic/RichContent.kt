@@ -292,7 +292,9 @@ fun parseArticle(html: String): List<ArticleBlock> {
             }
             "iframe", "video", "audio" -> {
                 val raw = element.attr("src").ifBlank { element.selectFirst("source")?.attr("src").orEmpty() }
-                LinuxDoLink.webUrl(raw)?.let { result.add(ArticleBlock.Embed(it, "打开媒体网页")) }
+                val poster = element.attr("poster").ifBlank { null }
+                val label = if (element.normalName() == "video") "播放视频" else "打开媒体网页"
+                LinuxDoLink.webUrl(raw)?.let { result.add(ArticleBlock.Embed(it, label, image = poster)) }
             }
             "blockquote", "aside" -> {
                 if (element.hasClass("onebox")) {

@@ -68,6 +68,38 @@ object HupuIds {
 private fun isoTime(millis: Long, text: String): String =
     if (millis > 0) Instant.ofEpochMilli(millis).toString() else text
 
+/**
+ * 虎扑表情归一：让渲染器按 Discourse `img.emoji` 约定走行内小图——
+ * 1) 表情 CDN 图（src 含 emoji/emotion）补 class="emoji"；
+ * 2) 文本令牌 [狗头] 等 → <img class="emoji">（仅替换标签外文本，映射表与发帖器共用）。
+ */
+private val IMG_TAG = Regex("<img\\b([^>]*?src=\"([^\"]+)\"[^>]*)>")
+
+private fun hupuEmojiize(html: String): String {
+    val marked = IMG_TAG.replace(html) { m ->
+        val tag = m.groupValues[1]
+        val src = m.groupValues[2]
+        if ("emoji" !in src && "emotion" !in src) m.value
+        else if (tag.contains("class=")) m.value
+        else "<img class=\"emoji\"$tag>"
+    }
+    val sb = StringBuilder(marked.length + 32)
+    var i = 0
+    while (i < marked.length) {
+        val lt = marked.indexOf('<', i)
+        val chunk = if (lt < 0) marked.substring(i) else marked.substring(i, lt)
+        sb.append(com.kudo.android.hupuui.components.EMOJI_TOKEN.replace(chunk) { m ->
+            com.kudo.android.hupuui.components.HUPU_EMOJI[m.value]
+                ?.let { "<img class=\"emoji\" alt=\"${m.value}\" src=\"$it\">" } ?: m.value
+        })
+        if (lt < 0) break
+        val gt = marked.indexOf('>', lt)
+        if (gt < 0) { sb.append(marked.substring(lt)); break }
+        sb.append(marked, lt, gt + 1); i = gt + 1
+    }
+    return sb.toString()
+}
+
 private fun HupuAuthor?.toMember(): Member =
     Member(
         id = this?.euid?.takeIf { it.isNotBlank() }?.let(HupuIds::id) ?: 0,
@@ -100,7 +132,7 @@ fun HupuReply.toPost(tid: String): Post = Post(
     id = HupuIds.postId(tid, pid, floor),
     number = floor,
     author = author.toMember(),
-    cooked = contentHtml,
+    cooked = hupuEmojiize(contentHtml),
     createdAt = createdAtText,
     likes = lights,
     liked = false,
@@ -114,7 +146,7 @@ fun HupuSubReply.toPost(tid: String, parentFloor: Int): Post = Post(
     id = HupuIds.id("post:$tid:sub:$pid"),
     number = parentFloor,
     author = author.toMember(),
-    cooked = contentHtml,
+    cooked = hupuEmojiize(contentHtml),
     createdAt = createdAtText,
     likes = lights,
     liked = false,
@@ -124,11 +156,15 @@ fun HupuSubReply.toPost(tid: String, parentFloor: Int): Post = Post(
 )
 
 fun HupuThreadDetail.toTopicDetail(): TopicDetail {
+    // 视频帖：thread.video 独立字段不在正文 HTML 里，前置 <video> 让渲染器生成可点卡片
+    val videoBlock = thread.video.takeIf { it.isNotBlank() }?.let { v ->
+        """<p><video src="$v" poster="${thread.videoCover}"></video></p>"""
+    }.orEmpty()
     val op = Post(
         id = HupuIds.id("post:op:${thread.tid}"),
         number = 1,
         author = (thread.author ?: replies.firstOrNull { it.isStarter }?.author).toMember(),
-        cooked = contentHtml,
+        cooked = videoBlock + hupuEmojiize(contentHtml),
         createdAt = isoTime(thread.createdAt, thread.createdAtText),
         likes = thread.lights,
         liked = false,

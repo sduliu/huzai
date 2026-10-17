@@ -143,7 +143,7 @@ internal fun TopicBottomBar(
     floorEditing: Boolean = false, floorRaw: String = currentFloor.toString(),
     floorChange: (String) -> Unit = {}, floorHighest: Int = 1,
     floorJumping: Boolean = false, floorError: String? = null, floorConfirm: (Int) -> Unit = {},
-    floorClose: () -> Unit = {},
+    floorClose: () -> Unit = {}, floorEnabled: Boolean = true,
 ) {
     val detail = state.detail ?: return
     val first = detail.originalPost
@@ -192,6 +192,7 @@ internal fun TopicBottomBar(
             clip = transition.isRunning
             shape = Capsule()
         }, contentAlignment = Alignment.Center) {
+            if (floorEnabled) {
             Box(Modifier.fillMaxWidth().graphicsLayer { alpha = 1f - expansion }
                 .then(if (floorEditing) Modifier.clearAndSetSemantics {} else Modifier)) {
                 LiquidButton(onClick = floors, enabled = enabled && !floorEditing && !state.loading, backdrop = backdrop, mode = glass,
@@ -210,6 +211,7 @@ internal fun TopicBottomBar(
                 FloorNavigationBar(floorRaw, floorChange, floorHighest, floorJumping, floorError, floorConfirm,
                     backdrop, glass, Modifier.fillMaxWidth(), openingFloor = currentFloor, close = floorClose)
             }
+            }
         }
         Box(Modifier.graphicsLayer { alpha = 1f - expansion }
             .then(if (floorEditing) Modifier.clearAndSetSemantics {} else Modifier)) {
@@ -226,12 +228,8 @@ internal fun TopicBottomBar(
                         Icon(Icons.Rounded.Edit, "编辑主帖", Modifier.size(19.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .75f * LocalContentColor.current.alpha))
                     }
-                } else {
-                    IconButton(onClick = { first?.let(boost) }, enabled = available && (state.viewerId == null || first?.canBoost == true)) {
-                        Icon(CategoryIcons.get("rocket"), "Boost 主帖", Modifier.size(19.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .75f * LocalContentColor.current.alpha))
-                    }
                 }
+                // 虎扑无 Boost 等价机制——原 Discourse 火箭按钮移除
             }
         }
     }, modifier = Modifier.fillMaxWidth()) { measurables, constraints ->
