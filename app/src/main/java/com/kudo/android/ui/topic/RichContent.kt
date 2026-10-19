@@ -777,7 +777,7 @@ private fun CodeBlock(code: String) {
             Icon(Icons.Rounded.ContentCopy, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(if (copied) "已复制" else "复制", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        SelectionContainer {
+        SelectionContainer(LocalPostQuoteSelection.current) {
             Text(code, Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 13.dp, end = 13.dp, bottom = 13.dp),
                 fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodyMedium)
         }

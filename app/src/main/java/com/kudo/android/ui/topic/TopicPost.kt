@@ -43,7 +43,8 @@ internal fun TopicPost(post: Post, detail: TopicDetail, state: TopicState, enabl
     user: (String) -> Unit, image: (String) -> Unit, openLink: (String) -> Unit, choose: (Post) -> Unit,
     originalRevealed: Boolean = false, revealOriginal: () -> Unit = {}, boost: (Post) -> Unit = {},
     vote: (Post, String, List<String>) -> Unit = { _, _, _ -> }, login: () -> Unit = {},
-    onHeading: ((ArticleHeading, BringIntoViewRequester) -> Unit)? = null) {
+    onHeading: ((ArticleHeading, BringIntoViewRequester) -> Unit)? = null,
+    quote: ((Post, String) -> Unit)? = null) {
     val ignoredUsers = LocalIgnoredUsers.current
     val historyActions = LocalTopicActions.current
     var revealed by remember(post.id, ignoredUsers) { mutableStateOf(false) }
@@ -79,6 +80,8 @@ internal fun TopicPost(post: Post, detail: TopicDetail, state: TopicState, enabl
             }
             PostReadingContent(post.number, enabled && !state.loading) {
                 CompositionLocalProvider(LocalArticleHeadingCollector provides onHeading) {
+                PostQuoteSelection(detail.id, post, quote?.takeIf { enabled && !state.loading && !detail.closed && !detail.archived }
+                    ?.let { action -> { markdown -> action(post, markdown) } }) {
                 RichContent(post.cooked, image, openLink, galleryKey = "post-${post.id}", galleryBottomInset = 110.dp,
                     poll = { name ->
                         val poll = post.polls.firstOrNull { it.name == name }
@@ -88,6 +91,7 @@ internal fun TopicPost(post: Post, detail: TopicDetail, state: TopicState, enabl
                             { vote(post, name, it) }, login, web)
                         else Text("打开网页查看投票", Modifier.clickable(onClick = web), color = MaterialTheme.colorScheme.primary)
                     })
+                }
                 }
             }
             UserSignature(post, openLink)
@@ -105,7 +109,11 @@ internal fun TopicPost(post: Post, detail: TopicDetail, state: TopicState, enabl
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .75f * LocalContentColor.current.alpha))
                     }
                 }
-                TextButton(onClick = { reply(post) }, enabled = enabled && !detail.closed) { Text("回复") }
+                IconButton(onClick = { reply(post) }, enabled = enabled && !detail.closed,
+                    modifier = Modifier.size(48.dp).testTag("post-reply-${post.number}")) {
+                    Icon(Icons.Rounded.ChatBubbleOutline, "回复第 ${post.number} 楼", Modifier.size(19.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .75f * LocalContentColor.current.alpha))
+                }
             }
             PostBoosts(post, enabled, user, openLink)
         }
@@ -284,7 +292,8 @@ private fun ReplyPreviewImages(images: List<ArticleBlock.Image>, postId: Int, la
 @Composable
 internal fun ThreadPreviewPost(post: Post, enabled: Boolean, image: (String) -> Unit,
     openLink: (String) -> Unit, navigate: (Int) -> Unit, authorLabel: String, state: TopicState,
-    like: (Post) -> Unit, reply: (Post) -> Unit, choose: (Post) -> Unit) {
+    like: (Post) -> Unit, reply: (Post) -> Unit, choose: (Post) -> Unit,
+    quote: ((Post, String) -> Unit)? = null) {
     val hidden = post.author.username.lowercase(Locale.ROOT) in LocalIgnoredUsers.current
     Row(Modifier.fillMaxWidth().padding(vertical = 12.dp).testTag("thread-preview-post-${post.number}"),
         horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
@@ -302,7 +311,11 @@ internal fun ThreadPreviewPost(post: Post, enabled: Boolean, image: (String) -> 
                 }
             }
             if (hidden) Text("内容已忽略", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            else RichContent(post.cooked, image, openLink, galleryKey = "thread-preview-${post.id}")
+            else PostQuoteSelection(state.detail?.id, post,
+                quote?.takeIf { enabled && !state.loading && state.detail?.closed == false && !state.detail.archived }
+                    ?.let { action -> { markdown -> action(post, markdown) } }) {
+                RichContent(post.cooked, image, openLink, galleryKey = "thread-preview-${post.id}")
+            }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f).padding(end = 4.dp).testTag("thread-metadata-${post.number}")) {
                     val historyActions = LocalTopicActions.current
