@@ -49,3 +49,12 @@ AGP 9 迁移要点：删 `kotlin-android` 插件（内置 Kotlin）、`sdkDirect
 - 表情：`hupuEmojiize` 归一——CDN emoji/emotion 图补 `class="emoji"` 走渲染器行内小图路径；`[令牌]` 文本替换为同路径 emoji img（映射复用发帖器的 HUPU_EMOJI 28 表情表）。
 - FeedFilter.TOP「每日话题」删除（无对应官方一级筛选）；板块目录按 name 去重（虎扑大类树同板块多分组重复）。
 - 性能：debug 构建开 R8+shrinkResources（签名不变，`install -r` 仍互通），缓解液态玻璃+debug 字节码叠加的卡顿。
+
+## 上游取长补短批（e7274a0+a4590f6, CI green）
+
+上游 kudo-android b258155→c328d5c 共 20 提交评审后选择性移植（仓库无共同祖先，逐文件搬运而非 git merge）：
+- **移植**：正文选区引用（`PostQuoteSelection`/`PostQuotes` + SelectionContainer 注入 RichContent/SpoilerContent）——长按正文/回复/楼中楼出现「引用/复制引用」菜单；`postQuoteMarkdown` 已从 Discourse `[quote=...]` 语法改为中文纯文本 `引用 @作者 发表于 N楼：` + `>` 引用块（复制引用可外贴；「引用」动作仍走编辑器登录壳）；回复按钮文字→`ChatBubbleOutline` 图标（48dp 命中区+testTag）。
+- **拒绝**：解决方案标记/状态切换、回应汇总+历史面板、标签本地搜索、置顶系统通知、昵称徽章/头像挂件、点赞历史——全部依赖 Discourse 服务端语义（solution/accepted_answer/reactions/notification types），虎扑无对应数据契约，移植即成死代码。
+- **暂缓**：NSFW 图片模糊开关——上游按 Discourse 附件标记判定，虎扑图片无 NSFW 元数据；要做需先定内容分类策略。
+- **已含**：标题 emoji 修复、代码复制图标化、面板自适应高度等渲染修复——hupuEmojiize/IconButton 已先行覆盖或属上游 Discourse 特有组件。
+模拟器验证：选区菜单四项（Copy/Select all/引用/复制引用）✓、「已复制引用」toast+剪贴板写入 ✓、回复图标按钮 ✓。
