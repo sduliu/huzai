@@ -57,7 +57,7 @@ def validate_signer(report: str, expected_sha256: str) -> None:
     signers = re.findall(r"^Signer #[0-9]+ certificate SHA-256 digest: ([0-9a-fA-F]{64})\s*$", report, re.MULTILINE)
     if [signer.lower() for signer in signers] != [expected_sha256.lower()]:
         raise ValueError(f"APK signer does not match the single expected release certificate. "
-            f"actual={signers} expected={expected_sha256}")
+            f"actual={signers} expected={expected_sha256}\n--- apksigner report ---\n{report[-2000:]}")
 
 
 def validate_manifest(report: str, version: ReleaseVersion) -> None:
