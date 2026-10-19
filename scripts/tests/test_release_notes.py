@@ -84,7 +84,7 @@ class ReleaseNotesTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         template = prepared.read_text(encoding="utf-8")
         header = template.splitlines()[0]
-        summary = "# 酷DO 0.1.1\n\n## 新增\n\n- 话题详情自动加载新回复，保留阅读位置。\n- 回复按钮显示正在回复的用户头像，保持按钮宽度。\n\n[完整变更](https://github.com/owner/repo/compare/v0.1.0...v0.1.1)\n"
+        summary = "# 虎Do 0.1.1\n\n## 新增\n\n- 话题详情自动加载新回复，保留阅读位置。\n- 回复按钮显示正在回复的用户头像，保持按钮宽度。\n\n[完整变更](https://github.com/owner/repo/compare/v0.1.0...v0.1.1)\n"
         prepared.write_text(header + "\n" + summary, encoding="utf-8")
         return prepared, template, summary
 
@@ -146,7 +146,7 @@ class ReleaseNotesTest(unittest.TestCase):
         header = prepared.read_text(encoding="utf-8").splitlines()[0]
         malformed = (
             summary.replace("## 新增", "## 工具链"),
-            summary.replace("# 酷DO 0.1.1", "# 酷DO 0.1.2"),
+            summary.replace("# 虎Do 0.1.1", "# 虎Do 0.1.2"),
             summary.replace("compare/v0.1.0...v0.1.1", "compare/v0.0.9...v0.1.1"),
             summary.replace("- 回复按钮显示正在回复的用户头像，保持按钮宽度。", "- 话题详情自动加载新回复，保留阅读位置。"),
             summary.replace("## 新增", "## 修复\n\n## 新增"),
@@ -394,7 +394,7 @@ python3() { printf '%s\\n' "$@" > arguments.txt; }
                     self.assertNotIn("--previous-tag", values)
                     self.assertEqual("release-notes", values[values.index("--prepared-notes-dir") + 1])
                     raw_file = Path(values[values.index("--raw-output") + 1])
-                    self.assertEqual(self.root / "kudo-release-dist/release-notes.raw.md", raw_file)
+                    self.assertEqual(self.root / "hudo-release-dist/release-notes.raw.md", raw_file)
                     published_file = Path(values[values.index("--published-releases") + 1])
                     self.assertEqual(self.root / "published-releases.json", published_file)
                     self.assertEqual(published, json.loads(published_file.read_text(encoding="utf-8")))
@@ -420,7 +420,7 @@ python3() { "$PYTHON_EXECUTABLE" "$@"; }
         self.git("add", "release-notes/v0.1.1.md")
         self.git("-c", "commit.gpgsign=false", "commit", "-m", "doc: 整理发布说明")
         self.git("tag", "v0.1.1")
-        output = self.root / "kudo-release-dist/release-notes.md"
+        output = self.root / "hudo-release-dist/release-notes.md"
         raw = output.with_name("release-notes.raw.md")
         pages = [[{"tag_name": "v0.1.0", "draft": False, "prerelease": False, "published_at": "2026-10-01T00:00:00Z"}]]
         for scenario in ("prepared", "missing", "invalid", "stale"):
@@ -449,7 +449,7 @@ python3() { "$PYTHON_EXECUTABLE" "$@"; }
                     self.assertFalse(output.exists())
                     self.assertIn("过期" if scenario == "stale" else "只允许", result.stderr)
         upload = workflow.split("      - name: Upload verified release files\n", 1)[1].split("      - name:", 1)[0]
-        self.assertIn("kudo-release-dist/release-notes.raw.md", upload)
+        self.assertIn("hudo-release-dist/release-notes.raw.md", upload)
 
 
 if __name__ == "__main__":

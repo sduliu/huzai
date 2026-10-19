@@ -66,3 +66,10 @@ AGP 9 迁移要点：删 `kotlin-android` 插件（内置 Kotlin）、`sdkDirect
 - 发布管线 `release.yml`：`v*` tag 触发，`release_version.py` 由 tag 推 versionCode/Name；release 包用 `ci/hudo-debug.p12` 签名（与 nightly 同身份，`install -r` 互通，不引入第二把密钥）；`prepare_release.py package` 校验签名指纹+包名（com.huzai.kudo）+非 debuggable+单 ABI 后产出 .sha256；发布标题「虎Do x.y.z」。
 - 门禁裁剪：上游 release 的 `testDebugUnitTest`/`lintDebug`/`cargo test` 未纳入——201 个单测绑死 Discourse 契约，虎扑后端下大面积失效，套件分诊单独立项；当前门禁=verify-notes+构建+签名/APK 校验（与 nightly 实际覆盖对齐）。
 - 版本号策略：nightly 恒 0.1.0（run_number 作 versionCode），正式版 vX.Y.Z 单段数字 tag；首发 v0.2.0 让 nightly 用户可感知升级。
+
+## CI 事故复盘与预防（v0.2.0 发版）
+
+事故链：v0.2.0 首 tag 因 `prepare_release.py` 正则只认 `Signer #1` 而 apksigner 37.0.0 输出已改为 `V2 Signer:`，签名校验失败，重打 tag ×3 才定位修复——每次失败 GitHub 都发邮件。
+根因：把 SDK 包从上游 build-tools;35.0.0 换成 37.0.0 时，没有检查消费该工具 stdout 的脚本；且改发布管线前没在本地跑 `python3 -m unittest discover -s scripts/tests`（当时 27 个失败本可提前暴露）。
+修复：signer 正则兼容新旧两种格式并补 V2 Signer 回归测试；test_prepare_release/test_release_version/test_release_notes 全部对齐 huzai 仓名/包名/资产名；test_release_workflow 按虎Do 实际契约重写并新增 `test_package_step_uses_the_installed_build_tools`（安装的 build-tools 版本与 package 步骤引用必须一致）。
+预防规则（已写入 AGENTS.md）：改 CI/发布脚本或 toolchain 版本 → 本地先跑 scripts/tests；升级工具版本 → grep 所有解析其 stdout 的脚本。

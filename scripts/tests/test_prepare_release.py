@@ -15,10 +15,11 @@ from release_version import parse_tag
 class ReleasePackageTest(unittest.TestCase):
     def setUp(self):
         self.version = parse_tag("v1.2.3")
-        self.manifest = "package: name='com.kudo.android' versionCode='1002004' versionName='1.2.3'\nsdkVersion:'26'\nnative-code: 'arm64-v8a'\n"
+        self.manifest = "package: name='com.huzai.kudo' versionCode='1002004' versionName='1.2.3'\nsdkVersion:'26'\nnative-code: 'arm64-v8a'\n"
         self.certificate = b"test-only public certificate"
         self.fingerprint = hashlib.sha256(self.certificate).hexdigest()
         self.signer = f"Signer #1 certificate SHA-256 digest: {self.fingerprint}\n"
+        self.signer_v37 = f"V2 Signer: certificate SHA-256 digest: {self.fingerprint}\n"
 
     def test_manifest_accepts_the_expected_release(self):
         validate_manifest(self.manifest, self.version)
@@ -26,7 +27,7 @@ class ReleasePackageTest(unittest.TestCase):
     def test_manifest_rejects_debug_wrong_package_and_wrong_versions(self):
         for report in (
             "", self.manifest + "application-debuggable\n",
-            self.manifest.replace("com.kudo.android", "com.other.app"),
+            self.manifest.replace("com.huzai.kudo", "com.other.app"),
             self.manifest.replace("1002004", "1"), self.manifest.replace("1.2.3", "1.2.4"),
         ):
             with self.subTest(report=report), self.assertRaises(ValueError):
@@ -40,6 +41,7 @@ class ReleasePackageTest(unittest.TestCase):
 
     def test_signer_must_be_exactly_the_expected_certificate(self):
         validate_signer(self.signer, self.fingerprint.upper())
+        validate_signer(self.signer_v37, self.fingerprint.upper())  # apksigner ≥37 输出格式回归
         for report in ("", self.signer.replace(self.fingerprint, "0" * 64), self.signer * 2):
             with self.subTest(report=report), self.assertRaises(ValueError):
                 validate_signer(report, self.fingerprint)

@@ -36,3 +36,6 @@
 
 6. 真机构建或运行 AndroidTest 前，先读取 app/build.gradle.kts 实际使用的 versionCode/versionName 与真机已安装包版本；构建参数必须显式传入且版本不低于已安装版本，禁止用默认 versionCode=1 覆盖高版本开发版。
 7. 真机 AndroidTest 禁止直接使用会自动管理安装生命周期的 `connectedDebugAndroidTest`；先显式构建，再用 `adb install -r -t` 安装测试 APK，并通过 `adb shell am instrument` 运行，避免测试任务自动卸载开发版或清除登录数据。
+8. 改动 CI/发布脚本（`scripts/`、`.github/workflows/`）后，推送前必须本地跑 `python3 -m unittest discover -s scripts/tests`；脚本测试覆盖工作流结构契约，能拦掉多数 tag 发布事故（失败一次 GitHub 就发邮件）。
+9. 升级 toolchain 版本（SDK platform、build-tools、NDK、cmake、Rust）时，先 grep `scripts/` 里所有解析该工具 stdout 的正则；外部工具输出格式会随版本漂移（apksigner 37 把 `Signer #1` 改成了 `V2 Signer:`），兼容写法是新旧格式都接受。
+10. 打 `v*` 正式 tag 前：确认 `release-notes/vX.Y.Z.md` 元数据是当前 HEAD 生成、scripts/tests 全绿、release.yml 同分支非 tag 构建已通过；tag 发布失败重打会重复触发失败邮件。
