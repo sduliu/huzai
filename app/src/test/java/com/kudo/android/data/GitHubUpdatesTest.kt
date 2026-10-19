@@ -9,7 +9,7 @@ import org.junit.Test
 
 class GitHubUpdatesTest {
     @Test fun onlyUploadedOfficialVersionMatchedApkCanBeDownloaded() {
-        val name = "kodo_1.2.3_release_arm64-v8a.apk"
+        val name = "hudo_1.2.3_release_arm64-v8a.apk"
         val url = "$KudoSourceUrl/releases/download/v1.2.3/$name"
         fun asset() = JSONObject().put("name", name).put("browser_download_url", url)
             .put("state", "uploaded").put("size", 123L).put("digest", "sha256:" + "a".repeat(64))
@@ -19,7 +19,7 @@ class GitHubUpdatesTest {
         for (bad in listOf(asset().put("name", "debug.apk"), asset().put("state", "new"),
             asset().put("size", 0), asset().put("browser_download_url", "http://github.com/evil.apk"),
             asset().put("browser_download_url", url.replace("v1.2.3/", "v1.2.2/")),
-            asset().put("browser_download_url", url.replace("woliubang256", "other")))) {
+            asset().put("browser_download_url", url.replace("sduliu", "other")))) {
             assertNull(parse(bad).apk)
         }
         assertNull(parseRelease(JSONObject().put("tag_name", "v1.2.3")).apk)

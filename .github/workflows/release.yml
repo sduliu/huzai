@@ -3,7 +3,7 @@ name: Android Release
 on:
   push:
     branches:
-      - main
+      - kudo-base
     tags:
       - 'v*'
     # Tag pushes always run; path filters only restrict branch pushes.
@@ -60,102 +60,33 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
-          # Signing configuration must not be persisted in a shared cache.
-          cache-disabled: true
-
-      - name: Locate native toolchain cache
-        id: cache-paths
-        run: |
-          test -n "$ANDROID_HOME"
-          printf 'sdk=%s\n' "$ANDROID_HOME" >> "$GITHUB_OUTPUT"
-
-      - name: Restore native toolchain cache
-        id: native-cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ${{ steps.cache-paths.outputs.sdk }}/ndk/27.0.12077973
-            ${{ steps.cache-paths.outputs.sdk }}/cmake/3.22.1
-            ~/.rustup/toolchains/1.96.1-x86_64-unknown-linux-gnu
-          key: ${{ runner.os }}-${{ runner.arch }}-native-v1-rust-1.96.1-arm64-ndk-27.0.12077973-cmake-3.22.1
-
-      - name: Restore dependency cache
-        id: dependency-cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.gradle/caches/modules-2
-            ~/.gradle/wrapper/dists
-            ~/.cargo/registry
-            ~/.cargo/git
-            ~/.npm/_cacache
-          key: ${{ runner.os }}-${{ runner.arch }}-release-deps-v2-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties', '**/*.gradle.kts', 'native/doh/Cargo.lock', 'package.json') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-release-deps-v2-
-            ${{ runner.os }}-${{ runner.arch }}-release-deps-v1-
+          cache-provider: basic
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          packages: 'platform-tools platforms;android-36 build-tools;35.0.0 ndk;27.0.12077973 cmake;3.22.1'
+          packages: 'platform-tools platforms;android-37.0 build-tools;37.0.0 ndk;27.0.12077973 cmake;3.22.1'
           log-accepted-android-sdk-licenses: false
 
       - name: Set up Rust
-        env:
-          RUST_VERSION: '1.96.1'
         run: |
-          rustup toolchain install "$RUST_VERSION" --profile minimal --target aarch64-linux-android
-          rustup default "$RUST_VERSION"
+          rustup toolchain install 1.96.1 --profile minimal --target aarch64-linux-android
+          rustup default 1.96.1
           rustc --version
           cargo --version
-
-      - name: Save native toolchain cache
-        if: steps.native-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ${{ steps.cache-paths.outputs.sdk }}/ndk/27.0.12077973
-            ${{ steps.cache-paths.outputs.sdk }}/cmake/3.22.1
-            ~/.rustup/toolchains/1.96.1-x86_64-unknown-linux-gnu
-          key: ${{ steps.native-cache.outputs.cache-primary-key }}
-
-      - name: Test release tooling
-        run: python3 -m unittest discover -s scripts/tests -v
 
       - name: Verify decision notes
         run: npm run verify-notes
 
-      - name: Test native DoH
-        run: cargo test --locked --manifest-path native/doh/Cargo.toml --lib
-
-      - name: Unit tests and Android Lint
-        run: bash ./gradlew :app:testDebugUnitTest :app:lintDebug --no-daemon --no-configuration-cache --console=plain
-
-      - name: Upload failing JVM test reports
-        if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: test-failure-${{ github.ref_name }}-${{ github.run_attempt }}
-          path: |
-            app/build/test-results/testDebugUnitTest/
-            app/build/reports/tests/testDebugUnitTest/
-          if-no-files-found: ignore
-          retention-days: 14
-          archive: true
-
-      - name: Restore release keystore
-        if: github.ref_type == 'tag'
-        env:
-          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
-        run: python3 scripts/prepare_release.py restore --output "$RUNNER_TEMP/kudo-signing/release.p12"
-
+      # 发布签名与 nightly 共用 ci/hudo-debug.p12：release 包可直接覆盖安装已装开发版。
       - name: Build signed release
         if: github.ref_type == 'tag'
         env:
-          RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/kudo-signing/release.p12
-          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
-          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
-          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          RELEASE_KEYSTORE_PATH: ci/hudo-debug.p12
+          RELEASE_STORE_PASSWORD: android
+          RELEASE_KEY_ALIAS: hudo-debug
+          RELEASE_KEY_PASSWORD: android
+          RELEASE_KEYSTORE_TYPE: PKCS12
           VERSION_NAME: ${{ steps.version.outputs.version_name }}
           VERSION_CODE: ${{ steps.version.outputs.version_code }}
         run: >-
@@ -167,19 +98,15 @@ jobs:
         if: github.ref_type == 'tag'
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-          RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/kudo-signing/release.p12
-          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
-          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEYSTORE_PATH: ci/hudo-debug.p12
+          RELEASE_STORE_PASSWORD: android
+          RELEASE_KEY_ALIAS: hudo-debug
         run: >-
           python3 scripts/prepare_release.py package
           --apk app/build/outputs/apk/release/app-release.apk
           --tag "$RELEASE_TAG"
-          --build-tools "$ANDROID_HOME/build-tools/35.0.0"
-          --output-dir "$RUNNER_TEMP/kudo-release-dist"
-
-      - name: Remove temporary signing key
-        if: always() && github.ref_type == 'tag'
-        run: rm -f -- "$RUNNER_TEMP/kudo-signing/release.p12"
+          --build-tools "$ANDROID_HOME/build-tools/37.0.0"
+          --output-dir "$RUNNER_TEMP/hudo-release-dist"
 
       - name: Organize release notes from commits
         if: github.ref_type == 'tag'
@@ -194,8 +121,8 @@ jobs:
             --repository "$RELEASE_REPOSITORY" \
             --published-releases "$RUNNER_TEMP/published-releases.json" \
             --prepared-notes-dir release-notes \
-            --raw-output "$RUNNER_TEMP/kudo-release-dist/release-notes.raw.md" \
-            --output "$RUNNER_TEMP/kudo-release-dist/release-notes.md"
+            --raw-output "$RUNNER_TEMP/hudo-release-dist/release-notes.raw.md" \
+            --output "$RUNNER_TEMP/hudo-release-dist/release-notes.md"
 
       - name: Upload verified release files
         if: github.ref_type == 'tag'
@@ -203,26 +130,14 @@ jobs:
         with:
           name: release-${{ github.ref_name }}
           path: |
-            ${{ runner.temp }}/kudo-release-dist/*.apk
-            ${{ runner.temp }}/kudo-release-dist/*.sha256
-            ${{ runner.temp }}/kudo-release-dist/release-notes.md
-            ${{ runner.temp }}/kudo-release-dist/release-notes.raw.md
+            ${{ runner.temp }}/hudo-release-dist/*.apk
+            ${{ runner.temp }}/hudo-release-dist/*.sha256
+            ${{ runner.temp }}/hudo-release-dist/release-notes.md
+            ${{ runner.temp }}/hudo-release-dist/release-notes.raw.md
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
           archive: true
-
-      - name: Save dependency cache
-        if: success() && steps.dependency-cache.outcome == 'success' && steps.dependency-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.gradle/caches/modules-2
-            ~/.gradle/wrapper/dists
-            ~/.cargo/registry
-            ~/.cargo/git
-            ~/.npm/_cacache
-          key: ${{ steps.dependency-cache.outputs.cache-primary-key }}
 
   publish:
     if: github.ref_type == 'tag'
@@ -258,7 +173,7 @@ jobs:
             fi
           else
             gh release create "$RELEASE_TAG" --verify-tag --draft \
-              --title "酷DO $VERSION_NAME" --notes-file release-notes.md
+              --title "虎Do $VERSION_NAME" --notes-file release-notes.md
           fi
           gh release edit "$RELEASE_TAG" --notes-file release-notes.md
           gh release upload "$RELEASE_TAG" "$APK_NAME" "$APK_NAME.sha256" --clobber

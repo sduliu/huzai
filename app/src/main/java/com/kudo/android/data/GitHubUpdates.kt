@@ -10,7 +10,7 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resumeWithException
 
-const val KudoSourceUrl = "https://github.com/woliubang256/kudo-android"
+const val KudoSourceUrl = "https://github.com/sduliu/huzai"
 
 internal data class StableVersion(val major: Int, val minor: Int, val patch: Int) : Comparable<StableVersion> {
     override fun compareTo(other: StableVersion): Int =
@@ -43,11 +43,11 @@ class GitHubUpdates(
     private val client: OkHttpClient = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS).callTimeout(25, TimeUnit.SECONDS)
         .followRedirects(false).followSslRedirects(false).build(),
-    private val endpoint: HttpUrl = "https://api.github.com/repos/woliubang256/kudo-android/releases/latest".toHttpUrl(),
+    private val endpoint: HttpUrl = "https://api.github.com/repos/sduliu/huzai/releases/latest".toHttpUrl(),
 ) {
     suspend fun latest(): GitHubRelease {
         val request = Request.Builder().url(endpoint).header("Accept", "application/vnd.github+json")
-            .header("X-GitHub-Api-Version", "2022-11-28").header("User-Agent", "Kudo-Android").build()
+            .header("X-GitHub-Api-Version", "2022-11-28").header("User-Agent", "HuDo-Android").build()
         val response = try { client.newCall(request).awaitPublicResponse() }
         catch (e: IOException) { throw UpdateFailure("无法连接 GitHub，请检查网络后重试") }
         return response.use {
@@ -78,7 +78,7 @@ internal fun parseRelease(json: JSONObject): GitHubRelease {
 }
 
 private fun releaseApk(json: JSONObject, tag: String, version: String): GitHubApk? {
-    val name = "kodo_${version}_release_arm64-v8a.apk"
+    val name = "hudo_${version}_release_arm64-v8a.apk"
     val url = "$KudoSourceUrl/releases/download/$tag/$name"
     val assets = json.optJSONArray("assets") ?: return null
     for (index in 0 until assets.length()) {

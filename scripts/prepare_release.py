@@ -62,9 +62,9 @@ def validate_signer(report: str, expected_sha256: str) -> None:
 def validate_manifest(report: str, version: ReleaseVersion) -> None:
     package = next((line for line in report.splitlines() if line.startswith("package: ")), "")
     attributes = dict(re.findall(r"([a-zA-Z][a-zA-Z0-9]*)='([^']*)'", package))
-    expected = {"name": "com.kudo.android", "versionCode": str(version.code), "versionName": version.name}
+    expected = {"name": "com.huzai.kudo", "versionCode": str(version.code), "versionName": version.name}
     if any(attributes.get(key) != value for key, value in expected.items()):
-        raise ValueError("APK package/version does not match com.kudo.android and the release tag.")
+        raise ValueError("APK package/version does not match com.huzai.kudo and the release tag.")
     if re.search(r"^application-debuggable(?:\s|$)", report, re.MULTILINE):
         raise ValueError("Refusing to publish a debuggable APK.")
     native_abis = [

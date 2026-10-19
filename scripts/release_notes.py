@@ -107,7 +107,7 @@ def render_notes(tag: str, subjects: list[str | ReleaseCommit], repository: str,
         if key and key not in seen:
             groups[group].append(title)
             seen.add(key)
-    lines = [f"# 酷DO {version.name}", ""]
+    lines = [f"# 虎Do {version.name}", ""]
     for group, titles in groups.items():
         if titles:
             lines.extend([f"## {group}", "", *(f"- {title}" for title in titles), ""])
@@ -212,7 +212,7 @@ def published_baseline(pages: object, tag: str) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tag", required=True)
-    parser.add_argument("--repository", default="woliubang256/kudo-android")
+    parser.add_argument("--repository", default="sduliu/huzai")
     baseline = parser.add_mutually_exclusive_group()
     baseline.add_argument("--previous-tag", help="Previous published release tag; an empty value includes all history")
     baseline.add_argument("--published-releases", type=Path, help="JSON page array returned by gh api --paginate --slurp")

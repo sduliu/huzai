@@ -16,7 +16,7 @@ class ReleaseVersion:
 
     @property
     def apk_name(self) -> str:
-        return f"kodo_{self.name}_release_{RELEASE_ABI}.apk"
+        return f"hudo_{self.name}_release_{RELEASE_ABI}.apk"
 
 
 def parse_tag(tag: str) -> ReleaseVersion:

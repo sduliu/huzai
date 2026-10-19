@@ -37,7 +37,7 @@ import com.kudo.android.ui.theme.LocalDisplaySettings
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
-internal const val KudoAboutText = "虎Do是 LINUX DO 的第三方安卓原生客户端"
+internal const val KudoAboutText = "虎Do是虎扑的第三方安卓原生客户端"
 
 @Composable
 fun AboutScreen(openLink: (String) -> Unit = {}, openExternal: (String) -> Unit = {},
