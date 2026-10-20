@@ -73,3 +73,15 @@ AGP 9 迁移要点：删 `kotlin-android` 插件（内置 Kotlin）、`sdkDirect
 根因：把 SDK 包从上游 build-tools;35.0.0 换成 37.0.0 时，没有检查消费该工具 stdout 的脚本；且改发布管线前没在本地跑 `python3 -m unittest discover -s scripts/tests`（当时 27 个失败本可提前暴露）。
 修复：signer 正则兼容新旧两种格式并补 V2 Signer 回归测试；test_prepare_release/test_release_version/test_release_notes 全部对齐 huzai 仓名/包名/资产名；test_release_workflow 按虎Do 实际契约重写并新增 `test_package_step_uses_the_installed_build_tools`（安装的 build-tools 版本与 package 步骤引用必须一致）。
 预防规则（已写入 AGENTS.md）：改 CI/发布脚本或 toolchain 版本 → 本地先跑 scripts/tests；升级工具版本 → grep 所有解析其 stdout 的脚本。
+
+## 首页频道条（综合+自选板块/赛事频道）
+
+官方形态对齐：顶部频道条「综合 | 自选频道 | 类别」，左右横滑复用既有 HorizontalPager+FeedTabBar；右端「＋」进频道管理。
+- 频道键 schema：`latest`（综合，固定第一）/`board:<板块url>`（社区板块→topicPage 分页）/`sport:<GAMES id>`（赛事频道）。`FeedViewModel.select` 对 board:/sport: 前缀放行；`_pages` 多页缓存天然生效。
+- 持久化：`HupuPrefs` `home_channels_v1`（[{k,l}] JSON）+ `homeChannelsVersion` 状态信号（KudoApp 按版本 remember 重读）；`effectiveHomeChannels()` 默认 NBA/国际足球/步行街/英雄联盟/CBA。
+- 数据契约迁移：`HupuBoardCfg/HupuBoardStanding/HUPU_BOARDS` 从 hupuui.pages.BoardPage 上移到 `hupu/HupuBoards.kt`——频道 feed/赛程候选池属数据层，BoardPage/ScorePage/MatchDetailPage 改 import（同模块 internal 不变）。
+- sport: 频道 feed：`tagCode` → `boardNews`（游标 `n<pre>|<anchor>`）/`soccerSsr` → `soccerNews()` /无 tagCode → `topicNews(cfg.newsTopic)`（游标 `p<N>`）；不可开帖的运营位（`openableAsThread=false`）过滤，`HupuBoardNews.toTopic()` 桥接。
+- 赛事头部 `SportChannelHeader`：复用 `BoardMatchRow` + BoardContent 同款「进行中→今天/最近比赛日→未来」≤4 场挑选；赛程走 `CommunityRepository.sportMatches`（与比赛 Tab 同一条 matchSchedule）。
+- 跳转协议 `ScoreNavRequest(game, matchId?, nonce)`：`ScorePage(request=)` —— LaunchedEffect(nonce)+`handledNonce`(rememberSaveable) 幂等（Tab 出/入组合会重放 effect）；`externalPinned` 使外部频道不受「不在自选→回落」重置影响，手动切频道解除 pin。点比赛行=切比赛 Tab 并直开该场详情（soccer 的 outBizNo 换钥匙逻辑在 openMatch 内已自带）。
+- 频道管理 `HomeChannelsScreen`（kudo MaterialPageScaffold 风格）：综合固定行+已选（上下移/移除）+候选池（全部 HUPU_BOARDS 去掉「热门赛事」聚合+categories() 板块树）。
+- 本地构建环境记录：本机无 Android SDK，已装 ~/android-sdk（cmdline-tools+platform android-37.0+build-tools 36/37）；AGP 要求平台目录 `platforms/android-37` 且无 package.xml（`platforms;android-37.0` 包目录名不一致会判 inconsistent location 拒扫）；Kotlin 编译验证用 `ANDROID_HOME=~/android-sdk sh gradlew :app:compileDebugKotlin -x buildDoh`（buildDoh 依赖 NDK/Rust 工具链未装，属预期跳过项）。

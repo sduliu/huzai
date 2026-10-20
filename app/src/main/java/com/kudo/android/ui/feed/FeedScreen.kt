@@ -70,7 +70,9 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refresh: () -> Unit, more: () -> Unit, openTopic: (Int) -> Unit, openUser: (String) -> Unit, search: () -> Unit, login: () -> Unit, categories: () -> Unit, modifier: Modifier = Modifier, category: Category? = null, back: () -> Unit = {}, listStyle: TopicListStyle = TopicListStyle.FEED, pages: Map<String, FeedState> = emptyMap(), categoryContent: (@Composable () -> Unit)? = null, createTopic: (Int) -> Unit = {}, glass: GlassMode = LocalDisplaySettings.current.glass) {
+fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refresh: () -> Unit, more: () -> Unit, openTopic: (Int) -> Unit, openUser: (String) -> Unit, search: () -> Unit, login: () -> Unit, categories: () -> Unit, modifier: Modifier = Modifier, category: Category? = null, back: () -> Unit = {}, listStyle: TopicListStyle = TopicListStyle.FEED, pages: Map<String, FeedState> = emptyMap(), categoryContent: (@Composable () -> Unit)? = null, createTopic: (Int) -> Unit = {}, glass: GlassMode = LocalDisplaySettings.current.glass,
+    channels: List<Pair<String, String>> = emptyList(), manageChannels: () -> Unit = {},
+    channelHeader: (@Composable (String) -> Unit)? = null) {
     if (category != null) {
         CategoryFeedScreen(category, state, user, select, refresh, more, openTopic, openUser, search, login, back, modifier, listStyle, pages, createTopic, glass)
         return
@@ -84,10 +86,10 @@ fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refres
     var headerHeight by remember { mutableIntStateOf(0) }
     val contentTopPadding = with(LocalDensity.current) { headerHeight.toDp() }
     Box(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).nestedScroll(scrollBehavior.nestedScrollConnection)) {
-        val tabs = FeedFilter.available(user != null).map {
-            it.value to if (it == FeedFilter.NEW && state.newCount != null) "新 (${state.newCount})" else it.label
-        } + listOf("categories" to "类别")
-        key(user?.id, user?.unifiedNew) {
+        // 首页频道条：综合固定第一 + 用户自选频道（board:/sport: 键）+ 类别目录
+        val tabs = listOf(FeedFilter.LATEST.value to FeedFilter.LATEST.label) +
+            channels + listOf("categories" to "类别")
+        key(user?.id, user?.unifiedNew, channels) {
             val pager = rememberPagerState(initialPage = tabs.indexOfFirst { it.first == state.filter }.coerceAtLeast(0), pageCount = { tabs.size })
             val scope = rememberCoroutineScope()
             val currentSelect by rememberUpdatedState(select)
@@ -122,7 +124,9 @@ fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refres
                         expandHeader = {
                             androidx.compose.animation.core.animate(scrollBehavior.state.heightOffset, 0f) { value, _ -> scrollBehavior.state.heightOffset = value }
                             scrollBehavior.state.contentOffset = 0f
-                        }, contentTopPadding = contentTopPadding)
+                        }, contentTopPadding = contentTopPadding,
+                            headerContent = if (value.startsWith("sport:") && channelHeader != null)
+                                ({ channelHeader.invoke(value.removePrefix("sport:")) }) else null)
                 }
             }
             Column(Modifier.fillMaxWidth().onSizeChanged { headerHeight = it.height }
@@ -153,9 +157,14 @@ fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refres
                         }
                     }
                 }
-                FeedTabBar(tabs, tabs.getOrNull(pager.currentPage)?.first ?: state.filter, containerColor = Color.Transparent) { value ->
-                    val index = tabs.indexOfFirst { it.first == value }
-                    if (index >= 0) scope.launch { pager.animateScrollToPage(index) }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    FeedTabBar(tabs, tabs.getOrNull(pager.currentPage)?.first ?: state.filter, containerColor = Color.Transparent, modifier = Modifier.weight(1f)) { value ->
+                        val index = tabs.indexOfFirst { it.first == value }
+                        if (index >= 0) scope.launch { pager.animateScrollToPage(index) }
+                    }
+                    Box(Modifier.size(30.dp).clip(CircleShape).clickable(role = Role.Button, onClick = manageChannels).testTag("home-channel-manage"), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.Add, "频道管理", Modifier.size(20.dp), MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         }
@@ -167,7 +176,8 @@ fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refres
 internal fun FeedPage(state: FeedState, active: Boolean, scrollToTop: () -> Unit,
     refresh: () -> Unit, more: () -> Unit, openTopic: (Int) -> Unit, openUser: (String) -> Unit,
     login: () -> Unit, listStyle: TopicListStyle, nested: NestedScrollConnection? = null,
-    expandHeader: suspend () -> Unit = { scrollToTop() }, contentTopPadding: Dp = 0.dp) {
+    expandHeader: suspend () -> Unit = { scrollToTop() }, contentTopPadding: Dp = 0.dp,
+    headerContent: (@Composable () -> Unit)? = null) {
     val ignored = com.kudo.android.ui.topic.LocalIgnoredUsers.current
     val visibleTopics = state.topics.filterNot { it.author?.username?.lowercase(java.util.Locale.ROOT) in ignored }
         val listState = rememberLazyListState()
@@ -202,6 +212,7 @@ internal fun FeedPage(state: FeedState, active: Boolean, scrollToTop: () -> Unit
             val traditional = listStyle == TopicListStyle.TITLE
             LazyColumn(state = listState, contentPadding = if (traditional) PaddingValues(top = contentTopPadding, bottom = 112.dp) else PaddingValues(start = 8.dp, end = 8.dp, top = contentTopPadding + 8.dp, bottom = 112.dp), verticalArrangement = Arrangement.spacedBy(if (traditional) 0.dp else 8.dp), modifier = Modifier.fillMaxSize().then(if (nested != null) Modifier.nestedScroll(nested) else Modifier).testTag("feed-list-${state.filter}")
                 .quickScrollTarget(listState, enabled = active, expandHeader = expandHeader)) {
+                if (headerContent != null) item(key = "sport-header", contentType = "header") { headerContent() }
                 if (state.loading && state.topics.isEmpty()) item { LoadingRow() }
                 if (state.error != null) item { ErrorState(state.error, refresh, login) }
                 if (!state.loading && state.error == null && visibleTopics.isEmpty()) item { EmptyState("暂时没有可显示话题", "换个分类，或者稍后再来看看。") }

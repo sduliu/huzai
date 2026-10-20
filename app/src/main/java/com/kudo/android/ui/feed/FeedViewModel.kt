@@ -51,7 +51,9 @@ class FeedViewModel(private val repository: CommunityRepository, private val cat
         return true
     }
     fun select(filter: String) {
-        if (FeedFilter.available(user != null).none { it.value == filter }) return
+        // 频道键直通：board:<url> 板块 / sport:<id> 赛事频道都是合法页键
+        if (FeedFilter.available(user != null).none { it.value == filter }
+            && !filter.startsWith("board:") && !filter.startsWith("sport:")) return
         if (filter == _state.value.filter) return
         val previous = _state.value
         _pages.update { it + (previous.filter to previous.copy(loading = previous.loading && previous.topics.isEmpty(), loadingMore = false)) }

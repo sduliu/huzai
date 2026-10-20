@@ -128,6 +128,22 @@ fun HupuThread.toTopic(): Topic = Topic(
     bumpedAt = isoTime(createdAt, createdAtText),
 )
 
+/** 板块资讯 → feed 列表项（tid→Int id，点击走 topic 详情）。 */
+fun com.kudo.android.hupu.HupuBoardNews.toTopic(): Topic = Topic(
+    id = HupuIds.topicId(tid.ifEmpty { "news:$nid" }),
+    title = title,
+    excerpt = "",
+    author = null,
+    categoryId = 0,
+    tags = badges.takeIf { it.isNotEmpty() } ?: emptyList(),
+    replies = replies,
+    views = 0,
+    likes = lights,
+    image = img,
+    bumpedAt = isoTime(addTime * 1000L, publishTime),
+    pinned = top,
+)
+
 fun HupuReply.toPost(tid: String): Post = Post(
     id = HupuIds.postId(tid, pid, floor),
     number = floor,

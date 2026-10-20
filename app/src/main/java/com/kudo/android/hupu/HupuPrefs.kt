@@ -23,6 +23,7 @@ object HupuPrefs {
     private const val KEY_SEARCH_HISTORY = "search_history_v1"
     private const val KEY_HISTORY = "browsing_history_v1"
     private const val KEY_SCORE_GAMES = "score_games_v1"
+    private const val KEY_HOME_CHANNELS = "home_channels_v1"
     private const val KEY_SCORE_COMMON_HIDDEN = "score_common_hidden_v1"
     private const val KEY_FILTER_KEYWORDS = "filter_keywords_v1"
     private const val KEY_BLACKLIST = "blacklist_v1"
@@ -384,6 +385,58 @@ object HupuPrefs {
         if (!hasCustomScoreGames()) return all
         val byId = all.associate { it.first to it }
         return loadScoreGames().mapNotNull { byId[it] }
+    }
+
+    // ---------- 首页频道条（综合 + 自选板块/赛事频道） ----------
+    /** 版本号：频道保存后 +1，首页频道条订阅刷新 */
+    var homeChannelsVersion by mutableIntStateOf(0)
+        private set
+
+    private var cachedHomeChannels: List<Pair<String, String>>? = null
+
+    /** 首页频道（key, label）持久化列表；key 形态：latest / sport:<频道id> / board:<板块url>。 */
+    fun loadHomeChannels(): List<Pair<String, String>> {
+        cachedHomeChannels?.let { return it }
+        val json = prefs.getString(KEY_HOME_CHANNELS, null) ?: return emptyList()
+        return try {
+            val arr = JSONArray(json)
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                val k = o.optString("k"); val l = o.optString("l")
+                if (k.isBlank() || l.isBlank()) null else k to l
+            }.also { cachedHomeChannels = it }
+        } catch (e: Exception) { emptyList() }
+    }
+
+    fun saveHomeChannels(list: List<Pair<String, String>>) {
+        val arr = JSONArray()
+        list.filter { it.first.isNotBlank() && it.second.isNotBlank() }.forEach { (k, l) ->
+            arr.put(JSONObject().put("k", k).put("l", l))
+        }
+        prefs.edit().putString(KEY_HOME_CHANNELS, arr.toString()).apply()
+        cachedHomeChannels = list
+        homeChannelsVersion++
+    }
+
+    fun hasCustomHomeChannels(): Boolean = prefs.contains(KEY_HOME_CHANNELS)
+
+    /** 首页频道默认值（未自定义时）：赛事频道优先对齐官方形态。 */
+    fun defaultHomeChannels(): List<Pair<String, String>> = listOf(
+        "sport:nba" to "NBA",
+        "sport:soccer" to "国际足球",
+        "board:/all-gambia" to "步行街",
+        "sport:lol" to "英雄联盟",
+        "sport:cba" to "CBA",
+    )
+
+    /** 生效频道：自定义优先，未配置走默认。 */
+    fun effectiveHomeChannels(): List<Pair<String, String>> =
+        if (hasCustomHomeChannels()) loadHomeChannels() else defaultHomeChannels()
+
+    fun clearHomeChannels() {
+        prefs.edit().remove(KEY_HOME_CHANNELS).apply()
+        cachedHomeChannels = null
+        homeChannelsVersion++
     }
 
     // ---------- 浏览流关键词过滤（我的→浏览流设置） ----------

@@ -6,6 +6,9 @@ import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import com.kudo.android.hupu.HUPU_BOARDS
+import com.kudo.android.hupu.HupuMatchApi
+import com.kudo.android.hupu.HupuMatchDay
 import com.kudo.android.hupu.HupuRepository
 
 /**
@@ -41,11 +44,54 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
             val cursor = if (p.totalPages > page) "p${page + 1}" else null
             return TopicPage(p.threads.map { it.toTopic() }, cursor)
         }
+        // board:<url> 板块频道 → 话题页分页；sport:<id> 赛事频道 → 官方 newsList/SSR/专区帖兜底
+        if (filter.startsWith("board:")) {
+            val url = filter.removePrefix("board:")
+            val page = next?.removePrefix("p")?.toIntOrNull() ?: 1
+            val p = hupu.topicPage(url, page) ?: return TopicPage(emptyList(), null)
+            val cursor = if (p.totalPages > page) "p${page + 1}" else null
+            return TopicPage(p.threads.map { it.toTopic() }, cursor)
+        }
+        if (filter.startsWith("sport:")) {
+            val cfg = HUPU_BOARDS[filter.removePrefix("sport:")] ?: return TopicPage(emptyList(), null)
+            if (cfg.soccerSsr) {
+                val items = hupu.soccerNews().filter { it.openableAsThread }
+                return TopicPage(items.map { it.toTopic() }, null)
+            }
+            cfg.tagCode?.let { tag ->
+                val (pre, anchor) = next?.removePrefix("n")?.split('|')?.let { it[0].toIntOrNull() to it.getOrNull(1).orEmpty() }
+                    ?: (0 to "")
+                val p = hupu.boardNews(tag, pre ?: 0, anchor) ?: return TopicPage(emptyList(), null)
+                val items = p.items.filter { it.openableAsThread }
+                val cursor = if (p.nextPreCount > (pre ?: 0)) "n${p.nextPreCount}|${p.anchorNid}" else null
+                return TopicPage(items.map { it.toTopic() }, cursor)
+            }
+            val page = next?.removePrefix("p")?.toIntOrNull() ?: 1
+            val p = hupu.topicNews(cfg.newsTopic, page) ?: return TopicPage(emptyList(), null)
+            return TopicPage(p.items.filter { it.openableAsThread }.map { it.toTopic() },
+                if (p.items.isNotEmpty()) "p${page + 1}" else null)
+        }
         val threads = when (filter) {
             FeedFilter.HOT.value -> hupu.board("/all-gambia")?.threads
             else -> hupu.mobileHome()
         }.orEmpty()
         return TopicPage(threads.map { it.toTopic() }, null)
+    }
+
+    /** 赛事频道的近期赛程（首页频道页顶部赛事条）。 */
+    suspend fun sportMatches(key: String): List<HupuMatchDay> {
+        val cfg = HUPU_BOARDS[key] ?: return emptyList()
+        return hupu.matchSchedule(cfg.scheduleId)
+    }
+
+    /** 频道管理候选池：全部赛事频道 + 板块树（key→展示名）。
+     *  热门赛事聚合频道排除——它是「比赛」Tab 的本体。 */
+    suspend fun channelPool(): List<Pair<String, String>> {
+        val sports = HUPU_BOARDS.filterKeys { it != HupuMatchApi.COMMON_HOT_SPORTS_ID }
+            .map { (k, c) -> "sport:$k" to c.name }
+        val boards = hupu.categories().flatMap { it.topics }
+            .map { "board:${it.url}" to it.name }
+        return (sports + boards).distinctBy { it.first }
     }
 
     suspend fun tagTopics(slug: String, id: Int? = null, filter: String = "latest", next: String? = null): TopicPage =

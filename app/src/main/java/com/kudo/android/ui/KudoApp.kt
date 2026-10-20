@@ -106,6 +106,11 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
         SideEffect { readingSync.setAccount(account.user?.id) }
         DisposableEffect(readingSync) { onDispose { readingSync.close() } }
         var selected by rememberSaveable { mutableIntStateOf(0) }
+        // 首页赛事频道 → 「比赛」Tab 跳转请求（nonce 区分连续点击）
+        var scoreRequest by remember { mutableStateOf<com.kudo.android.hupuui.pages.ScoreNavRequest?>(null) }
+        val homeChannels = remember(com.kudo.android.hupu.HupuPrefs.homeChannelsVersion) {
+            com.kudo.android.hupu.HupuPrefs.effectiveHomeChannels()
+        }
         fun openBrowser(url: String) {
             if (Uri.parse(url).scheme !in listOf("https", "http")) return
             try {
@@ -204,10 +209,23 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                                 when (selected) {
                                     0 -> FeedScreen(state.forUser(account.user), account.user, feed::select, feed::refresh, feed::more, { topic(it) }, ::user, { nav.navigate("search") }, { if (account.user == null) login() else user(account.user!!.username) }, { directory.useAccount(account.user?.id); if (account.sessionReady) directory.loadIfStale() }, listStyle = display.topicListStyle, pages = pages,
                                         categoryContent = { CommunityDirectoryHost(directory, account.user?.id, account.sessionReady, ::login,
-                                            { nav.navigate("category/${it.id}") }, ::openTag, ::openWebPage, inHome = true) })
+                                            { nav.navigate("category/${it.id}") }, ::openTag, ::openWebPage, inHome = true) },
+                                        channels = homeChannels,
+                                        manageChannels = { nav.navigate("home-channels") },
+                                        channelHeader = { key ->
+                                            com.kudo.android.ui.feed.SportChannelHeader(key, app.repository,
+                                                onOpenSchedule = { g ->
+                                                    scoreRequest = com.kudo.android.hupuui.pages.ScoreNavRequest(g, null, System.nanoTime())
+                                                    selected = 3
+                                                },
+                                                onOpenMatch = { m ->
+                                                    scoreRequest = com.kudo.android.hupuui.pages.ScoreNavRequest(key, m.matchId, System.nanoTime())
+                                                    selected = 3
+                                                })
+                                        })
                                     1 -> CommunityDirectoryHost(directory, account.user?.id, account.sessionReady, ::login,
                                         { nav.navigate("category/${it.id}") }, ::openTag, ::openWebPage)
-                                    3 -> com.kudo.android.hupuui.pages.ScorePage()
+                                    3 -> com.kudo.android.hupuui.pages.ScorePage(request = scoreRequest)
                                     4 -> ProfileScreen(account.user, ::login, { nav.navigate("settings") }, { nav.navigate("bookmarks") }, { account.user?.username?.let(::user) }, repository = app.repository, about = { nav.navigate("about") }, downloads = { nav.navigate("downloads") },
                                         destination = { destination ->
                                             when (destination) {
@@ -248,6 +266,9 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                         RefreshFeedOnResume(vm, account.user)
                         TagFeedScreen(slug, state.forUser(account.user, inCategory = true), account.user, vm::select, vm::refresh, vm::more,
                             { topic(it) }, ::user, { nav.navigate("search") }, ::login, { nav.popBackStack() }, display.topicListStyle, pages, name = entry.arguments!!.getString("name").orEmpty())
+                    }
+                    composable("home-channels") {
+                        com.kudo.android.ui.feed.HomeChannelsScreen(app.repository) { nav.popBackStack() }
                     }
                     composable("search") {
                         val vm = model("search") { SearchViewModel(app.repository, account.user?.id) }

@@ -65,6 +65,9 @@ import coil.compose.AsyncImage
 import com.kudo.android.hupuui.components.AutoFitScore
 import com.kudo.android.hupuui.components.normalizeCover
 import kotlinx.coroutines.delay
+import com.kudo.android.hupu.HUPU_BOARDS
+import com.kudo.android.hupu.HupuBoardCfg
+import com.kudo.android.hupu.HupuBoardStanding
 import com.kudo.android.hupu.HupuMatch
 import com.kudo.android.hupu.HupuMatchDay
 import com.kudo.android.hupu.HupuRepository

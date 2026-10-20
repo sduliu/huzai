@@ -48,10 +48,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +67,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
+import com.kudo.android.hupu.HUPU_BOARDS
+import com.kudo.android.hupu.HupuBoardCfg
+import com.kudo.android.hupu.HupuBoardStanding
 import com.kudo.android.hupu.HupuCommonSubject
 import com.kudo.android.hupu.HupuCommonTree
 import com.kudo.android.hupu.HupuImage
@@ -113,8 +118,12 @@ import com.kudo.android.hupuui.components.HuzaiToast
  * 评分页：6 大电竞项目赛程 + 选手评分（浏览，打分需登录暂不做）
  * 数据：match-api.hupu.com 匿名接口（实测可用）
  */
+/** 首页赛事频道跳转请求：定位到某赛事频道，可顺带直接打开某场比赛详情。
+ *  nonce 区分连续请求；matchId 为 null 表示只切频道。 */
+data class ScoreNavRequest(val game: String, val matchId: String? = null, val nonce: Long = 0L)
+
 @Composable
-fun ScorePage(modifier: Modifier = Modifier) {
+fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null) {
     val repo = remember { HupuRepository() }
     // 1.191: 记录层——供 Liquid Glass 弹窗采样背后像素（挂在内容层上，弹窗在其后）
     // 1.191: 先铺一层不透明页面底色再画内容——与 ThreadDetailPage 的
@@ -135,6 +144,9 @@ fun ScorePage(modifier: Modifier = Modifier) {
     val showCommon = !commonHidden || effectiveGames.isEmpty()
     // 项目横滑条单选（默认英雄联盟）
     var selectedGame by remember { mutableStateOf(HupuMatchApi.GAMES.first().first) }
+    // 首页频道外部定位：pinned 的频道不受「不在自选列表→回落」重置影响；用户在频道条上
+    // 手动切换后失效
+    var externalPinned by remember { mutableStateOf<String?>(null) }
     // 各项目的赛程缓存（切回不重载）
     val schedules = remember { mutableStateMapOf<String, List<HupuMatchDay>>() }
     // 电竞项目赛程的加载态：进电竞 chip 时由 onClick/LaunchedEffect 同步置位
@@ -373,6 +385,29 @@ fun ScorePage(modifier: Modifier = Modifier) {
         detailClosing = true
     }
 
+    // 首页赛事频道跳转：切频道 + 可选直开比赛详情（赛程未落地时先拉再开）。
+    // 幂等：ScorePage 随 Tab 切换出/入组合会重放 LaunchedEffect——同一 nonce 只执行一次
+    // （rememberSaveable 经 SaveableStateRegistry 跨组合位置存活）。
+    var handledNonce by rememberSaveable { mutableLongStateOf(-1L) }
+    LaunchedEffect(request?.nonce) {
+        val r = request ?: return@LaunchedEffect
+        if (r.nonce == handledNonce) return@LaunchedEffect
+        handledNonce = r.nonce
+        commonOpen = false
+        externalPinned = r.game
+        if (selectedGame != r.game) {
+            selectedGame = r.game
+            if (!schedules.containsKey(r.game)) loadingGame = r.game
+        }
+        val mid = r.matchId ?: return@LaunchedEffect
+        var ds = schedules[r.game]
+        if (ds == null) {
+            ds = repo.matchSchedule(r.game)
+            if (ds.isNotEmpty()) schedules[r.game] = ds
+        }
+        ds.flatMap { it.matches }.firstOrNull { it.matchId == mid }?.let { openMatch(it) }
+    }
+
     fun openPlayer(p: HupuScoreItem) {
         val key = "${p.bizType}-${p.bizId}"
         playerClosing = false
@@ -475,12 +510,14 @@ fun ScorePage(modifier: Modifier = Modifier) {
     // （effectiveGames 即上面的订阅值，保存后立即重跑）
     LaunchedEffect(effectiveGames) {
         if (commonOpen) return@LaunchedEffect
+        if (selectedGame == externalPinned) return@LaunchedEffect
         if (effectiveGames.none { it.first == selectedGame }) commonOpen = true
     }
     // 1.192: 「虎扑评分」被隐藏后不允许停在它上面 → 回落到第一个赛事
     LaunchedEffect(showCommon, effectiveGames) {
         if (showCommon || effectiveGames.isEmpty()) return@LaunchedEffect
         if (commonOpen) commonOpen = false
+        if (selectedGame == externalPinned) return@LaunchedEffect
         if (effectiveGames.none { it.first == selectedGame }) {
             selectedGame = effectiveGames.first().first
             if (!schedules.containsKey(selectedGame)) loadingGame = selectedGame
@@ -648,6 +685,7 @@ fun ScorePage(modifier: Modifier = Modifier) {
             val id = effectiveGames[gi].first
             if (!commonOpen && selectedGame == id) return
             commonOpen = false
+            externalPinned = null
             selectedGame = id
             if (!schedules.containsKey(id)) loadingGame = id
         }
