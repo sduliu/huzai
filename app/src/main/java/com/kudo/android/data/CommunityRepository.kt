@@ -48,9 +48,14 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
         if (filter.startsWith("board:")) {
             val url = filter.removePrefix("board:")
             val page = next?.removePrefix("p")?.toIntOrNull() ?: 1
-            val p = hupu.topicPage(url, page) ?: return TopicPage(emptyList(), null)
-            val cursor = if (p.totalPages > page) "p${page + 1}" else null
-            return TopicPage(p.threads.map { it.toTopic() }, cursor)
+            // 两类板块页：专区话题页（topicPage，有分页）/板块页（board，无分页）——
+            // parseTopicPage 对板块页结构返回 null，自动回落
+            hupu.topicPage(url, page)?.let { p ->
+                val cursor = if (p.totalPages > page) "p${page + 1}" else null
+                return TopicPage(p.threads.map { it.toTopic() }, cursor)
+            }
+            val b = hupu.board(url) ?: return TopicPage(emptyList(), null)
+            return TopicPage(b.threads.map { it.toTopic() }, null)
         }
         if (filter.startsWith("sport:")) {
             val cfg = HUPU_BOARDS[filter.removePrefix("sport:")] ?: return TopicPage(emptyList(), null)
