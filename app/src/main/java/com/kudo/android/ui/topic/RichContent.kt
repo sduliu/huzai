@@ -182,6 +182,9 @@ data class ArticleCalloutType(val raw: String) {
     }
 }
 
+/** 虎扑 CDN 文件名内嵌原图尺寸：…_w_160_h_160_xxx.jpg / …_o_w_550_h_550_xxx.gif */
+private val HUPU_IMG_DIMS = Regex("_w_(\\d+)_h_(\\d+)_")
+
 private fun previewSource(element: Element, fallback: String): String {
     val width = element.attr("width").toFloatOrNull()?.takeIf { it.isFinite() && it > 0 }
     var bestUrl = fallback
@@ -277,17 +280,28 @@ fun parseArticle(html: String): List<ArticleBlock> {
                     val metadata = lightbox?.selectFirst(".meta")
                     val information = metadata?.selectFirst(".informations")?.text().orEmpty()
                     val dimensions = Regex("\\d+\\s*[×x]\\s*\\d+").find(information)?.value.orEmpty()
-                    val width = element.attr("width").toFloatOrNull()
-                    val height = element.attr("height").toFloatOrNull()
+                    var width = element.attr("width").toFloatOrNull()
+                    var height = element.attr("height").toFloatOrNull()
+                    if (width == null || height == null || width <= 0 || height <= 0) {
+                        // 虎扑 CDN 图在文件名内嵌原图尺寸（…_w_X_h_Y_…）：表情/贴纸
+                        // 无 width 属性时据此还原，小图不再被拉成整宽
+                        HUPU_IMG_DIMS.find(raw)?.destructured?.let { (w, h) ->
+                            width = w.toFloatOrNull(); height = h.toFloatOrNull()
+                        }
+                    }
                     val ratio = if (width != null && height != null && width > 0 && height > 0) {
                         (width / height).takeIf { it.isFinite() && it > 0 }
                     } else null
                     val original = lightbox?.attr("href")?.let(::mediaUrl) ?: url
+                    // 官方把表情/贴纸按约 1/3 原像素宽展示（≈50–100dp）；
+                    // 宽>320px 的图沿用整宽。width 未识别时维持原行为。
+                    val displayWidth = width?.takeIf { lightbox == null && ratio != null && it.isFinite() && it > 0 }
+                        ?.let { if (it <= 320f) (it / 3f).coerceIn(48f, 106f) else it }
                     result.add(ArticleBlock.Image(if (element.hasClass("animated")) original else previewSource(element, url), element.attr("alt"), ratio,
                         originalUrl = original,
                         filename = metadata?.selectFirst(".filename")?.text().orEmpty(),
                         dimensions = dimensions, sizeLabel = information.removePrefix(dimensions).trim(),
-                        displayWidth = width?.takeIf { lightbox == null && ratio != null && it.isFinite() && it > 0 }))
+                        displayWidth = displayWidth))
                 }
             }
             "iframe", "video", "audio" -> {

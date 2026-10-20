@@ -37,7 +37,7 @@ fun TopicTitleRow(topic: Topic, category: Category?, onClick: () -> Unit, onUser
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp),
                     itemVerticalAlignment = Alignment.CenterVertically) {
                     resolvedCategory?.let { CategoryInline(it) }
-                    topic.tagDetails.forEach { TopicTagChip(it) }
+                    topic.tagDetails.forEach { if (it.name != resolvedCategory?.name) TopicTagChip(it) }
                 }
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {

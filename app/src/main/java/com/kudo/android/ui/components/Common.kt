@@ -172,7 +172,9 @@ fun TopicCard(topic: Topic, category: Category?, onClick: () -> Unit, onUser: (S
             }
             if (topic.excerpt.isNotBlank()) Text(topic.excerpt, style = MaterialTheme.typography.bodyMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
-        if (topic.tagDetails.isNotEmpty()) TopicTags(topic.tagDetails)
+        // 虎扑帖子常把所属版块同时放进 topic.name：作者行已显示版块名，标签不再重复
+        val visibleTags = topic.tagDetails.filter { it.name != resolvedCategory?.name }
+        if (visibleTags.isNotEmpty()) TopicTags(visibleTags)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             if (topic.views > 0) Stat(Icons.Rounded.Visibility, compactNumber(topic.views)) else Spacer(Modifier)
             Stat(Icons.Rounded.ChatBubbleOutline, compactNumber(topic.replies))

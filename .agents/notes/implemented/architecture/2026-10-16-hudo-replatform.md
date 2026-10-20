@@ -95,3 +95,9 @@ AGP 9 迁移要点：删 `kotlin-android` 插件（内置 Kotlin）、`sdkDirect
 - `HupuBoardCfg.boardUrl`：首页 sport: 频道帖流板块映射（nba→/vote、soccer→/topic、cba→/cba、epl→/yingchao、lol→/lol、lpl→/822、kog→/kog、cs2→/csgo、val→/803、pubg→/pubg、pubgmobile→/gp、tennis→/tennis、tabletennis→/pingpang、badminton→/yumaoqiu、olympics→/753、wnba→/wnba、cuba→/cuba、worldcup→/soccer；lck/commonhotsports 无对应版块留空）。映射取自 /all-gambia 分类树实测列表——此前随手猜的 epl/lpl slug 并不真实存在。
 - `topics()` sport: 分支新序：boardUrl 非空 → topicPage/board 回落取板块帖流（板块页无分页，p>1 直接空页终止避免重复）；仅首页失败时回退原 newsList 链。
 - 首页头部：`ic_linux_do` 残留图标换为官方虎扑 logo（drawable-nodpi/ic_hupu.png，来自 w1.hoopchina.com.cn/images/m/hupu_logo_new.png，88px）；搜索占位文案由 linux.do 口号「真诚·友善·团结·专业」改为「湿乎乎 · 足球 · 电竞 · 步行街」。
+
+## 列表标签去重 + 表情/贴纸尺寸还原
+
+- `TopicCard`/`TopicTitleRow`：tagDetails 中与版块同名的标签不再重复渲染（虎扑帖的 `topic.name` 即版块名，作者行已显示）。
+- `RichContent`：虎扑 CDN 图文件名内嵌原图尺寸 `_w_X_h_Y_`，`<img>` 无 width/height 属性时据此还原 ratio 与 displayWidth；宽 ≤320px 的贴纸/表情按约 1/3 原宽限宽（48–106dp，对齐官方贴纸观感），大图行为不变。无尺寸信息的图维持整宽。
+- 楼中楼入口确认：`replyNum` → `Post.replyCount` → `ReplyPreview` 灰卡预览 +「查看 N 条回复」链接 → 弹层分页，链路完整（对应官方「查看N条回复 >」）。
