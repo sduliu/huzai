@@ -85,3 +85,13 @@ AGP 9 迁移要点：删 `kotlin-android` 插件（内置 Kotlin）、`sdkDirect
 - 跳转协议 `ScoreNavRequest(game, matchId?, nonce)`：`ScorePage(request=)` —— LaunchedEffect(nonce)+`handledNonce`(rememberSaveable) 幂等（Tab 出/入组合会重放 effect）；`externalPinned` 使外部频道不受「不在自选→回落」重置影响，手动切频道解除 pin。点比赛行=切比赛 Tab 并直开该场详情（soccer 的 outBizNo 换钥匙逻辑在 openMatch 内已自带）。
 - 频道管理 `HomeChannelsScreen`（kudo MaterialPageScaffold 风格）：综合固定行+已选（上下移/移除）+候选池（全部 HUPU_BOARDS 去掉「热门赛事」聚合+categories() 板块树）。
 - 本地构建环境记录：本机无 Android SDK，已装 ~/android-sdk（cmdline-tools+platform android-37.0+build-tools 36/37）；AGP 要求平台目录 `platforms/android-37` 且无 package.xml（`platforms;android-37.0` 包目录名不一致会判 inconsistent location 拒扫）；Kotlin 编译验证用 `ANDROID_HOME=~/android-sdk sh gradlew :app:compileDebugKotlin -x buildDoh`（buildDoh 依赖 NDK/Rust 工具链未装，属预期跳过项）。
+
+## 首页资讯样式对齐官方（缩略图+置顶展开+频道内容分工）
+
+官方形态核实（bbs.hupu.com 桌面页 + 分类树实测）：列表图统一为右侧 100×76 缩略图（BoardNewsRow 早就是这版）；置顶区是多条完整条目而非单条摘要；首页赛事频道帖流=社区版块帖（湿乎乎 /vote、足球话题区 /topic），「比赛」Tab 的 BoardPage 承载编辑资讯（newsList）——两侧内容不重复。
+
+- `TopicCard`：有图条目改为「左标题+摘要 / 右 104×78 `TopicThumbnail`」（替换原整宽 1.9:1 `TopicPreviewImage`，后者已删；`imageAspectLabel/ImageAspectBadge` 仍供 RichContent 正文图角标用）。
+- 置顶精简渲染整体下线：删 `CompactPinnedTopicRow`、`DisplaySettings.compactPinnedTopics`（含 prefs 读写）、设置页开关、TopicCard/TopicTitleRow 的早退分支——置顶项以完整卡片呈现（📌 图标仍在作者行末）。
+- `HupuBoardCfg.boardUrl`：首页 sport: 频道帖流板块映射（nba→/vote、soccer→/topic、cba→/cba、epl→/yingchao、lol→/lol、lpl→/822、kog→/kog、cs2→/csgo、val→/803、pubg→/pubg、pubgmobile→/gp、tennis→/tennis、tabletennis→/pingpang、badminton→/yumaoqiu、olympics→/753、wnba→/wnba、cuba→/cuba、worldcup→/soccer；lck/commonhotsports 无对应版块留空）。映射取自 /all-gambia 分类树实测列表——此前随手猜的 epl/lpl slug 并不真实存在。
+- `topics()` sport: 分支新序：boardUrl 非空 → topicPage/board 回落取板块帖流（板块页无分页，p>1 直接空页终止避免重复）；仅首页失败时回退原 newsList 链。
+- 首页头部：`ic_linux_do` 残留图标换为官方虎扑 logo（drawable-nodpi/ic_hupu.png，来自 w1.hoopchina.com.cn/images/m/hupu_logo_new.png，88px）；搜索占位文案由 linux.do 口号「真诚·友善·团结·专业」改为「湿乎乎 · 足球 · 电竞 · 步行街」。

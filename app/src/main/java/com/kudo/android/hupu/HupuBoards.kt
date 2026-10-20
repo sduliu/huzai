@@ -20,6 +20,10 @@ internal data class HupuBoardCfg(
     val standingCompId: String = "",
     /** 积分榜 WebView 兜底落地页（无原生实现时用；空串 + NONE = 无入口） */
     val standingsUrl: String = "",
+    /** 首页赛事频道帖流板块（湿乎乎/足球话题区等社区版块 URL，如 "/vote"）。
+     *  空 → 频道 feed 回退 newsList 资讯；板块帖流与比赛 Tab 资讯分工见
+     *  CommunityRepository.topics 的 sport: 分支。 */
+    val boardUrl: String = "",
 )
 
 /**
@@ -32,39 +36,39 @@ internal data class HupuBoardCfg(
 internal val HUPU_BOARDS: Map<String, HupuBoardCfg> = mapOf(
     HupuMatchApi.COMMON_HOT_SPORTS_ID to
         HupuBoardCfg("热门赛事", HupuMatchApi.COMMON_HOT_SPORTS_ID, tagCode = "commonhotsports"),
-    "lol" to HupuBoardCfg("英雄联盟", "lol", tagCode = "lol"),
+    "lol" to HupuBoardCfg("英雄联盟", "lol", tagCode = "lol", boardUrl = "/lol"),
     "nba" to HupuBoardCfg(
-        "NBA", "nba", tagCode = "nba",
+        "NBA", "nba", tagCode = "nba", boardUrl = "/vote",
         standing = HupuBoardStanding.NBA,
         standingsUrl = "https://nba.hupu.com/standings",
     ),
     "epl" to HupuBoardCfg(
-        "英超", "epl", tagCode = "epl",
+        "英超", "epl", tagCode = "epl", boardUrl = "/yingchao",
         standing = HupuBoardStanding.SOCCER_API, standingCompId = "81",
     ),
-    "kog" to HupuBoardCfg("王者荣耀", "kog", tagCode = "kog"),
-    "cba" to HupuBoardCfg("CBA", "cba", tagCode = "cba"),
+    "kog" to HupuBoardCfg("王者荣耀", "kog", tagCode = "kog", boardUrl = "/kog"),
+    "cba" to HupuBoardCfg("CBA", "cba", tagCode = "cba", boardUrl = "/cba"),
     "soccer" to HupuBoardCfg(
         // 国际足球资讯实测走 fifa tagCode（SSR 仅兜底）
-        "国际足球", HupuMatchApi.SOCCER_ID, tagCode = "fifa", soccerSsr = true,
+        "国际足球", HupuMatchApi.SOCCER_ID, tagCode = "fifa", boardUrl = "/topic", soccerSsr = true,
         // 官方 H5 rank_new/:id 需 leagueId+seasonId query 才有数据（裸链必空态），
         // 原生榜默认英超（国际足球里热度最高的联赛，标题显示「英超 积分榜」）
         standing = HupuBoardStanding.SOCCER_API, standingCompId = "81",
     ),
-    "cs2" to HupuBoardCfg("CS2", "cs2", newsTopic = "/240"),
-    "val" to HupuBoardCfg("无畏契约", "val", tagCode = "val"),
-    "lpl" to HupuBoardCfg("LPL", "lpl", tagCode = "lol"),
-    "pubg" to HupuBoardCfg("绝地求生", "pubg", tagCode = "pubg"),
-    "pubgmobile" to HupuBoardCfg("和平精英", "pubgmobile", newsTopic = "/240"),
+    "cs2" to HupuBoardCfg("CS2", "cs2", boardUrl = "/csgo", newsTopic = "/240"),
+    "val" to HupuBoardCfg("无畏契约", "val", tagCode = "val", boardUrl = "/803"),
+    "lpl" to HupuBoardCfg("LPL", "lpl", tagCode = "lol", boardUrl = "/822"),
+    "pubg" to HupuBoardCfg("绝地求生", "pubg", tagCode = "pubg", boardUrl = "/pubg"),
+    "pubgmobile" to HupuBoardCfg("和平精英", "pubgmobile", boardUrl = "/gp", newsTopic = "/240"),
     "lck" to HupuBoardCfg("LCK", "lck", tagCode = "lol"),
     "worldcup" to HupuBoardCfg(
-        "世界杯", "worldcup", tagCode = "fifa",
+        "世界杯", "worldcup", tagCode = "fifa", boardUrl = "/soccer",
         standing = HupuBoardStanding.SOCCER_API, standingCompId = "1",
     ),
-    "tennis" to HupuBoardCfg("网球", "tennis", newsTopic = "/245"),
-    "tabletennis" to HupuBoardCfg("乒乓球", "tabletennis", tagCode = "tabletennis"),
-    "badminton" to HupuBoardCfg("羽毛球", "badminton", newsTopic = "/252"),
-    "olympics" to HupuBoardCfg("奥运会", "olympics", tagCode = "olympics"),
-    "wnba" to HupuBoardCfg("WNBA", "wnba", newsTopic = "/502"),
-    "cuba" to HupuBoardCfg("CUBA", "cuba", newsTopic = "/176"),
+    "tennis" to HupuBoardCfg("网球", "tennis", boardUrl = "/tennis", newsTopic = "/245"),
+    "tabletennis" to HupuBoardCfg("乒乓球", "tabletennis", tagCode = "tabletennis", boardUrl = "/pingpang"),
+    "badminton" to HupuBoardCfg("羽毛球", "badminton", boardUrl = "/yumaoqiu", newsTopic = "/252"),
+    "olympics" to HupuBoardCfg("奥运会", "olympics", tagCode = "olympics", boardUrl = "/753"),
+    "wnba" to HupuBoardCfg("WNBA", "wnba", boardUrl = "/wnba", newsTopic = "/502"),
+    "cuba" to HupuBoardCfg("CUBA", "cuba", boardUrl = "/cuba", newsTopic = "/176"),
 )

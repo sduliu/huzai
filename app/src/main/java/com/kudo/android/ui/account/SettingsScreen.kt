@@ -69,12 +69,6 @@ fun SettingsScreen(settings: DisplaySettings, update: (DisplaySettings) -> Unit,
                         SettingsDivider()
                         SettingRow("主题列表样式", settings.topicListStyle.label, !showing) { show("list") }
                         SettingsDivider()
-                        Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(horizontal = 18.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("置顶贴精简显示", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                            CommunitySwitch(settings.compactPinnedTopics, { update(settings.copy(compactPinnedTopics = it)) }, enabled = !showing,
-                                modifier = Modifier.testTag("compact-pinned-topics"))
-                        }
-                        SettingsDivider()
                         SettingRow("底栏中间按钮", settings.navigationAction.label, !showing) { show("navigation") }
                         SettingsDivider()
                         Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(horizontal = 18.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {

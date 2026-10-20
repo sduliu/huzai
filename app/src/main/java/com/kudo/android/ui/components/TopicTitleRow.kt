@@ -15,14 +15,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.kudo.android.data.*
-import com.kudo.android.ui.theme.LocalDisplaySettings
+
 
 @Composable
 fun TopicTitleRow(topic: Topic, category: Category?, onClick: () -> Unit, onUser: (String) -> Unit) {
-    if (topic.pinned && LocalDisplaySettings.current.compactPinnedTopics) {
-        CompactPinnedTopicRow(topic, category, onClick)
-        return
-    }
     val resolvedCategory = category ?: LocalTopicPresentation.current.categories.firstOrNull { it.id == topic.categoryId }
     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)
         .clickable(onClick = onClick)

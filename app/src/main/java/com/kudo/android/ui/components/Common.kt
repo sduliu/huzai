@@ -16,14 +16,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.kudo.android.data.*
-import com.kudo.android.media.imageLoadErrorText
+
 import com.kudo.android.ui.account.LocalWebVerification
 import com.kudo.android.ui.theme.Ink
 import com.kudo.android.ui.theme.LogoYellow
@@ -141,10 +141,6 @@ fun SectionLabel(text: String, trailing: String? = null) {
 
 @Composable
 fun TopicCard(topic: Topic, category: Category?, onClick: () -> Unit, onUser: (String) -> Unit) {
-    if (topic.pinned && com.kudo.android.ui.theme.LocalDisplaySettings.current.compactPinnedTopics) {
-        CompactPinnedTopicRow(topic, category, onClick)
-        return
-    }
     val resolvedCategory = category ?: LocalTopicPresentation.current.categories.firstOrNull { it.id == topic.categoryId }
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.surface)
         .clickable(onClick = onClick)
@@ -157,12 +153,25 @@ fun TopicCard(topic: Topic, category: Category?, onClick: () -> Unit, onUser: (S
             }
             if (topic.pinned) Icon(Icons.Rounded.PushPin, "置顶", Modifier.size(17.dp), MaterialTheme.colorScheme.primary)
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(topic.title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
-            TopicUnreadBadge(topic)
+        val image = mediaUrl(topic.image)
+        if (image != null) {
+            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(topic.title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                        TopicUnreadBadge(topic)
+                    }
+                    if (topic.excerpt.isNotBlank()) Text(topic.excerpt, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                TopicThumbnail(topic.id, image, onClick)
+            }
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(topic.title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                TopicUnreadBadge(topic)
+            }
+            if (topic.excerpt.isNotBlank()) Text(topic.excerpt, style = MaterialTheme.typography.bodyMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
-        if (topic.excerpt.isNotBlank()) Text(topic.excerpt, style = MaterialTheme.typography.bodyMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
-        mediaUrl(topic.image)?.let { TopicPreviewImage(topic.id, it, onClick) }
         if (topic.tagDetails.isNotEmpty()) TopicTags(topic.tagDetails)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             if (topic.views > 0) Stat(Icons.Rounded.Visibility, compactNumber(topic.views)) else Spacer(Modifier)
@@ -173,40 +182,24 @@ fun TopicCard(topic: Topic, category: Category?, onClick: () -> Unit, onUser: (S
 }
 
 @Composable
-private fun TopicPreviewImage(topicId: Int, url: String, openTopic: () -> Unit) {
-    var decodedRatio by remember(url) { mutableStateOf<Float?>(null) }
+private fun TopicThumbnail(topicId: Int, url: String, openTopic: () -> Unit) {
     var loading by remember(url) { mutableStateOf(true) }
-    var failureText by remember(url) { mutableStateOf<String?>(null) }
-    val failed = failureText != null
+    var failed by remember(url) { mutableStateOf(false) }
     var retry by remember(url) { mutableIntStateOf(0) }
-    Box(Modifier.fillMaxWidth().heightIn(max = 190.dp).aspectRatio(1.9f)
+    Box(Modifier.size(width = 104.dp, height = 78.dp)
         .testTag("topic-image-$topicId").clip(RoundedCornerShape(10.dp))
-        .then(if (loading || failed) Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)) else Modifier)
+        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
         .clickable(onClickLabel = if (failed) "重新加载图片" else "进入帖子详情") {
-            if (failed) { loading = true; failureText = null; retry++ } else openTopic()
+            if (failed) { loading = true; failed = false; retry++ } else openTopic()
         }) {
         key(url, retry) { AsyncImage(url, if (failed) "话题图片加载失败，点击重试" else "话题图片，点击进入帖子详情",
             Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
-            onLoading = { loading = true; failureText = null; decodedRatio = null },
-            onError = { loading = false; failureText = imageLoadErrorText(it.result.throwable); decodedRatio = null },
-            onSuccess = {
-                loading = false
-                failureText = null
-                val decoded = it.result.image
-                if (decoded.width > 0 && decoded.height > 0) decodedRatio = decoded.width.toFloat() / decoded.height
-            }) }
-        if (loading) CommunityLoadingIndicator(Modifier.align(Alignment.Center).size(24.dp).testTag("topic-image-$topicId-loading"))
-        failureText?.let { details ->
-            Column(Modifier.align(Alignment.Center).padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("加载失败，点击重试", style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-                Text(details, Modifier.testTag("topic-image-$topicId-error"), style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
-                    maxLines = 3, overflow = TextOverflow.Ellipsis)
-            }
-        }
-        ImageAspectBadge(decodedRatio)
+            onLoading = { loading = true; failed = false },
+            onError = { loading = false; failed = true },
+            onSuccess = { loading = false; failed = false }) }
+        if (loading) CommunityLoadingIndicator(Modifier.align(Alignment.Center).size(18.dp).testTag("topic-image-$topicId-loading"))
+        if (failed) Text("重试", Modifier.align(Alignment.Center).testTag("topic-image-$topicId-error"),
+            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

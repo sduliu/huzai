@@ -59,6 +59,21 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
         }
         if (filter.startsWith("sport:")) {
             val cfg = HUPU_BOARDS[filter.removePrefix("sport:")] ?: return TopicPage(emptyList(), null)
+            // 首页赛事频道 = 板块帖子流（湿乎乎/足球话题区），与比赛 Tab 的
+            // 资讯流分工；板块页无分页——p>1 时 topicPage 失败即终止，不再回落
+            // board() 重发首页内容。
+            if (cfg.boardUrl.isNotEmpty()) {
+                val page = next?.removePrefix("p")?.toIntOrNull() ?: 1
+                hupu.topicPage(cfg.boardUrl, page)?.let { p ->
+                    val cursor = if (p.totalPages > page) "p${page + 1}" else null
+                    return TopicPage(p.threads.map { it.toTopic() }, cursor)
+                }
+                if (page > 1) return TopicPage(emptyList(), null)
+                hupu.board(cfg.boardUrl)?.let { b ->
+                    return TopicPage(b.threads.map { it.toTopic() }, null)
+                }
+                // 板块拉空（网络失败等）→ 回退下方资讯流
+            }
             if (cfg.soccerSsr) {
                 val items = hupu.soccerNews().filter { it.openableAsThread }
                 return TopicPage(items.map { it.toTopic() }, null)

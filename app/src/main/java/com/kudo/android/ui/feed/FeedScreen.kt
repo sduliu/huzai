@@ -145,13 +145,13 @@ fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refres
                     layout(placeable.width, (placeable.height + offset).coerceAtLeast(0)) { placeable.placeRelative(0, offset) }
                 }.padding(horizontal = 12.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Box(Modifier.size(40.dp).clickable(onClick = login), contentAlignment = Alignment.Center) {
-                        if (user == null) Image(painterResource(R.drawable.ic_linux_do), "虎扑 Logo", Modifier.size(28.dp))
+                        if (user == null) Image(painterResource(R.drawable.ic_hupu), "虎扑 Logo", Modifier.size(28.dp).clip(CircleShape))
                         else Avatar(user, 28.dp, presentation = AvatarPresentation.ACCOUNT)
                     }
                     Box(Modifier.weight(1f).heightIn(min = 40.dp).clip(CircleShape).clickable(role = Role.Button, onClick = search).testTag("home-search"), contentAlignment = Alignment.Center) {
                         Row(Modifier.fillMaxWidth().heightIn(min = 30.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 10.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Icon(Icons.Rounded.Search, null, Modifier.size(20.dp).testTag("home-search-icon"), MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("真诚 · 友善 · 团结 · 专业", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("湿乎乎 · 足球 · 电竞 · 步行街", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Box(Modifier.width(1.dp).height(14.dp).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)).testTag("home-search-divider"))
                             Text("搜索", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, softWrap = false)
                         }
