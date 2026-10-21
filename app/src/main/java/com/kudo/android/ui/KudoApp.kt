@@ -485,7 +485,11 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                     }
                     composable("user/{username}") { entry ->
                         val username = entry.arguments!!.getString("username")!!
-                        key(username, account.user?.id) {
+                        // 虎扑帖子的作者 username 承载的是 euid（纯数字长串，见 HupuBridge.toMember）；
+                        // Discourse 用户名不会纯数字 —— 借此分流到虎扑用户主页（SSR 匿名可读）。
+                        if (username.all(Char::isDigit)) {
+                            com.kudo.android.hupuui.pages.UserProfilePage(euid = username, onClose = { nav.popBackStack() })
+                        } else key(username, account.user?.id) {
                             UserScreen(username, app.repository, { nav.popBackStack() }, ::login, ::openLink,
                                 viewerId = account.user?.id, statusBarStyle = { darkStatusIcons = it },
                                 search = { nav.navigate("user-search/${Uri.encode(username)}") },
