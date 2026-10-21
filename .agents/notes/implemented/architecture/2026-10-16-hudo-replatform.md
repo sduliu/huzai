@@ -101,3 +101,10 @@ AGP 9 迁移要点：删 `kotlin-android` 插件（内置 Kotlin）、`sdkDirect
 - `TopicCard`/`TopicTitleRow`：tagDetails 中与版块同名的标签不再重复渲染（虎扑帖的 `topic.name` 即版块名，作者行已显示）。
 - `RichContent`：虎扑 CDN 图文件名内嵌原图尺寸 `_w_X_h_Y_`，`<img>` 无 width/height 属性时据此还原 ratio 与 displayWidth；宽 ≤320px 的贴纸/表情按约 1/3 原宽限宽（48–106dp，对齐官方贴纸观感），大图行为不变。无尺寸信息的图维持整宽。
 - 楼中楼入口确认：`replyNum` → `Post.replyCount` → `ReplyPreview` 灰卡预览 +「查看 N 条回复」链接 → 弹层分页，链路完整（对应官方「查看N条回复 >」）。
+
+## 频道切换顺滑 + coil2 图片解码修复
+
+用户反馈「板块切换不顺滑 + 图片加载失败」，两个独立根因：
+
+- **切换不顺滑**：`HorizontalPager` 默认 `beyondViewportPageCount=0`，相邻页在滑动手势中才现组整棵 LazyColumn（+图片）→掉帧；且 `select()` 挂在 `pager.settledPage`，动画落定才发网络请求 → 空页滑入、内容后蹦。修复：`beyondViewportPageCount=1` 预组合邻页；`select()` 改挂 `pager.targetPage`（手势提交翻页时即更新），取数与动画并行；`settledPage` 采集器保留只做头部折叠复位。targetPage 随拖动位置/速度连续重算，滑回自动翻回 select 原频道，`select()` 幂等（同 filter 早退、cached 命中不重取）。
+- **图片加载失败**：`hupuui` 子树全部走 coil2（`coil.compose.AsyncImage/SubcomposeAsyncImage`），但 `KudoApplication` 只实现了 coil3 的 `SingletonImageLoader.Factory`——coil2 落默认 ImageLoader，无 GIF/WebP 动图解码器，虎扑评论区大量 `*.GIF` 表情必挂（解码错误非 4xx，`isRetryableImageError` 判可重试 → 白重试两次再出「图片加载失败」）。修复：`KudoApplication` 同挂 `coil.ImageLoaderFactory`，coil2 单例注册 `ImageDecoderDecoder`（API≥28）/`GifDecoder`，`callFactory` 复用 `container.imageHttpClient`（okhttp3.Call.Factory 双端通用）。另在 `parseHtmlBlocks` 出口对 `HtmlBlock.Image` url 过一遍 `normalizeImageUrl`（`//` 补 https、`http://` 升级 https 防明文拦截）——与 PlayerDetail* 各页同一约定。

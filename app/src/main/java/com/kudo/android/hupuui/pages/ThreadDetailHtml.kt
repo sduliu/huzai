@@ -112,6 +112,7 @@ import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.combinedClickable
 import com.kudo.android.hupuui.components.HUPU_EMOJI
 import coil.compose.AsyncImagePainter
+import com.kudo.android.hupuui.components.normalizeImageUrl
 import com.kudo.android.hupuui.components.retryModelOf
 import coil.request.ImageRequest
 import com.kudo.android.hupu.HupuFilter
@@ -190,7 +191,7 @@ internal fun parseHtmlBlocks(html: String): List<HtmlBlock> {
     for (t in HupuParser.contentTokens(html)) {
         when (t) {
             is HupuParser.ContentToken.Text -> appendTextBlocks(blocks, t.html)
-            is HupuParser.ContentToken.Image -> blocks += HtmlBlock.Image(t.url)
+            is HupuParser.ContentToken.Image -> blocks += HtmlBlock.Image(normalizeImageUrl(t.url) ?: t.url)
             is HupuParser.ContentToken.Vote -> blocks += HtmlBlock.Vote(t.voteId)
         }
     }

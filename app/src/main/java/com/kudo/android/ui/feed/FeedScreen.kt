@@ -95,10 +95,16 @@ fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refres
             val currentSelect by rememberUpdatedState(select)
             val currentCategories by rememberUpdatedState(categories)
             LaunchedEffect(pager) {
-                var previousPage = pager.settledPage
-                snapshotFlow { pager.settledPage }.distinctUntilChanged().collect { index ->
+                // targetPage 在手势提交翻页的那一刻就更新（不等动画落定）——让 select()
+                // 在滑动进行中就开始取数，落定时内容大多已就绪，不再「空页滑入再蹦出」。
+                snapshotFlow { pager.targetPage }.distinctUntilChanged().collect { index ->
                     val value = tabs.getOrNull(index)?.first ?: return@collect
                     if (value == "categories") currentCategories() else currentSelect(value)
+                }
+            }
+            LaunchedEffect(pager) {
+                var previousPage = pager.settledPage
+                snapshotFlow { pager.settledPage }.distinctUntilChanged().collect { index ->
                     if (index != previousPage) {
                         scrollBehavior.state.heightOffset = 0f
                         scrollBehavior.state.contentOffset = 0f
@@ -110,7 +116,8 @@ fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refres
                 val index = tabs.indexOfFirst { it.first == state.filter }
                 if (index >= 0 && pager.currentPage != index && !pager.isScrollInProgress) pager.scrollToPage(index)
             }
-            HorizontalPager(pager, Modifier.fillMaxSize().layerBackdrop(backdrop).testTag("home-pager"), key = { tabs[it].first }) { index ->
+            HorizontalPager(pager, Modifier.fillMaxSize().layerBackdrop(backdrop).testTag("home-pager"), key = { tabs[it].first },
+                beyondViewportPageCount = 1) { index ->
                 val value = tabs[index].first
                 if (value == "categories") {
                     Box(Modifier.fillMaxSize().padding(top = contentTopPadding)) {
