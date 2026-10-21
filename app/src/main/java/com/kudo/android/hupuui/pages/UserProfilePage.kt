@@ -340,7 +340,7 @@ fun UserProfilePage(
         loading = profile == null
         failed = false
         // \u767b\u5f55\u6001\u4f18\u5148 PC \u4e2a\u4eba\u4e2d\u5fc3 getUserInfo\uff08\u58f0\u671b/IP/\u771f\u5b9e\u8ba1\u6570/isSelf\uff09\uff1b\u5931\u8d25\u56de\u9000\u79fb\u52a8 SSR
-        val p = if (HupuAccount.isLoggedIn) repo.spaceUserInfo(euid) else null
+        val p = repo.spaceUserInfo(euid)
         if (p != null) {
             profile = p
             loading = false
@@ -357,7 +357,7 @@ fun UserProfilePage(
     fun refresh() {
         scope.launch {
             loading = profile == null
-            val p = if (HupuAccount.isLoggedIn) repo.spaceUserInfo(euid) else null
+            val p = repo.spaceUserInfo(euid)
             if (p != null) profile = p
             loading = false
         }
@@ -404,6 +404,8 @@ fun UserProfilePage(
         listEpoch++
         val myEpoch = listEpoch
         if (!prof.isSelf && tab == 3) { tab = 0; return@LaunchedEffect }
+        // 未登录：列表走 SSR 内嵌的 20+20（p.threads/p.replies），PC 分页端点需要登录态，直接跳过
+        if (!HupuAccount.isLoggedIn) { listEndReached = true; return@LaunchedEffect }
         listLoading = true
         listEndReached = false
         listPage = 1
@@ -602,17 +604,7 @@ fun UserProfilePage(
                                 }
                             }
                         }
-                        if (!logged) {
-                            item(key = "nologin") {
-                                Text(
-                                    "\u767b\u5f55\u540e\u624d\u80fd\u67e5\u770b\u4e3b\u9875\uff0c\u8bf7\u5148\u5728\u300c\u6211\u7684\u300d\u9875\u767b\u5f55\u864e\u6251\u8d26\u53f7",
-                                    fontSize = 14.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                )
-                            }
-                        } else if (logged) {
+                        if (logged) {
                             // \u5173\u6ce8 tab \u4e8c\u7ea7\u5206\u7ec4
                             if (tab == 4) {
                                 item(key = "followType") {

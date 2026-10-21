@@ -117,3 +117,4 @@ AGP 9 迁移要点：删 `kotlin-android` 插件（内置 Kotlin）、`sdkDirect
 - **比赛 Tab 默认频道**：`selectedGame` 初值由恒为热门赛事改为 `effectiveGames` 首枚 chip——首屏内容与第一栏对齐；空列表回落热门赛事。
 - **头像→用户主页**：去掉 `onOpenUser` 的登录门（m.hupu.com/user/{euid} SSR 匿名可读；页内关注/私信各自仍有登录门）。帖子详情三处 + 评分详情 `openUser`/`openUserFromSheet` 全放行；`BoardUiState` 补 `userPageStack` + `BoardOverlays` 渲染 `UserProfilePage` 叠层（此前板块页详情连回调都没传，头像纯摆设）。
 - **评论图紧凑**：`HtmlContent` 加 `compactImages`（回复/楼中楼 true）：图片宽 ≤42% 内容宽且 ≤160dp、高 ≤200dp——大尺寸表情/贴纸不再占满行宽；主楼正文图保持原样。
+- **用户主页匿名可读**：`spaceUserInfo` 未登录/PC 端点失败时回退 `fetchUserHtml`+`parseUserProfile`（m.hupu.com/user/{euid} SSR 匿名可读，实测 200，内嵌 20+20 帖子/回帖）；页面去掉「请先登录」占位——恢复原有的 SSR 双 Tab 列表分支（此前 else-if 链使该分支死代码）；匿名态跳过 PC 分页请求。

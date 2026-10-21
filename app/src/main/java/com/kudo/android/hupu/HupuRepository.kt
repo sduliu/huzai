@@ -162,11 +162,20 @@ class HupuRepository {
     /** 用户主页（资料卡 + 主题帖/回帖首屏，SSR 一次请求） */
     // ---------- PC 个人中心（my.hupu.com 契约，登录态） ----------
 
-    /** getUserInfo：全量资料卡（声望/IP/真实计数/是否本人） */
+    /**
+     * getUserInfo：全量资料卡（声望/IP/真实计数/是否本人）。
+     * PC 端点需要登录 cookie；未登录或失败时回退 m.hupu.com/user/{euid} 移动 SSR
+     * （匿名可读，顺带下发 20+20 帖子/回帖首屏列表）。
+     */
     suspend fun spaceUserInfo(euid: String): HupuUserProfile? {
         // 1.190: 导航快车道（200ms 间隔，不等全局 1s 时间片）+ 结果写进程级缓存
-        val body = HupuApi.fetchSpaceApi("getUserInfo?euid=$euid", fast = true) ?: return null
-        return HupuParser.parseSpaceUserInfo(body)?.also { hupuUserInfoCache.put(euid, it) }
+        if (HupuAccount.isLoggedIn) {
+            HupuApi.fetchSpaceApi("getUserInfo?euid=$euid", fast = true)
+                ?.let { HupuParser.parseSpaceUserInfo(it) }
+                ?.let { hupuUserInfoCache.put(euid, it); return it }
+        }
+        return HupuApi.fetchUserHtml(euid)?.let { HupuParser.parseUserProfile(it) }
+            ?.also { hupuUserInfoCache.put(euid, it) }
     }
 
     /**
