@@ -404,6 +404,11 @@ internal fun HtmlContent(
     /** 1.122: 正文内联投票（主楼传入；回复 HTML 不传） */
     vote: HupuVote? = null,
     onToast: (String) -> Unit = {},
+    /**
+     * 评论/楼中楼语境：图片以缩略尺寸呈现（≈官方 1/3 屏宽，上限 160dp×200dp），
+     * 表情/贴纸不再放大到近满宽；点图仍可全屏看原图。主楼正文保持原样（传 false）。
+     */
+    compactImages: Boolean = false,
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
     val primary = MaterialTheme.colorScheme.primary
@@ -426,10 +431,13 @@ internal fun HtmlContent(
                     if (intrinsic != null) {
                         BoxWithConstraints(Modifier.fillMaxWidth()) {
                             val density = LocalDensity.current
+                            // 评论语境上限收紧：宽 ≤40% 内容宽且 ≤160dp，高 ≤200dp
+                            val capW = if (compactImages) minOf(maxWidth * 0.42f, 160.dp) else maxWidth
+                            val capH = if (compactImages) 200.dp else 320.dp
                             val scale = minOf(
                                 1f,
-                                with(density) { maxWidth.toPx() } / intrinsic.first,
-                                with(density) { 320.dp.toPx() } / intrinsic.second,
+                                with(density) { capW.toPx() } / intrinsic.first,
+                                with(density) { capH.toPx() } / intrinsic.second,
                             )
                             CommentImage(
                                 model = ImageRequest.Builder(LocalContext.current)
@@ -450,7 +458,8 @@ internal fun HtmlContent(
                         // 原为「强制全宽 + Crop」→ 会被拉伸/裁切成"占满行宽"。改为与评分评价页一致：
                         // 以内容宽度与 320dp 为上界 + Fit，小图保持原始尺寸不放大，大图等比缩小。
                         BoxWithConstraints(Modifier.fillMaxWidth()) {
-                            val maxW = maxWidth
+                            val maxW = if (compactImages) minOf(maxWidth * 0.42f, 160.dp) else maxWidth
+                            val maxH = if (compactImages) 200.dp else 320.dp
                             CommentImage(
                                 model = ImageRequest.Builder(LocalContext.current)
                                     .data(b.url)
@@ -458,7 +467,7 @@ internal fun HtmlContent(
                                     .build(),
                                 imageModifier = Modifier
                                     .widthIn(max = maxW)
-                                    .heightIn(max = 320.dp)
+                                    .heightIn(max = maxH)
                                     .clip(RoundedCornerShape(8.dp)),
                                 loadingModifier = Modifier.commentImageLoadingBox(8.dp),
                                 url = b.url,

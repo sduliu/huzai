@@ -1038,7 +1038,9 @@ fun ThreadDetailOverlay(
                                             if (v) videoFullscreenReady = false
                                         },
                                         onImageClick = openImage,
-                                        onOpenUser = { pu -> if (pu.isNotEmpty()) { if (HupuAccount.isLoggedIn) userPageStack.add(pu) else com.kudo.android.hupuui.components.HuzaiToast.show("请先在「我的」页登录") } },
+                                        // 用户主页为匿名可读 SSR（fetchUserHtml 未登录不带 Cookie 也下发），
+                                        // 页内关注/私信等操作各自有登录门——查看不再要求登录。
+                                        onOpenUser = { pu -> if (pu.isNotEmpty()) userPageStack.add(pu) },
                                         onToast = { com.kudo.android.hupuui.components.HuzaiToast.show(it) },
                                         onOpenEmbed = { embedPage = it },
                                     )
@@ -1107,7 +1109,7 @@ item(key = "r-count") {
                                         onImageClick = openImage,
                                         onLight = { onLight(r, d.thread.tid, d.thread.fid) },
                                         isLit = replyLightState[r.pid] == true,
-                                        onOpenUser = { pu -> if (pu.isNotEmpty()) { if (HupuAccount.isLoggedIn) userPageStack.add(pu) else com.kudo.android.hupuui.components.HuzaiToast.show("\u8bf7\u5148\u5728\u300c\u6211\u7684\u300d\u9875\u767b\u5f55") } },
+                                        onOpenUser = { pu -> if (pu.isNotEmpty()) userPageStack.add(pu) },
                                         onQuoteReply = {
                                             if (!HupuAccount.isLoggedIn) {
                                                 com.kudo.android.hupuui.components.HuzaiToast.show("\u8bf7\u5148\u5728\u300c\u6211\u7684\u300d\u9875\u767b\u5f55")
@@ -1212,13 +1214,11 @@ item(key = "r-count") {
                 onImageClick = openImage,
                 onOpenUser = { pu ->
                     if (pu.isNotEmpty()) {
-                        if (HupuAccount.isLoggedIn) {
-                            // 1.196: 从楼中楼进入用户主页时「盖住」面板，而不是收起它——
-                            // 保留 floorStack（用户关掉主页后仍在原评论位置），用户主页以
-                            // 高于楼层 sheet 的 zIndex（见下方 userPageStack 渲染）盖在其上；
-                            // 全屏 tapGuard 阻断穿透。返回时先关用户主页、再回到面板。
-                            userPageStack.add(pu)
-                        } else com.kudo.android.hupuui.components.HuzaiToast.show("\u8bf7\u5148\u5728\u300c\u6211\u7684\u300d\u9875\u767b\u5f55")
+                        // 1.196: 从楼中楼进入用户主页时「盖住」面板，而不是收起它——
+                        // 保留 floorStack（用户关掉主页后仍在原评论位置），用户主页以
+                        // 高于楼层 sheet 的 zIndex（见下方 userPageStack 渲染）盖在其上；
+                        // 全屏 tapGuard 阻断穿透。返回时先关用户主页、再回到面板。
+                        userPageStack.add(pu)
                     }
                 },
                 onQuoteReply = { pid, name ->

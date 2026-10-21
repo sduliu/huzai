@@ -220,22 +220,16 @@ fun PlayerDetailOverlay(
     var stickerSearchClosing by remember { mutableStateOf(false) }
     // 1.191: 表情搜索面板里「清空最近使用 / 最近在搜」的确认弹窗（null = 不显示）
     var stickerClearTarget by remember { mutableStateOf<String?>(null) }
-    // 1.163: 评分评论作者 → 用户主页（盖入式叠层；未登录给提示，与帖子详情同款交互）
+    // 1.163: 评分评论作者 → 用户主页（盖入式叠层；主页为匿名可读 SSR，查看不要求登录）
     val userPageStack = remember { androidx.compose.runtime.mutableStateListOf<String>() }
     val openUser: (String) -> Unit = { pu ->
-        if (pu.isNotEmpty()) {
-            if (HupuAccount.isLoggedIn) userPageStack.add(pu) else com.kudo.android.hupuui.components.HuzaiToast.show("请先在「我的」页登录")
-        }
+        if (pu.isNotEmpty()) userPageStack.add(pu)
     }
     // 1.196: 从楼中楼 sheet 里进主页 → 「盖住」面板而不是收起它（对齐帖子详情做法）。
     // 用户主页渲染于 zIndex 6f（见下方 userPageStack），本就高于 sheet 的 4f，
     // 故保留 subSheet、主页盖在其上；全屏 tapGuard 阻断穿透。返回时先关主页、再回到面板。
     val openUserFromSheet: (String) -> Unit = { pu ->
-        if (pu.isNotEmpty()) {
-            if (HupuAccount.isLoggedIn) {
-                userPageStack.add(pu)
-            } else com.kudo.android.hupuui.components.HuzaiToast.show("请先在「我的」页登录")
-        }
+        if (pu.isNotEmpty()) userPageStack.add(pu)
     }
     val progress = remember { Animatable(0f) }
     LaunchedEffect(closing) {

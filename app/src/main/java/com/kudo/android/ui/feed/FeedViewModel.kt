@@ -43,6 +43,7 @@ class FeedViewModel(private val repository: CommunityRepository, private val cat
         if (value?.id == user?.id && value?.unifiedNew == user?.unifiedNew) return false
         user = value
         _pages.value = emptyMap()
+        prefetchJobs.values.forEach { it.cancel() }; prefetchJobs.clear()
         baseline = null
         acknowledgeOnProbe = false
         _state.value = FeedState(filter = defaultFeedFilter(value, categoryId != null || tagSlug != null), accountId = value?.id)
@@ -66,6 +67,41 @@ class FeedViewModel(private val repository: CommunityRepository, private val cat
         if (cached == null) refresh(manual = false)
         restartUpdates()
     }
+    /**
+     * 频道预取：pager 落定某页后，后台把相邻频道的首页数据装进 _pages。
+     * 用户滑过去时 select() 命中 cached 直接出内容，不再出现「空页滑入→转圈→内容蹦出」。
+     * 预取结果走 _pages 缓存，不触碰 _state；失败移除占位让 select() 走正常拉取。
+     */
+    private val prefetchJobs = mutableMapOf<String, Job>()
+    fun prefetch(filter: String) {
+        if (FeedFilter.available(user != null).none { it.value == filter }
+            && !filter.startsWith("board:") && !filter.startsWith("sport:")) return
+        if (filter == _state.value.filter) return
+        val existing = _pages.value[filter]
+        if (existing != null && !existing.loading) return
+        if (prefetchJobs[filter]?.isActive == true) return
+        val account = user
+        _pages.update { it + (filter to (existing ?: FeedState(filter = filter, accountId = account?.id))) }
+        prefetchJobs[filter] = viewModelScope.launch {
+            try {
+                val page = withContext(Dispatchers.IO) { loadTopics(filter) }
+                _pages.update { pages ->
+                    val cur = pages[filter] ?: return@update pages
+                    pages + (filter to FeedState(
+                        topics = page.topics.distinctBy(Topic::id),
+                        categories = cur.categories,
+                        filter = filter,
+                        next = page.next,
+                        loading = false,
+                        accountId = account?.id,
+                        tag = page.tag,
+                    ))
+                }
+            } catch (e: CancellationException) { throw e } catch (_: Exception) {
+                _pages.update { it - filter }
+            }
+        }
+    }
     fun refreshFromNavigation() {
         _state.update { it.copy(scrollToTopRequest = it.scrollToTopRequest + 1) }
         if (!_state.value.loading) refresh(manual = true)
@@ -75,6 +111,7 @@ class FeedViewModel(private val repository: CommunityRepository, private val cat
         if (epoch <= 0 || epoch == lastRefreshEpoch) return
         lastRefreshEpoch = epoch
         _pages.value = emptyMap()
+        prefetchJobs.values.forEach { it.cancel() }; prefetchJobs.clear()
         refresh(manual = false)
     }
 

@@ -72,7 +72,8 @@ import kotlin.math.roundToInt
 @Composable
 fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refresh: () -> Unit, more: () -> Unit, openTopic: (Int) -> Unit, openUser: (String) -> Unit, search: () -> Unit, login: () -> Unit, categories: () -> Unit, modifier: Modifier = Modifier, category: Category? = null, back: () -> Unit = {}, listStyle: TopicListStyle = TopicListStyle.FEED, pages: Map<String, FeedState> = emptyMap(), categoryContent: (@Composable () -> Unit)? = null, createTopic: (Int) -> Unit = {}, glass: GlassMode = LocalDisplaySettings.current.glass,
     channels: List<Pair<String, String>> = emptyList(), manageChannels: () -> Unit = {},
-    channelHeader: (@Composable (String) -> Unit)? = null) {
+    channelHeader: (@Composable (String) -> Unit)? = null,
+    prefetch: (String) -> Unit = {}) {
     if (category != null) {
         CategoryFeedScreen(category, state, user, select, refresh, more, openTopic, openUser, search, login, back, modifier, listStyle, pages, createTopic, glass)
         return
@@ -94,6 +95,7 @@ fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refres
             val scope = rememberCoroutineScope()
             val currentSelect by rememberUpdatedState(select)
             val currentCategories by rememberUpdatedState(categories)
+            val currentPrefetch by rememberUpdatedState(prefetch)
             LaunchedEffect(pager) {
                 // targetPage 在手势提交翻页的那一刻就更新（不等动画落定）——让 select()
                 // 在滑动进行中就开始取数，落定时内容大多已就绪，不再「空页滑入再蹦出」。
@@ -110,6 +112,10 @@ fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refres
                         scrollBehavior.state.contentOffset = 0f
                     }
                     previousPage = index
+                    // 落定后预取左右相邻频道：滑过去时缓存已就绪，落地即有内容
+                    listOf(index - 1, index + 1).forEach { i ->
+                        tabs.getOrNull(i)?.first?.takeIf { it != "categories" }?.let(currentPrefetch)
+                    }
                 }
             }
             LaunchedEffect(state.filter) {

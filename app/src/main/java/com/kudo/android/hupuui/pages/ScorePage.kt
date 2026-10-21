@@ -142,8 +142,9 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null) {
     // （设置页已保证「虎扑评分 + 已选赛事」≥1；这里再兜底：赛事为空时仍显示，页面不会 0 tab）
     val commonHidden = remember(HupuPrefs.scoreGamesVersion) { HupuPrefs.isScoreCommonHidden() }
     val showCommon = !commonHidden || effectiveGames.isEmpty()
-    // 项目横滑条单选（默认英雄联盟）
-    var selectedGame by remember { mutableStateOf(HupuMatchApi.GAMES.first().first) }
+    // 项目横滑条单选：默认落在**用户列表的第一栏**（此前恒为热门赛事——若用户把它排在
+    // 后面，首屏内容和首枚 chip 对不上）；列表为空时回落「热门赛事」。
+    var selectedGame by remember { mutableStateOf(effectiveGames.firstOrNull()?.first ?: HupuMatchApi.GAMES.first().first) }
     // 首页频道外部定位：pinned 的频道不受「不在自选列表→回落」重置影响；用户在频道条上
     // 手动切换后失效
     var externalPinned by remember { mutableStateOf<String?>(null) }

@@ -2,10 +2,12 @@ package com.kudo.android.ui.feed
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,7 +28,7 @@ import androidx.compose.ui.unit.sp
 import com.kudo.android.data.CommunityRepository
 import com.kudo.android.hupu.HupuMatch
 import com.kudo.android.hupu.HupuMatchDay
-import com.kudo.android.hupuui.pages.BoardMatchRow
+import com.kudo.android.hupuui.pages.BoardMatchCard
 import java.time.LocalDate
 
 /** 首页赛事频道头部：近期比赛（进行中→今天/最近比赛日→未来，≤4 场）+ 「查看全部赛程」。
@@ -88,7 +90,13 @@ fun SportChannelHeader(
                 .background(MaterialTheme.colorScheme.surface)
                 .padding(horizontal = 12.dp, vertical = 4.dp),
         ) {
-            hotMatches.forEach { m -> BoardMatchRow(m) { onOpenMatch(m) } }
+            hotMatches.forEachIndexed { i, m ->
+                if (i > 0) Box(
+                    Modifier.fillMaxWidth().height(0.5.dp)
+                        .background(MaterialTheme.colorScheme.outlineVariant)
+                )
+                BoardMatchCard(m) { onOpenMatch(m) }
+            }
         }
     }
 }

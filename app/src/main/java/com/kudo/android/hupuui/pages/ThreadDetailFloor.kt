@@ -329,7 +329,7 @@ internal fun FloorSheet(
                                                 )
                                             }
                                         }
-                                        HtmlContent(parent.contentHtml, onImageClick = onImageClick)
+                                        HtmlContent(parent.contentHtml, onImageClick = onImageClick, compactImages = true)
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text(
                                                 "全部回复 ${parent.totalReplies}",
@@ -486,7 +486,7 @@ internal fun SubReplyRow(sub: HupuSubReply, onExpand: () -> Unit, onImageClick: 
                 color = MaterialTheme.colorScheme.primary,
             )
         }
-        HtmlContent(sub.contentHtml, onImageClick = onImageClick)
+        HtmlContent(sub.contentHtml, onImageClick = onImageClick, compactImages = true)
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (sub.createdAtText.isNotBlank()) {
                 Text(sub.createdAtText, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -35,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -142,6 +143,8 @@ internal class BoardUiState(
     var threadLoadingMore by mutableStateOf(false)
     var threadSortSeq by mutableIntStateOf(0)
     val threadDetails = mutableStateMapOf<String, HupuThreadDetail>()
+    // 详情页点头像 → 用户主页盖入式叠层（匿名可读，查看不要求登录）
+    val userPageStack = mutableStateListOf<String>()
     val floorStates = mutableStateMapOf<String, HupuFloorReplies>()
     val floorLoading = mutableStateMapOf<String, Boolean>()
     val floorLoadingMore = mutableStateMapOf<String, Boolean>()
@@ -481,7 +484,7 @@ internal fun BoardContent(
                             }
                         }
                     } else if (hotMatches.isNotEmpty()) {
-                        // 顶部热门比赛（官方式：≤4 场紧凑行，点行进详情）
+                        // 顶部热门比赛（官方式大卡：赛事名+大比分+评分人数，≤4 场，点卡进详情）
                         item(key = "schedule-strip") {
                             Column(
                                 Modifier
@@ -490,8 +493,12 @@ internal fun BoardContent(
                                     .background(MaterialTheme.colorScheme.surface)
                                     .padding(horizontal = 12.dp, vertical = 4.dp),
                             ) {
-                                hotMatches.forEach { m ->
-                                    BoardMatchRow(m) { onOpenMatch(m) }
+                                hotMatches.forEachIndexed { i, m ->
+                                    if (i > 0) Box(
+                                        Modifier.fillMaxWidth().height(0.5.dp)
+                                            .background(MaterialTheme.colorScheme.outlineVariant)
+                                    )
+                                    BoardMatchCard(m) { onOpenMatch(m) }
                                 }
                             }
                         }
@@ -621,7 +628,18 @@ internal fun BoardOverlays(state: BoardUiState) = with(state) {
                 floorLoadingMore = floorLoadingMore.filterValues { it }.keys,
                 onOpenFloor = { r -> openFloor(ot.tid, r) },
                 onFloorLoadMore = { pid, fr -> loadFloorMore(ot.tid, pid, fr) },
+                onOpenUser = { pu -> if (pu.isNotEmpty()) userPageStack.add(pu) },
             )
+        }
+        // 用户主页叠层（盖在详情/楼层 sheet 之上；自身带盖入动画与二级页计数）
+        userPageStack.forEachIndexed { si, subEuid ->
+            androidx.compose.runtime.key(si) {
+                UserProfilePage(
+                    euid = subEuid,
+                    zIndex = 3f + si,
+                    onClose = { userPageStack.removeAt(si) },
+                )
+            }
         }
         // LINK 运营位 / 积分榜落地页
         embedPage?.let { e ->
@@ -685,38 +703,24 @@ private fun BoardNewsRow(n: HupuBoardNews, onOpen: () -> Unit) {
                 }
                 Text(
                     n.title,
-                    fontSize = 15.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
-                    lineHeight = 21.sp,
+                    lineHeight = 22.sp,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
             }
             Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    HupuIcons.MetaLightFilled,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(14.dp),
-                )
-                Spacer(Modifier.width(4.dp))
-                BoardMetaText(formatCount(n.lights))
-                Spacer(Modifier.width(12.dp))
-                Icon(
-                    HupuIcons.MetaComment,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(14.dp),
-                )
-                Spacer(Modifier.width(4.dp))
-                BoardMetaText(formatCount(n.replies))
-                if (n.publishTime.length >= 16) {
-                    Spacer(Modifier.width(12.dp))
-                    BoardMetaText(n.publishTime.substring(5, 16))
+            // meta 行对齐官方：纯文字「亮 N · 回复 N · 时间」（官方为「顶 N 回复 N 亮回复」，
+            // 我们的字段是 lights=点亮数，用「亮」对应）
+            BoardMetaText(
+                buildString {
+                    append("亮 ").append(formatCount(n.lights))
+                    append(" · 回复 ").append(formatCount(n.replies))
+                    if (n.publishTime.length >= 16) append(" · ").append(n.publishTime.substring(5, 16))
                 }
-            }
+            )
         }
         normalizeCover(n.img)?.let { img ->
             AsyncImage(
@@ -914,6 +918,105 @@ private fun StandingRowLayout(
                 modifier = Modifier.width(32.dp),
             )
         }
+    }
+}
+
+/**
+ * 板块页/首页频道顶部热门比赛的官方大卡：赛事名居顶，主队名[队标] 大比分 [队标]客队名
+ * 居中一行，下方状态行（进行中→红「进行中」/已结束→「N人评分」/未开始→开赛时间）。
+ * 有详情钥匙的比赛整卡可点进详情（openable 判据同 BoardMatchRow）。
+ */
+@Composable
+internal fun BoardMatchCard(m: HupuMatch, onOpen: () -> Unit) {
+    val openable = m.scoreBizNo != null || m.scoreBizType == HupuMatchApi.FOOTBALL_MATCH
+    val multiTeam = (m.home == null && m.away == null) ||
+        (m.home?.name.isNullOrBlank() && m.away?.name.isNullOrBlank())
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .then(if (openable) Modifier.clickable(onClick = onOpen) else Modifier)
+            .padding(vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            m.introduction.ifBlank { m.matchName },
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(8.dp))
+        if (multiTeam) {
+            Text(
+                m.matchName.ifBlank { m.introduction },
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        } else {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    m.home?.name.orEmpty(),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(8.dp))
+                AsyncImage(
+                    model = normalizeCover(m.home?.logo),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(30.dp).clip(CircleShape),
+                )
+                Text(
+                    if (m.home?.baseScore?.isNotEmpty() == true &&
+                        m.away?.baseScore?.isNotEmpty() == true
+                    ) "${m.home?.baseScore} - ${m.away?.baseScore}" else "VS",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (m.status == "INPROGRESS") MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    modifier = Modifier.padding(horizontal = 14.dp),
+                )
+                AsyncImage(
+                    model = normalizeCover(m.away?.logo),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(30.dp).clip(CircleShape),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    m.away?.name.orEmpty(),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        val bottomText = when {
+            m.status == "NOTSTARTED" -> m.startTimeText
+            m.status == "COMPLETED" && m.scoreCountText.isNotBlank() -> m.scoreCountText
+            else -> m.statusDesc
+        }
+        Text(
+            bottomText,
+            fontSize = 11.sp,
+            color = if (m.status == "INPROGRESS") MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+        )
     }
 }
 

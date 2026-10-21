@@ -108,3 +108,12 @@ AGP 9 迁移要点：删 `kotlin-android` 插件（内置 Kotlin）、`sdkDirect
 
 - **切换不顺滑**：`HorizontalPager` 默认 `beyondViewportPageCount=0`，相邻页在滑动手势中才现组整棵 LazyColumn（+图片）→掉帧；且 `select()` 挂在 `pager.settledPage`，动画落定才发网络请求 → 空页滑入、内容后蹦。修复：`beyondViewportPageCount=1` 预组合邻页；`select()` 改挂 `pager.targetPage`（手势提交翻页时即更新），取数与动画并行；`settledPage` 采集器保留只做头部折叠复位。targetPage 随拖动位置/速度连续重算，滑回自动翻回 select 原频道，`select()` 幂等（同 filter 早退、cached 命中不重取）。
 - **图片加载失败**：`hupuui` 子树全部走 coil2（`coil.compose.AsyncImage/SubcomposeAsyncImage`），但 `KudoApplication` 只实现了 coil3 的 `SingletonImageLoader.Factory`——coil2 落默认 ImageLoader，无 GIF/WebP 动图解码器，虎扑评论区大量 `*.GIF` 表情必挂（解码错误非 4xx，`isRetryableImageError` 判可重试 → 白重试两次再出「图片加载失败」）。修复：`KudoApplication` 同挂 `coil.ImageLoaderFactory`，coil2 单例注册 `ImageDecoderDecoder`（API≥28）/`GifDecoder`，`callFactory` 复用 `container.imageHttpClient`（okhttp3.Call.Factory 双端通用）。另在 `parseHtmlBlocks` 出口对 `HtmlBlock.Image` url 过一遍 `normalizeImageUrl`（`//` 补 https、`http://` 升级 https 防明文拦截）——与 PlayerDetail* 各页同一约定。
+
+## 频道顺滑补强 + 板面细节对齐官方（二轮反馈）
+
+- **预取**：`FeedViewModel.prefetch(filter)` 把相邻频道首页数据装进 `_pages`（不动 `_state`，失败移除占位）；`FeedScreen` 在 `settledPage` 落定后对 index±1 两页预取——滑过去 `select()` 命中缓存即出内容。`setUser`/`refreshIfRequested` 清 `_pages` 时同步取消在途预取防串号。
+- **官方比赛大卡 `BoardMatchCard`**：赛事名居顶 + 队名[队标30dp] 20sp 大比分 + 底行（进行中红/已结束→scoreCountText「N人评分」/未开始→开赛时间）；板块页热门条与首页 `SportChannelHeader` 共用（行间 0.5dp 分隔线），紧凑 `BoardMatchRow` 仍留给「全部赛程」平铺。
+- **资讯 meta 行**：去掉 sparkles/气泡小图标，改官方式纯文字「亮 N · 回复 N · 时间」；标题 15→16sp。
+- **比赛 Tab 默认频道**：`selectedGame` 初值由恒为热门赛事改为 `effectiveGames` 首枚 chip——首屏内容与第一栏对齐；空列表回落热门赛事。
+- **头像→用户主页**：去掉 `onOpenUser` 的登录门（m.hupu.com/user/{euid} SSR 匿名可读；页内关注/私信各自仍有登录门）。帖子详情三处 + 评分详情 `openUser`/`openUserFromSheet` 全放行；`BoardUiState` 补 `userPageStack` + `BoardOverlays` 渲染 `UserProfilePage` 叠层（此前板块页详情连回调都没传，头像纯摆设）。
+- **评论图紧凑**：`HtmlContent` 加 `compactImages`（回复/楼中楼 true）：图片宽 ≤42% 内容宽且 ≤160dp、高 ≤200dp——大尺寸表情/贴纸不再占满行宽；主楼正文图保持原样。
