@@ -241,6 +241,16 @@ object HupuPrefs {
         val exists = cur.any { it.url == t.url }
         if (!exists && cur.size >= MAX_FAVORITE_TOPICS) return FavoriteToggle.LIMIT
         saveFavoriteTopics(toggleFavoriteList(cur, t, MAX_FAVORITE_TOPICS))
+        // 关注与首页频道统一：收藏的板块同时是首页 board: 频道（追加在尾部）
+        val chans = effectiveHomeChannels().toMutableList()
+        val key = "board:${t.url}"
+        val idx = chans.indexOfFirst { it.first == key }
+        if (exists) {
+            if (idx >= 0) { chans.removeAt(idx); saveHomeChannels(chans) }
+        } else if (idx < 0) {
+            chans += key to t.name
+            saveHomeChannels(chans)
+        }
         return if (exists) FavoriteToggle.REMOVED else FavoriteToggle.ADDED
     }
 
@@ -416,6 +426,19 @@ object HupuPrefs {
         prefs.edit().putString(KEY_HOME_CHANNELS, arr.toString()).apply()
         cachedHomeChannels = list
         homeChannelsVersion++
+        // 反向同步收藏专区：board: 频道条目即「已关注」板块，两个入口写同一份事实
+        syncFavoriteTopicsFromChannels(list)
+    }
+
+    private fun syncFavoriteTopicsFromChannels(channels: List<Pair<String, String>>) {
+        val cur = loadFavoriteTopics()
+        val byUrl = cur.associateBy { it.url }
+        val next = channels.mapNotNull { (k, l) ->
+            if (!k.startsWith("board:")) return@mapNotNull null
+            val u = k.removePrefix("board:")
+            byUrl[u] ?: HupuTopicInfo(topicId = "", name = l, url = u)
+        }
+        if (next.map { it.url } != cur.map { it.url }) saveFavoriteTopics(next)
     }
 
     fun hasCustomHomeChannels(): Boolean = prefs.contains(KEY_HOME_CHANNELS)
@@ -437,6 +460,7 @@ object HupuPrefs {
         prefs.edit().remove(KEY_HOME_CHANNELS).apply()
         cachedHomeChannels = null
         homeChannelsVersion++
+        syncFavoriteTopicsFromChannels(defaultHomeChannels())
     }
 
     // ---------- 浏览流关键词过滤（我的→浏览流设置） ----------

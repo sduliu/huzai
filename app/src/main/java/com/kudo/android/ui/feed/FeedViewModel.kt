@@ -115,6 +115,16 @@ class FeedViewModel(private val repository: CommunityRepository, private val cat
         refresh(manual = false)
     }
 
+    /**
+     * 关注/频道变化后：只作废「综合」缓存页——它的内容按关注板块过滤，
+     * 其他频道页内容与本页无关，保留缓存不打扰。
+     */
+    fun invalidateLatest() {
+        prefetchJobs[FeedFilter.LATEST.value]?.cancel()
+        _pages.update { it - FeedFilter.LATEST.value }
+        if (_state.value.filter == FeedFilter.LATEST.value) refresh(manual = false)
+    }
+
     fun refreshReadListsIfRequested(epoch: Int, accountId: Int?) {
         val account = user ?: return
         if (account.id != accountId || epoch <= 0 || epoch == lastReadingEpoch) return

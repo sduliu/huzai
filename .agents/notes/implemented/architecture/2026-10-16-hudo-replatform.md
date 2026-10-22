@@ -119,3 +119,13 @@ AGP 9 迁移要点：删 `kotlin-android` 插件（内置 Kotlin）、`sdkDirect
 - **评论图紧凑**：`HtmlContent` 加 `compactImages`（回复/楼中楼 true）：图片宽 ≤42% 内容宽且 ≤160dp、高 ≤200dp——大尺寸表情/贴纸不再占满行宽；主楼正文图保持原样。
 - **用户主页匿名可读**：`spaceUserInfo` 未登录/PC 端点失败时回退 `fetchUserHtml`+`parseUserProfile`（m.hupu.com/user/{euid} SSR 匿名可读，实测 200，内嵌 20+20 帖子/回帖）；页面去掉「请先登录」占位——恢复原有的 SSR 双 Tab 列表分支（此前 else-if 链使该分支死代码）；匿名态跳过 PC 分页请求。
 - **feed 头像链路修正**：信息流帖子详情走 kudo `topic/{id}`→`TopicScreen`（非 hupuui 叠层），头像回调是 `nav.navigate("user/{username}")`；虎扑作者 `Member.username` 承载 euid（纯数字，见 `HupuBridge.toMember`），故在 `user/{username}` 路由按「全数字 = euid」分流到 `UserProfilePage`，非数字仍走 Discourse `UserScreen`。
+
+## 板块目录换 ZonePage + 关注体系 + 综合按关注过滤
+
+底栏「板块」由 Discourse 式类别目录（`CommunityDirectoryHost`，与虎扑结构不符）换成既有 hupuui `ZonePage`：13 大类 CateBar + 三列版块网格 + 话题流叠层 + 帖子详情三级页，原生覆盖 NBA 球队/五大联赛俱乐部/CBA/电竞/步行街子板块全树。
+
+- **关注=收藏专区**：版块格子右上角加星标开关（`TopicCell` 增 `isFavorite/onToggleFavorite`）；`ZonePage.toggleFav` 统一写 `HupuPrefs.toggleFavoriteTopic`（原 TopicFeedOverlay 头部星标同路）；页头标题与文案改「板块/关注」，「收藏专区」虚拟 tab 改「关注」。
+- **关注↔首页频道双向同步**：`toggleFavoriteTopic` 增/减收藏时同步增/删 `board:<url>` 首页频道（追加尾部）；`saveHomeChannels` 反向把 board: 频道集合写回收藏（`syncFavoriteTopicsFromChannels`，频道 label 兜底新条目名——单向派生无递归）；`clearHomeChannels` 以默认频道重同步。语义：板块关注与首页频道是同一份事实的两个入口。
+- **「综合」按关注过滤**：`topics()` 的 latest 分支过 `filterLatestByFollowed`——编辑资讯 label（篮球资讯/英超/NBA…）按 `LATEST_LABEL_FAMILIES` 归内容家族，`followedLatestKeywords` 由生效频道（sport:→家族、board:→家族+板块名）+ 收藏板块名求放行集；命中家族但未关注→滤除，未识别 label 一律放行；过滤后 <5 条 fail-open 返回原列表。
+- **失效信号**：`FeedViewModel.invalidateLatest()` 只作废 `_pages["latest"]`（在「综合」停留时立即 refresh），KudoApp `LaunchedEffect(homeChannelsVersion, favoriteTopicsVersion)` 触发——关注变化不动其他频道缓存。
+- **ZonePage 取数回落**：`topicFeed(repo,url,page)` 统一 `topicPage`→`board()` 回落（板块页无分页：page>1 不回落直接空），覆盖首载/刷新/加载更多三处——与 `CommunityRepository.topics` board: 分支同一契约（收藏同步后「关注」tab 会出现 /all-gambia 类板块页 URL，原路径必空）。

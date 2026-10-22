@@ -9,7 +9,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import com.kudo.android.hupu.HUPU_BOARDS
 import com.kudo.android.hupu.HupuMatchApi
 import com.kudo.android.hupu.HupuMatchDay
+import com.kudo.android.hupu.HupuPrefs
 import com.kudo.android.hupu.HupuRepository
+import com.kudo.android.hupu.HupuThread
 
 /**
  * 社区数据仓库 —— 虎Do 版。
@@ -93,7 +95,7 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
         }
         val threads = when (filter) {
             FeedFilter.HOT.value -> hupu.board("/all-gambia")?.threads
-            else -> hupu.mobileHome()
+            else -> hupu.mobileHome()?.let { filterLatestByFollowed(it) }
         }.orEmpty()
         return TopicPage(threads.map { it.toTopic() }, null)
     }
@@ -238,4 +240,76 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
 
     suspend fun upload(bytes: ByteArray, mimeType: String, filename: String): String =
         throw ApiFailure(FailureKind.SIGN_IN, "请先登录虎扑")
+}
+
+/**
+ * 「综合」流的编辑类 label → 内容家族。
+ * 命中某家族但用户未关注该家族（无对应 board:/sport: 频道或收藏板块）→ 过滤；
+ * 不命中任何家族的 label 一律放行（板块帖/未识别杂项宁可多给也别饿死推荐流）。
+ */
+private val LATEST_LABEL_FAMILIES: Map<String, List<String>> = mapOf(
+    "basketball" to listOf("篮球", "NBA", "CBA", "WNBA", "CUBA", "男篮"),
+    "soccer" to listOf("足球", "英超", "西甲", "意甲", "德甲", "法甲", "中超", "欧冠", "世界杯", "欧联", "FIFA"),
+    "lol" to listOf("英雄联盟", "LOL", "LPL", "LCK", "MSI"),
+    "kog" to listOf("王者", "KPL"),
+    "val" to listOf("无畏契约", "VALORANT", "瓦罗兰特"),
+    "cs" to listOf("CS2", "CSGO", "反恐精英"),
+    "pubg" to listOf("绝地求生", "PUBG", "和平精英", "吃鸡"),
+    "street" to listOf("步行街"),
+    "othersport" to listOf("综合体育", "F1", "网球", "乒乓", "羽毛", "台球", "田径", "游泳", "拳击", "UFC", "奥运", "赛车", "高尔夫", "橄榄球", "棒球", "排球"),
+)
+
+/** sport 频道 id → 内容家族（决定它能为「综合」解锁哪类编辑资讯） */
+private val LATEST_FAMILY_OF_SPORT: Map<String, String> = mapOf(
+    "nba" to "basketball", "cba" to "basketball", "wnba" to "basketball", "cuba" to "basketball",
+    "soccer" to "soccer", "epl" to "soccer", "csl" to "soccer", "worldcup" to "soccer",
+    "laliga" to "soccer", "seriea" to "soccer", "bundesliga" to "soccer", "ligue1" to "soccer",
+    "lol" to "lol", "lpl" to "lol", "lck" to "lol",
+    "kog" to "kog", "val" to "val",
+    "cs2" to "cs", "pubg" to "pubg", "pubgmobile" to "pubg",
+    "tennis" to "othersport", "tabletennis" to "othersport",
+    "badminton" to "othersport", "olympics" to "othersport",
+)
+
+/** 板块 url → 内容家族：由 HUPU_BOARDS.boardUrl 反查 + 社区大板块补充 */
+private val LATEST_FAMILY_OF_BOARD: Map<String, String> by lazy {
+    HUPU_BOARDS.entries.mapNotNull { (id, cfg) ->
+        cfg.boardUrl.takeIf { it.isNotBlank() }
+            ?.let { url -> LATEST_FAMILY_OF_SPORT[id]?.let { fam -> url to fam } }
+    }.plus("/all-gambia" to "street").toMap()
+}
+
+/**
+ * 已关注内容在「综合」流的放行关键词：
+ * 家族关键词（sport: 频道与可映射板块的家族）+ 各关注板块自身名称。
+ */
+private fun followedLatestKeywords(): Set<String> {
+    val out = mutableSetOf<String>()
+    fun allow(url: String, name: String) {
+        LATEST_FAMILY_OF_BOARD[url]?.let { out += LATEST_LABEL_FAMILIES[it].orEmpty() }
+        if (name.isNotBlank()) out += name.trim()
+    }
+    for ((k, l) in HupuPrefs.effectiveHomeChannels()) when {
+        k.startsWith("sport:") -> LATEST_FAMILY_OF_SPORT[k.removePrefix("sport:")]
+            ?.let { out += LATEST_LABEL_FAMILIES[it].orEmpty() }
+        k.startsWith("board:") -> allow(k.removePrefix("board:"), l)
+    }
+    HupuPrefs.loadFavoriteTopics().forEach { allow(it.url, it.name) }
+    return out
+}
+
+/**
+ * 「综合」按关注过滤：只放行已关注家族（或未识别 label）的条目。
+ * 过滤后不足 5 条时放弃过滤返回原列表（fail-open，防误配饿死首屏）。
+ */
+private fun filterLatestByFollowed(threads: List<HupuThread>): List<HupuThread> {
+    val allowed = followedLatestKeywords()
+    if (allowed.isEmpty()) return threads
+    val known = LATEST_LABEL_FAMILIES.values.flatten()
+    val filtered = threads.filter { th ->
+        val label = th.topic?.name.orEmpty()
+        allowed.any { label.contains(it, ignoreCase = true) } ||
+            known.none { label.contains(it, ignoreCase = true) }
+    }
+    return if (filtered.size >= 5) filtered else threads
 }

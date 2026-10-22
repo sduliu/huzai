@@ -197,6 +197,11 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                             }
                         }
                         LaunchedEffect(refreshEpoch) { feed.refreshIfRequested(refreshEpoch) }
+                        // 关注/频道变化 → 「综合」按关注重新过滤（只作废该页缓存，其他频道页不受影响）
+                        LaunchedEffect(com.kudo.android.hupu.HupuPrefs.homeChannelsVersion,
+                            com.kudo.android.hupu.HupuPrefs.favoriteTopicsVersion) {
+                            feed.invalidateLatest()
+                        }
                         LaunchedEffect(readingEpoch, account.user?.id) {
                             feed.refreshReadListsIfRequested(readingEpoch, account.user?.id)
                         }
@@ -223,8 +228,7 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                                                     selected = 3
                                                 })
                                         })
-                                    1 -> CommunityDirectoryHost(directory, account.user?.id, account.sessionReady, ::login,
-                                        { nav.navigate("category/${it.id}") }, ::openTag, ::openWebPage)
+                                    1 -> com.kudo.android.hupuui.pages.ZonePage()
                                     3 -> com.kudo.android.hupuui.pages.ScorePage(request = scoreRequest)
                                     4 -> ProfileScreen(account.user, ::login, { nav.navigate("settings") }, { nav.navigate("bookmarks") }, { account.user?.username?.let(::user) }, repository = app.repository, about = { nav.navigate("about") }, downloads = { nav.navigate("downloads") },
                                         destination = { destination ->

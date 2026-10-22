@@ -71,6 +71,7 @@ import com.kudo.android.hupu.HupuThread
 import com.kudo.android.hupu.HupuThreadDetail
 import com.kudo.android.hupu.HupuRepository
 import com.kudo.android.hupu.HupuTopicInfo
+import com.kudo.android.hupu.HupuTopicPage
 import com.kudo.android.hupu.pickTopicSortKey
 import com.kudo.android.hupu.SortTab
 import com.kudo.android.hupuui.components.Chip
@@ -159,6 +160,19 @@ fun ZonePage(modifier: Modifier = Modifier) {
             }
         }
         loading = false
+    }
+
+    /** 关注/取关一个板块：写 HupuPrefs（同步首页频道），轻提示 */
+    fun toggleFav(t: HupuTopicInfo) {
+        val r = HupuPrefs.toggleFavoriteTopic(t)
+        com.kudo.android.hupuui.components.HuzaiToast.show(
+            when (r) {
+                HupuPrefs.FavoriteToggle.ADDED -> "已关注「${t.name}」"
+                HupuPrefs.FavoriteToggle.REMOVED -> "已取消关注"
+                HupuPrefs.FavoriteToggle.LIMIT ->
+                    "关注板块已达上限（${HupuPrefs.MAX_FAVORITE_TOPICS}）"
+            }
+        )
     }
 
     fun openTopic(t: HupuTopicInfo) {
@@ -314,7 +328,7 @@ fun ZonePage(modifier: Modifier = Modifier) {
                     onNext = { swipeCate(1) },
                 ),
             header = {
-                PageHeader(title = "专区")
+                PageHeader(title = "板块")
                 // 大类横滑条同属顶栏：浮空时与标题一起压在内容之上
                 if (categories != null && categories!!.isNotEmpty()) {
                     CateBar(
@@ -339,7 +353,7 @@ fun ZonePage(modifier: Modifier = Modifier) {
                     if (topics.isEmpty()) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text(
-                                if (favTab) "还没有收藏专区" else "该分类暂无版块",
+                                if (favTab) "还没有关注板块" else "该分类暂无版块",
                                 fontSize = 14.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -355,7 +369,11 @@ fun ZonePage(modifier: Modifier = Modifier) {
                             modifier = Modifier.fillMaxSize(),
                         ) {
                             gridItems(topics, key = { it.topicId + it.url }) { t ->
-                                TopicCell(t) { openTopic(t) }
+                                TopicCell(t,
+                                    isFavorite = favTopics.any { it.url == t.url },
+                                    onClick = { openTopic(t) },
+                                    onToggleFavorite = { toggleFav(t) },
+                                )
                             }
                         }
                     }
@@ -373,17 +391,7 @@ fun ZonePage(modifier: Modifier = Modifier) {
             TopicFeedOverlay(
                 topic = opened,
                 isFavorite = favTopics.any { it.url == opened.url },
-                onToggleFavorite = {
-                    val r = HupuPrefs.toggleFavoriteTopic(opened)
-                    com.kudo.android.hupuui.components.HuzaiToast.show(
-                        when (r) {
-                            HupuPrefs.FavoriteToggle.ADDED -> "已收藏「${opened.name}」"
-                            HupuPrefs.FavoriteToggle.REMOVED -> "已取消收藏"
-                            HupuPrefs.FavoriteToggle.LIMIT ->
-                                "收藏专区已达上限（${HupuPrefs.MAX_FAVORITE_TOPICS}）"
-                        }
-                    )
-                },
+                onToggleFavorite = { toggleFav(opened) },
                 closing = overlayClosing,
                 feedStates = feedStates,
                 topicSorts = topicSorts,
@@ -405,7 +413,7 @@ fun ZonePage(modifier: Modifier = Modifier) {
                     if (feedStates.containsKey(key)) return@TopicFeedOverlay
                     scope.launch {
                         loadingTopicKey = key
-                        val p = repo.topicPage(sort ?: url)
+                        val p = topicFeed(repo, sort ?: url, 1)
                         if (p != null) {
                             // 1.2xx：发现「有默认排序要用」时**不落地**这份默认排序的内容 ——
                             // 否则 Crossfade 会拿它当退场层，先闪一下「最新回复」列表再切成目标排序。
@@ -440,7 +448,7 @@ fun ZonePage(modifier: Modifier = Modifier) {
                     val key = "$url#${sort ?: url}"
                     scope.launch {
                         loadingTopicKey = key
-                        val p = repo.topicPage(sort ?: url, refresh = true)
+                        val p = topicFeed(repo, sort ?: url, 1, refresh = true)
                         if (p != null) {
                             feedStates[key] = TopicFeedState(
                                 threads = p.threads,
@@ -459,7 +467,7 @@ fun ZonePage(modifier: Modifier = Modifier) {
                         val state = feedStates[key] ?: return@launch
                         if (state.loadingMore || state.page >= state.totalPages) return@launch
                         feedStates[key] = state.copy(loadingMore = true)
-                        val p = repo.topicPage(sort ?: url, page = state.page + 1)
+                        val p = topicFeed(repo, sort ?: url, state.page + 1)
                         val cur = feedStates[key]
                         if (p != null && cur != null) {
                             val merged = (cur.threads + p.threads).distinctBy { it.tid }
@@ -641,7 +649,7 @@ private fun TopicFeedOverlay(
                     // 1.191: 收藏该专区
                     LiquidIconButton(
                         icon = HupuIcons.StarRate,
-                        contentDescription = if (isFavorite) "取消收藏" else "收藏专区",
+                        contentDescription = if (isFavorite) "取消关注" else "关注板块",
                         onClick = { onToggleFavorite() },
                         tint = if (isFavorite) MaterialTheme.colorScheme.primary
                                else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -750,7 +758,7 @@ private fun CateBar(
         if (showFavorites) {
             item(key = FAV_CATE_ID) {
                 Chip(
-                    text = "收藏专区",
+                    text = "关注",
                     leadingIcon = HupuIcons.StarRate,
                     selected = selected == FAV_CATE_ID,
                     onClick = onSelectFavorites,
@@ -767,40 +775,85 @@ private fun CateBar(
     }
 }
 
-/** 版块格子：圆形 logo + 名称 + 热度 */
+/**
+ * 话题/板块统一取数：话题页解析失败回落板块页。
+ * 两类页面并存：专区话题页（parseTopicPage，有分页）/老式板块页（parseBoardPage，无分页），
+ * parseTopicPage 对板块页结构返回 null；板块页无分页——page>1 不回落，直接视为没有更多。
+ */
+private suspend fun topicFeed(
+    repo: HupuRepository,
+    url: String,
+    page: Int,
+    refresh: Boolean = false,
+): HupuTopicPage? {
+    repo.topicPage(url, page, refresh)?.let { return it }
+    if (page > 1) return null
+    val b = repo.board(url, refresh) ?: return null
+    return HupuTopicPage(
+        topic = b.category ?: HupuTopicInfo(topicId = "", name = "", url = url),
+        threads = b.threads,
+        page = 1,
+        totalPages = 1,
+        sortTabs = emptyList(),
+    )
+}
+
+/** 版块格子：圆形 logo + 名称 + 热度；右上角星标即「关注」（同步首页频道与综合过滤） */
 @Composable
-private fun TopicCell(t: HupuTopicInfo, onClick: () -> Unit) {
-    Column(
+private fun TopicCell(t: HupuTopicInfo, isFavorite: Boolean, onClick: () -> Unit, onToggleFavorite: () -> Unit) {
+    Box(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 14.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .background(MaterialTheme.colorScheme.surface),
     ) {
-        AsyncImage(
-            model = normalizeCover(t.logo),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.size(56.dp).clip(CircleShape),
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            t.name,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            color = MaterialTheme.colorScheme.onSurface,
-            textAlign = TextAlign.Center,
-        )
-        if (t.hotText.isNotBlank()) {
-            Spacer(Modifier.height(2.dp))
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 12.dp, vertical = 14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            AsyncImage(
+                model = normalizeCover(t.logo),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(56.dp).clip(CircleShape),
+            )
+            Spacer(Modifier.height(8.dp))
             Text(
-                "${t.hotText} 热度",
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                t.name,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+            )
+            if (t.hotText.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "${t.hotText} 热度",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .padding(4.dp)
+                .size(30.dp)
+                .clip(CircleShape)
+                .clickable(onClick = onToggleFavorite),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                HupuIcons.StarRate,
+                contentDescription = if (isFavorite) "取消关注" else "关注",
+                modifier = Modifier.size(18.dp),
+                tint = if (isFavorite) MaterialTheme.colorScheme.primary
+                       else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
             )
         }
     }
