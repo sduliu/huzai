@@ -20,9 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
-import com.kudo.android.hupuui.components.animateChipCenterTo
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
@@ -50,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -74,7 +73,6 @@ import com.kudo.android.hupu.HupuTopicInfo
 import com.kudo.android.hupu.HupuTopicPage
 import com.kudo.android.hupu.pickTopicSortKey
 import com.kudo.android.hupu.SortTab
-import com.kudo.android.hupuui.components.Chip
 import com.kudo.android.hupuui.components.ErrorRetry
 import com.kudo.android.hupuui.components.FeedList
 import com.kudo.android.hupuui.components.HupuIcons
@@ -91,7 +89,6 @@ import com.kudo.android.hupuui.components.tabSwipeSwitch
 import com.kudo.android.hupuui.components.CenteredTopBar
 import com.kudo.android.hupuui.components.LiquidBackButton
 import com.kudo.android.hupuui.components.LiquidIconButton
-import com.kudo.android.hupuui.components.chipBarClip
 import com.kudo.android.hupuui.components.HuzaiToast
 
 /**
@@ -328,17 +325,7 @@ fun ZonePage(modifier: Modifier = Modifier) {
                     onNext = { swipeCate(1) },
                 ),
             header = {
-                PageHeader(title = "板块")
-                // 大类横滑条同属顶栏：浮空时与标题一起压在内容之上
-                if (categories != null && categories!!.isNotEmpty()) {
-                    CateBar(
-                        categories = categories!!,
-                        selected = selectedCateId,
-                        onSelect = { selectedCateId = it },
-                        showFavorites = hasFav,
-                        onSelectFavorites = { selectedCateId = FAV_CATE_ID },
-                    )
-                }
+                PageHeader(title = "专区")
             },
         ) { topInset ->
             when {
@@ -347,33 +334,41 @@ fun ZonePage(modifier: Modifier = Modifier) {
                 categories == null -> ErrorRetry { cateRefreshTick++ }
                 categories!!.isEmpty() -> ErrorRetry { cateRefreshTick++ }
                 else -> {
-                    // 1.191: 选中「收藏专区」时网格数据来自收藏列表，其余走大类版块
-                    val favTab = selectedCateId == FAV_CATE_ID
-                    val topics = if (favTab) favTopics else current?.topics.orEmpty()
-                    if (topics.isEmpty()) {
-                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(
-                                if (favTab) "还没有关注板块" else "该分类暂无版块",
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    } else {
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(3),
-                            // 1.199：上方留白交给横滑条自身的 bottom padding，这里不再叠加
-                            // 1.198：浮空顶栏模式下 topInset = 实测栏高（含横滑条的 bottom padding）
-                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = topInset, bottom = 140.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxSize(),
-                        ) {
-                            gridItems(topics, key = { it.topicId + it.url }) { t ->
-                                TopicCell(t,
-                                    isFavorite = favTopics.any { it.url == t.url },
-                                    onClick = { openTopic(t) },
-                                    onToggleFavorite = { toggleFav(t) },
+                    // 官方布局：左栏分类竖排导航（灰底）+ 右栏版块网格
+                    Row(Modifier.fillMaxSize().padding(top = topInset)) {
+                        CateRail(
+                            categories = categories!!,
+                            selected = selectedCateId,
+                            onSelect = { selectedCateId = it },
+                            showFavorites = hasFav,
+                            onSelectFavorites = { selectedCateId = FAV_CATE_ID },
+                        )
+                        // 1.191: 选中「收藏专区」时网格数据来自收藏列表，其余走大类版块
+                        val favTab = selectedCateId == FAV_CATE_ID
+                        val topics = if (favTab) favTopics else current?.topics.orEmpty()
+                        if (topics.isEmpty()) {
+                            Box(Modifier.weight(1f).fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text(
+                                    if (favTab) "还没有关注板块" else "该分类暂无版块",
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
+                            }
+                        } else {
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(3),
+                                contentPadding = PaddingValues(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 140.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.weight(1f).fillMaxSize(),
+                            ) {
+                                gridItems(topics, key = { it.topicId + it.url }) { t ->
+                                    TopicCell(t,
+                                        isFavorite = favTopics.any { it.url == t.url },
+                                        onClick = { openTopic(t) },
+                                        onToggleFavorite = { toggleFav(t) },
+                                    )
+                                }
                             }
                         }
                     }
@@ -730,48 +725,60 @@ private fun TopicFeedOverlay(
 /** 1.191: 「收藏专区」虚拟 tab 的 id（不是真实大类，仅本页内使用） */
 private const val FAV_CATE_ID = "__fav_topics__"
 
-/** 大类横滑条：单选，16dp 限宽裁剪（与首页一致） */
+/** 官方式左栏分类导航：竖排条目，选中项白底+左红条，跟随选中自动滚动。 */
 @Composable
-private fun CateBar(
+private fun CateRail(
     categories: List<HupuCategory>,
     selected: String,
     onSelect: (String) -> Unit,
-    /** 1.191: 有收藏专区时，最前面插一个「收藏专区」tab（图标 + 默认选中） */
+    /** 1.191: 有收藏专区时，最前面插一个「关注」项（默认选中） */
     showFavorites: Boolean = false,
     onSelectFavorites: () -> Unit = {},
 ) {
-    val barState = rememberLazyListState()
+    val railState = rememberLazyListState()
     val allIds = if (showFavorites) listOf(FAV_CATE_ID) + categories.map { it.cateId }
                  else categories.map { it.cateId }
     val selIdx = allIds.indexOf(selected)
-    LaunchedEffect(selected, showFavorites) { if (selIdx >= 0) barState.animateChipCenterTo(selIdx) }
-    LazyRow(
-        state = barState,
+    LaunchedEffect(selected, showFavorites) { if (selIdx >= 0) railState.animateScrollToItem(selIdx) }
+    androidx.compose.foundation.lazy.LazyColumn(
+        state = railState,
         modifier = Modifier
-            .fillMaxWidth()
-            // 1.197：裁剪边界退到 8dp，给首个/末个 chip 的浮起阴影留空间（内容仍从 16dp 起）
-            .chipBarClip()
-            .padding(bottom = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+            .width(92.dp)
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
     ) {
-        // 1.191: 「收藏专区」永远排在最前面（图标用与帖子「收藏」同源的星标）
         if (showFavorites) {
             item(key = FAV_CATE_ID) {
-                Chip(
-                    text = "关注",
-                    leadingIcon = HupuIcons.StarRate,
-                    selected = selected == FAV_CATE_ID,
-                    onClick = onSelectFavorites,
-                )
+                RailItem("关注", selected == FAV_CATE_ID, onSelectFavorites)
             }
         }
         items(categories, key = { it.cateId }) { c ->
-            Chip(
-                text = c.name,
-                logoUrl = normalizeCover(c.logo),
-                selected = selected == c.cateId,
-            ) { onSelect(c.cateId) }
+            RailItem(c.name, selected == c.cateId) { onSelect(c.cateId) }
         }
+    }
+}
+
+@Composable
+private fun RailItem(label: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().height(50.dp)
+            .background(if (selected) MaterialTheme.colorScheme.background else Color.Transparent)
+            .clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.width(3.dp).height(20.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(if (selected) Color(0xFFE60023) else Color.Transparent)
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            label, fontSize = 13.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            color = if (selected) MaterialTheme.colorScheme.onSurface
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

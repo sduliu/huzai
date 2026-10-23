@@ -129,3 +129,14 @@ AGP 9 迁移要点：删 `kotlin-android` 插件（内置 Kotlin）、`sdkDirect
 - **「综合」按关注过滤**：`topics()` 的 latest 分支过 `filterLatestByFollowed`——编辑资讯 label（篮球资讯/英超/NBA…）按 `LATEST_LABEL_FAMILIES` 归内容家族，`followedLatestKeywords` 由生效频道（sport:→家族、board:→家族+板块名）+ 收藏板块名求放行集；命中家族但未关注→滤除，未识别 label 一律放行；过滤后 <5 条 fail-open 返回原列表。
 - **失效信号**：`FeedViewModel.invalidateLatest()` 只作废 `_pages["latest"]`（在「综合」停留时立即 refresh），KudoApp `LaunchedEffect(homeChannelsVersion, favoriteTopicsVersion)` 触发——关注变化不动其他频道缓存。
 - **ZonePage 取数回落**：`topicFeed(repo,url,page)` 统一 `topicPage`→`board()` 回落（板块页无分页：page>1 不回落直接空），覆盖首载/刷新/加载更多三处——与 `CommunityRepository.topics` board: 分支同一契约（收藏同步后「关注」tab 会出现 /all-gambia 类板块页 URL，原路径必空）。
+
+## 官方形态对齐一期（底栏/频道条/热榜/频道管理/专区布局）
+
+对照官方 app（com.hupu.games，userdebug 模拟器藏 su 后实测逐屏采集）做的首期对齐；保留比赛 Tab 与匿名可读，砍广告/深聊/送礼等。
+
+- **底栏**：「板块」→「专区」，五槽顺序 `首页 | 专区 | 发布 | 比赛 | 我的` 与官方 `首页 | 专区 | + | 深聊 | 我的` 位置对齐（深聊=AI 功能不做，槽位留给比赛）。
+- **首页频道条**：`热榜 | 推荐 | <我的频道…> | ☰`（`FeedFilter.LATEST.label`→推荐、`HOT.label`→热榜；尾部「类别」tab 移除——已由专区 Tab 覆盖；管理入口图标 Add→Menu）。`topics()` 的 HOT 分支不再取 /all-gambia 帖流，返回空——热榜是榜单页不走帖子流。
+- **热榜频道 `HotChannelPage`**：自定义榜单页（非 FeedPage），数据源 = `boardPage("/all-gambia")` 的 SSR 内嵌块：`recommendations`→热帖榜（rank 红/橙/灰前三标色+💬数）、`hotTopics`→热门版块 3 列网格（logo+名+热度，点开 `category/{boardId}`）、`trending`→大家都在搜 FlowRow 词块（跳 `search?query=`——路由加可选 query 参数，`SearchViewModel(repo,accountId,initialQuery)` 原有第三参即接）。`parseBoardPage` 新增 `trending` 字段解析（`pageData.trending[].title`）。
+- **频道管理 `HomeChannelsScreen`**：列表+上下箭头改官方式两段 3 列胶囊网格（LazyVerticalGrid）——「我的频道」=热榜/推荐固定灰丸 + 已选丸，「推荐频道」=+前缀丸点选即加；右上「编辑/完成」切换，编辑态丸右上 ✕ 徽标移除、**点选两丸换位**（高亮第一枚，官方拖拽排序的轻量等价）；写 `saveHomeChannels` 仍触发 board:↔收藏同步。
+- **专区页布局**：`CateBar` 横滑条 → `CateRail` 左栏竖排导航（92dp 灰底、选中项白底+3dp 左红条、`animateScrollToItem` 跟随选中——`tabSwipeSwitch` 横滑切类逻辑不变），右侧 3 列版块网格原样；页头改「专区」。板块页 URL 回落同步补进 `topics(categoryId=)` 分支（topicPage→board()），热榜热门版块点进 `category/{boardId}` 走该路径。
+- **遗留**：官方热榜另有「评分榜/话题榜」两段（评分数据接口未探）、频道页推荐/最新切换、版块页头部档案、详情回复排序——属二~四期。

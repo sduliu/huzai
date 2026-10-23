@@ -186,6 +186,8 @@ data class HupuBoardPage(
     val threads: List<HupuThread>,
     val hotTopics: List<HupuTopicInfo>,
     val recommendations: List<HupuThread>,
+    /** 官方页内嵌的热搜词（热榜频道「大家都在搜」用） */
+    val trending: List<String> = emptyList(),
 )
 
 /** 话题页数据（含分页） */

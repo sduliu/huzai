@@ -99,11 +99,19 @@ object HupuParser {
             }
         }
 
+        val trending = mutableListOf<String>()
+        pd.optJSONArray("trending")?.let { arr ->
+            for (i in 0 until arr.length()) {
+                arr.optJSONObject(i)?.optString("title")?.takeIf { it.isNotBlank() }?.let(trending::add)
+            }
+        }
+
         return HupuBoardPage(
             category = category,
             threads = threadsJson.mapNotNull { o -> o?.let { threadFrom(it) } },
             hotTopics = hot,
             recommendations = rec,
+            trending = trending,
         )
     }
 

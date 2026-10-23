@@ -70,9 +70,10 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refresh: () -> Unit, more: () -> Unit, openTopic: (Int) -> Unit, openUser: (String) -> Unit, search: () -> Unit, login: () -> Unit, categories: () -> Unit, modifier: Modifier = Modifier, category: Category? = null, back: () -> Unit = {}, listStyle: TopicListStyle = TopicListStyle.FEED, pages: Map<String, FeedState> = emptyMap(), categoryContent: (@Composable () -> Unit)? = null, createTopic: (Int) -> Unit = {}, glass: GlassMode = LocalDisplaySettings.current.glass,
+fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refresh: () -> Unit, more: () -> Unit, openTopic: (Int) -> Unit, openUser: (String) -> Unit, search: () -> Unit, login: () -> Unit, categories: () -> Unit, modifier: Modifier = Modifier, category: Category? = null, back: () -> Unit = {}, listStyle: TopicListStyle = TopicListStyle.FEED, pages: Map<String, FeedState> = emptyMap(), createTopic: (Int) -> Unit = {}, glass: GlassMode = LocalDisplaySettings.current.glass,
     channels: List<Pair<String, String>> = emptyList(), manageChannels: () -> Unit = {},
     channelHeader: (@Composable (String) -> Unit)? = null,
+    hotContent: (@Composable () -> Unit)? = null,
     prefetch: (String) -> Unit = {}) {
     if (category != null) {
         CategoryFeedScreen(category, state, user, select, refresh, more, openTopic, openUser, search, login, back, modifier, listStyle, pages, createTopic, glass)
@@ -87,21 +88,20 @@ fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refres
     var headerHeight by remember { mutableIntStateOf(0) }
     val contentTopPadding = with(LocalDensity.current) { headerHeight.toDp() }
     Box(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).nestedScroll(scrollBehavior.nestedScrollConnection)) {
-        // 首页频道条：综合固定第一 + 用户自选频道（board:/sport: 键）+ 类别目录
-        val tabs = listOf(FeedFilter.LATEST.value to FeedFilter.LATEST.label) +
-            channels + listOf("categories" to "类别")
+        // 首页频道条（官方版式）：热榜 + 推荐 + 用户频道（board:/sport: 键）+ 右端 ☰ 管理
+        val tabs = listOf(FeedFilter.HOT.value to FeedFilter.HOT.label,
+            FeedFilter.LATEST.value to FeedFilter.LATEST.label) + channels
         key(user?.id, user?.unifiedNew, channels) {
             val pager = rememberPagerState(initialPage = tabs.indexOfFirst { it.first == state.filter }.coerceAtLeast(0), pageCount = { tabs.size })
             val scope = rememberCoroutineScope()
             val currentSelect by rememberUpdatedState(select)
-            val currentCategories by rememberUpdatedState(categories)
             val currentPrefetch by rememberUpdatedState(prefetch)
             LaunchedEffect(pager) {
                 // targetPage 在手势提交翻页的那一刻就更新（不等动画落定）——让 select()
                 // 在滑动进行中就开始取数，落定时内容大多已就绪，不再「空页滑入再蹦出」。
                 snapshotFlow { pager.targetPage }.distinctUntilChanged().collect { index ->
                     val value = tabs.getOrNull(index)?.first ?: return@collect
-                    if (value == "categories") currentCategories() else currentSelect(value)
+                    currentSelect(value)
                 }
             }
             LaunchedEffect(pager) {
@@ -114,7 +114,7 @@ fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refres
                     previousPage = index
                     // 落定后预取左右相邻频道：滑过去时缓存已就绪，落地即有内容
                     listOf(index - 1, index + 1).forEach { i ->
-                        tabs.getOrNull(i)?.first?.takeIf { it != "categories" }?.let(currentPrefetch)
+                        tabs.getOrNull(i)?.first?.let(currentPrefetch)
                     }
                 }
             }
@@ -125,10 +125,8 @@ fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refres
             HorizontalPager(pager, Modifier.fillMaxSize().layerBackdrop(backdrop).testTag("home-pager"), key = { tabs[it].first },
                 beyondViewportPageCount = 1) { index ->
                 val value = tabs[index].first
-                if (value == "categories") {
-                    Box(Modifier.fillMaxSize().padding(top = contentTopPadding)) {
-                        categoryContent?.invoke() ?: EmptyState("社区分类", "按分类浏览话题", actionLabel = "查看分类", action = categories)
-                    }
+                if (value == "hot") {
+                    Box(Modifier.fillMaxSize().padding(top = contentTopPadding)) { hotContent?.invoke() }
                 } else {
                     val page = if (value == state.filter) state else pages[value]?.takeIf { it.accountId == user?.id }
                         ?: FeedState(filter = value, accountId = user?.id, categories = state.categories)
@@ -176,7 +174,7 @@ fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refres
                         if (index >= 0) scope.launch { pager.animateScrollToPage(index) }
                     }
                     Box(Modifier.size(30.dp).clip(CircleShape).clickable(role = Role.Button, onClick = manageChannels).testTag("home-channel-manage"), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Rounded.Add, "频道管理", Modifier.size(20.dp), MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Rounded.Menu, "全部频道", Modifier.size(20.dp), MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

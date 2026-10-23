@@ -213,8 +213,6 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                             Box(Modifier.fillMaxSize().layerBackdrop(backdrop).background(MaterialTheme.colorScheme.background)) {
                                 when (selected) {
                                     0 -> FeedScreen(state.forUser(account.user), account.user, feed::select, feed::refresh, feed::more, { topic(it) }, ::user, { nav.navigate("search") }, { if (account.user == null) login() else user(account.user!!.username) }, { directory.useAccount(account.user?.id); if (account.sessionReady) directory.loadIfStale() }, listStyle = display.topicListStyle, pages = pages, prefetch = feed::prefetch,
-                                        categoryContent = { CommunityDirectoryHost(directory, account.user?.id, account.sessionReady, ::login,
-                                            { nav.navigate("category/${it.id}") }, ::openTag, ::openWebPage, inHome = true) },
                                         channels = homeChannels,
                                         manageChannels = { nav.navigate("home-channels") },
                                         channelHeader = { key ->
@@ -227,6 +225,12 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                                                     scoreRequest = com.kudo.android.hupuui.pages.ScoreNavRequest(key, m.matchId, System.nanoTime())
                                                     selected = 3
                                                 })
+                                        },
+                                        hotContent = {
+                                            com.kudo.android.ui.feed.HotChannelPage(app.repository,
+                                                openTopic = { topic(it) },
+                                                openBoard = { url -> nav.navigate("category/${com.kudo.android.data.HupuIds.boardId(url)}") },
+                                                openSearch = { q -> nav.navigate("search?query=${Uri.encode(q)}") })
                                         })
                                     1 -> com.kudo.android.hupuui.pages.ZonePage()
                                     3 -> com.kudo.android.hupuui.pages.ScorePage(request = scoreRequest)
@@ -274,8 +278,9 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                     composable("home-channels") {
                         com.kudo.android.ui.feed.HomeChannelsScreen(app.repository) { nav.popBackStack() }
                     }
-                    composable("search") {
-                        val vm = model("search") { SearchViewModel(app.repository, account.user?.id) }
+                    composable("search?query={query}", arguments = listOf(navArgument("query") { defaultValue = "" })) { entry ->
+                        val q = entry.arguments?.getString("query").orEmpty()
+                        val vm = model("search") { SearchViewModel(app.repository, account.user?.id, q) }
                         val state by vm.state.collectAsStateWithLifecycle()
                         LaunchedEffect(vm, account.user?.id) { vm.useAccount(account.user?.id) }
                         SearchScreen(state.forAccount(account.user?.id), vm::search, { nav.popBackStack() }, ::topic, ::user, ::login, listStyle = display.topicListStyle,

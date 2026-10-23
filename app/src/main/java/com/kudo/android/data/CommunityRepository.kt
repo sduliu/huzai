@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import com.kudo.android.hupu.HUPU_BOARDS
 import com.kudo.android.hupu.HupuMatchApi
 import com.kudo.android.hupu.HupuMatchDay
+import com.kudo.android.hupu.HupuBoardPage
 import com.kudo.android.hupu.HupuPrefs
 import com.kudo.android.hupu.HupuRepository
 import com.kudo.android.hupu.HupuThread
@@ -42,9 +43,14 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
         if (categoryId != null) {
             val url = HupuIds.boardUrl(categoryId) ?: return TopicPage(emptyList(), null)
             val page = next?.removePrefix("p")?.toIntOrNull() ?: 1
-            val p = hupu.topicPage(url, page) ?: return TopicPage(emptyList(), null)
-            val cursor = if (p.totalPages > page) "p${page + 1}" else null
-            return TopicPage(p.threads.map { it.toTopic() }, cursor)
+            // 两类板块页：话题页（topicPage）/板块页（board）——解析失败自动回落
+            hupu.topicPage(url, page)?.let { p ->
+                val cursor = if (p.totalPages > page) "p${page + 1}" else null
+                return TopicPage(p.threads.map { it.toTopic() }, cursor)
+            }
+            if (page > 1) return TopicPage(emptyList(), null)
+            val b = hupu.board(url) ?: return TopicPage(emptyList(), null)
+            return TopicPage(b.threads.map { it.toTopic() }, null)
         }
         // board:<url> 板块频道 → 话题页分页；sport:<id> 赛事频道 → 官方 newsList/SSR/专区帖兜底
         if (filter.startsWith("board:")) {
@@ -94,11 +100,15 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
                 if (p.items.isNotEmpty()) "p${page + 1}" else null)
         }
         val threads = when (filter) {
-            FeedFilter.HOT.value -> hupu.board("/all-gambia")?.threads
-            else -> hupu.mobileHome()?.let { filterLatestByFollowed(it) }
-        }.orEmpty()
+            // 热榜是榜单页（HotChannelPage 自取数），不走帖子流
+            FeedFilter.HOT.value -> emptyList()
+            else -> hupu.mobileHome()?.let { filterLatestByFollowed(it) }.orEmpty()
+        }
         return TopicPage(threads.map { it.toTopic() }, null)
     }
+
+    /** 板块页原始数据（热榜频道/版块页头部用）。 */
+    suspend fun boardPage(url: String): HupuBoardPage? = hupu.board(url)
 
     /** 赛事频道的近期赛程（首页频道页顶部赛事条）。 */
     suspend fun sportMatches(key: String): List<HupuMatchDay> {
