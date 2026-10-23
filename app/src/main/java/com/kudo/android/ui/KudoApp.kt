@@ -217,14 +217,9 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                                         manageChannels = { nav.navigate("home-channels") },
                                         channelHeader = { key ->
                                             com.kudo.android.ui.feed.SportChannelHeader(key, app.repository,
-                                                onOpenSchedule = { g ->
-                                                    scoreRequest = com.kudo.android.hupuui.pages.ScoreNavRequest(g, null, System.nanoTime())
-                                                    selected = 3
-                                                },
-                                                onOpenMatch = { m ->
-                                                    scoreRequest = com.kudo.android.hupuui.pages.ScoreNavRequest(key, m.matchId, System.nanoTime())
-                                                    selected = 3
-                                                })
+                                                // 二级页打开赛程中心（可返回），不再切底栏 Tab
+                                                onOpenSchedule = { g -> nav.navigate("score/$g") },
+                                                onOpenMatch = { m -> nav.navigate("score/$key?match=${m.matchId}") })
                                         },
                                         hotContent = {
                                             com.kudo.android.ui.feed.HotChannelPage(app.repository,
@@ -277,6 +272,21 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                     }
                     composable("home-channels") {
                         com.kudo.android.ui.feed.HomeChannelsScreen(app.repository) { nav.popBackStack() }
+                    }
+                    // 赛事频道「查看全部赛程/比赛卡」→ 赛程中心二级页（预选该赛事，可返回）
+                    composable(
+                        "score/{game}?match={match}",
+                        arguments = listOf(
+                            navArgument("game") { defaultValue = "" },
+                            navArgument("match") { nullable = true; defaultValue = null },
+                        ),
+                    ) { entry ->
+                        val g = entry.arguments?.getString("game").orEmpty()
+                        val m = entry.arguments?.getString("match")
+                        com.kudo.android.hupuui.pages.ScorePage(
+                            request = com.kudo.android.hupuui.pages.ScoreNavRequest(g, m, System.nanoTime()),
+                            onBack = { nav.popBackStack() },
+                        )
                     }
                     composable("search?query={query}", arguments = listOf(navArgument("query") { defaultValue = "" })) { entry ->
                         val q = entry.arguments?.getString("query").orEmpty()

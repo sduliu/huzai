@@ -123,7 +123,7 @@ import com.kudo.android.hupuui.components.HuzaiToast
 data class ScoreNavRequest(val game: String, val matchId: String? = null, val nonce: Long = 0L)
 
 @Composable
-fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null) {
+fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, onBack: (() -> Unit)? = null) {
     val repo = remember { HupuRepository() }
     // 1.191: 记录层——供 Liquid Glass 弹窗采样背后像素（挂在内容层上，弹窗在其后）
     // 1.191: 先铺一层不透明页面底色再画内容——与 ThreadDetailPage 的
@@ -716,8 +716,8 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null) {
                     onNext = { swipeScoreTab(1) },
                 ),
             header = {
-            // fork：页头同步「比赛」命名（官方同名页）
-            PageHeader(title = "比赛") {
+            // fork：页头同步「比赛」命名（官方同名页）；二级页用法时左挂返回钮
+            PageHeader(title = "比赛", onBack = onBack) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 // 1.199：热门赛事是混装聚合 → 右上角给「筛选项目」入口
                 //     （组件与首页搜索键同源：LiquidIconButton 液态玻璃圆钮，24dp 图标）

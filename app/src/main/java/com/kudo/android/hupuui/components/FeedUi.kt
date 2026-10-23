@@ -850,6 +850,8 @@ private val PAGE_HEADER_LIFT = 5.dp
 @Composable
 internal fun PageHeader(
     title: String,
+    /** 非空时标题左侧出现返回钮（二级页用法；底栏主页不传） */
+    onBack: (() -> Unit)? = null,
     trailing: @Composable () -> Unit = {},
 ) {
     Row(
@@ -857,13 +859,17 @@ internal fun PageHeader(
             .fillMaxWidth()
             .statusBarsPadding()
             .padding(
-                start = 20.dp,
+                start = if (onBack != null) 12.dp else 20.dp,
                 end = 16.dp,
                 top = 10.dp - PAGE_HEADER_LIFT,
                 bottom = 6.dp + PAGE_HEADER_LIFT,
             ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (onBack != null) {
+            LiquidBackButton(onBack)
+            Spacer(Modifier.width(8.dp))
+        }
         Text(
             title,
             fontSize = 24.sp,
