@@ -394,6 +394,12 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
         val r = request ?: return@LaunchedEffect
         if (r.nonce == handledNonce) return@LaunchedEffect
         handledNonce = r.nonce
+        // 「common」= 外部请求定位到虎扑评分频道（热榜「评分榜」入口）
+        if (r.game == "common") {
+            commonOpen = true
+            externalPinned = null
+            return@LaunchedEffect
+        }
         commonOpen = false
         externalPinned = r.game
         if (selectedGame != r.game) {

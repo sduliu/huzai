@@ -135,11 +135,106 @@ internal fun ScheduleList(
                     modifier = Modifier.padding(top = 6.dp),
                 )
             }
-            // 当日比赛卡
-            items(day.matches, key = { it.matchId }) { m ->
-                MatchCard(m, onOpen = onOpenMatch)
+            // 当日赛程卡：官方式一张卡内多行紧凑赛程（行间隔细分隔线）
+            item(key = "daycard-${day.dayTime}") {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(horizontal = 14.dp),
+                ) {
+                    day.matches.forEachIndexed { i, m ->
+                        MatchRow(m, onOpen = onOpenMatch)
+                        if (i < day.matches.lastIndex) {
+                            Box(Modifier.fillMaxWidth().height(0.5.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
+                        }
+                    }
+                }
             }
         }
+    }
+}
+
+/** 官方赛程中心紧凑行：左「开赛时间+赛事名」、中「队徽+队名+比分」两行、右「状态+评分人数」。 */
+@Composable
+internal fun MatchRow(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
+    val openable = m.scoreBizNo != null || m.scoreBizType == HupuMatchApi.FOOTBALL_MATCH
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .then(if (openable) Modifier.clickable { onOpen(m) } else Modifier)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // 左列：开赛时间（HH:mm）+ 赛事名
+        Column(Modifier.width(60.dp)) {
+            Text(
+                m.startTimeText.substringAfter(' ', m.startTimeText),
+                fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface, maxLines = 1,
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(
+                m.introduction.ifBlank { m.matchName },
+                fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+        // 中列：两队迷你行（多队赛事显示单场赛事名）
+        val multiTeam = (m.home == null && m.away == null) ||
+            (m.home?.name.isNullOrBlank() && m.away?.name.isNullOrBlank())
+        Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+            if (multiTeam) {
+                Text(
+                    m.matchName.ifBlank { m.introduction },
+                    fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            } else {
+                MiniTeamScore(m.home, m.winnerMemberId == m.home?.memberId)
+                Spacer(Modifier.height(6.dp))
+                MiniTeamScore(m.away, m.winnerMemberId == m.away?.memberId)
+            }
+        }
+        // 右列：状态 + 评分人数
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                m.statusDesc, fontSize = 11.sp,
+                color = if (m.status == "INPROGRESS") MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (m.scoreCountText.isNotBlank()) {
+                Spacer(Modifier.height(3.dp))
+                Text(m.scoreCountText, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+/** 紧凑行内的队伍行：小logo + 队名 + 右对齐比分（胜方加粗） */
+@Composable
+private fun MiniTeamScore(t: HupuMatchTeam?, isWinner: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        AsyncImage(
+            model = normalizeCover(t?.logo),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.size(18.dp).clip(CircleShape),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            t?.name ?: "", fontSize = 13.sp,
+            fontWeight = if (isWinner) FontWeight.Bold else FontWeight.Normal,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            t?.baseScore ?: "", fontSize = 14.sp,
+            fontWeight = if (isWinner) FontWeight.Bold else FontWeight.Normal,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 

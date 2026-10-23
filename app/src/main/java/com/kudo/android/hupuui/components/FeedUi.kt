@@ -96,6 +96,8 @@ internal data class TopicFeedState(
     val page: Int = 1,
     val totalPages: Int = 1,
     val loadingMore: Boolean = false,
+    /** 话题页 SSR 下发的板块档案（name/desc/countText/logo），供版块页头部展示 */
+    val topicInfo: com.kudo.android.hupu.HupuTopicInfo? = null,
 )
 
 /**
@@ -302,6 +304,36 @@ internal fun FeedItem(thread: HupuThread, showImage: Boolean, onOpen: (HupuThrea
     }
 }
 
+/** 官方版块页平铺帖行：作者行 + 标题（可带红「置顶」） + 「N回复 / N推荐」+ 右侧时间，底部细分隔线。 */
+@Composable
+private fun FlatPostRow(thread: HupuThread, onOpen: (HupuThread) -> Unit) {
+    Column(Modifier.fillMaxWidth().clickable { onOpen(thread) }) {
+        Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                thread.author?.name?.takeIf { it.isNotBlank() } ?: thread.topic?.name.orEmpty(),
+                fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+            )
+            Text(
+                thread.createdAtText.takeIf { it.isNotBlank() } ?: "",
+                fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            thread.title, fontSize = 15.sp, fontWeight = FontWeight.Medium,
+            lineHeight = 20.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(5.dp))
+        Text(
+            "${formatCount(thread.replies)} 回复 · ${formatCount(thread.lights)} 推荐",
+            fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(11.dp))
+        Box(Modifier.fillMaxWidth().height(0.5.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
+    }
+}
+
 @Composable
 private fun MetaRow(thread: HupuThread) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -367,6 +399,10 @@ internal fun FeedList(
      *  首项才能从栏下开始；不传时保持原样（0dp） */
     topInset: Dp = 0.dp,
     onOpenThread: ((HupuThread) -> Unit)? = null,
+    /** 列表头内容（如版块档案卡），随列表滚动 */
+    headerContent: (@Composable () -> Unit)? = null,
+    /** 官方版块页平铺帖行：无卡片底、细分隔线、纯文字（作者+标题+回复/推荐+时间） */
+    flatRows: Boolean = false,
 ) {
     val listState = rememberLazyListState()
     // 刷新完成后回顶（仅当前活动列表）
@@ -418,10 +454,12 @@ internal fun FeedList(
         // 1.199：上方留白交给横滑条自身的 bottom padding，这里不再叠加（否则空隙过大）
         // 1.198：浮空顶栏模式下 topInset = 实测栏高（含横滑条的 bottom padding），首项从栏下开始
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = topInset, bottom = 140.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = if (flatRows) Arrangement.Top else Arrangement.spacedBy(12.dp),
     ) {
+        if (headerContent != null) item(key = "__header") { headerContent() }
         items(filteredThreads, key = { it.tid }) { thread ->
-            FeedItem(thread, showImage = useBigCards && normalizeCover(thread.cover) != null, onOpen = onOpenThread ?: {})
+            if (flatRows) FlatPostRow(thread, onOpen = onOpenThread ?: {})
+            else FeedItem(thread, showImage = useBigCards && normalizeCover(thread.cover) != null, onOpen = onOpenThread ?: {})
         }
         if (canLoadMore) {
             item(key = "loading-more") {

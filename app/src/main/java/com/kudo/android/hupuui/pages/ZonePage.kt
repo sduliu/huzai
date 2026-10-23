@@ -428,6 +428,7 @@ fun ZonePage(modifier: Modifier = Modifier) {
                                 threads = p.threads,
                                 page = p.page,
                                 totalPages = p.totalPages,
+                                topicInfo = p.topic,
                             )
                             topicSorts[url] = p.sortTabs
                             HupuPrefs.saveTopicSortTabs(url, p.sortTabs)
@@ -449,6 +450,7 @@ fun ZonePage(modifier: Modifier = Modifier) {
                                 threads = p.threads,
                                 page = p.page,
                                 totalPages = p.totalPages,
+                                topicInfo = p.topic,
                             )
                             topicSorts[url] = p.sortTabs
                             refreshVersion++
@@ -701,7 +703,15 @@ private fun TopicFeedOverlay(
                         selState.threads.isEmpty() -> ErrorRetry { onRefresh() }
                         else -> FeedList(
                             threads = selState.threads,
-                            useBigCards = true,
+                            useBigCards = false,
+                            flatRows = true,
+                            headerContent = {
+                                BoardProfileHeader(
+                                    topic = selState.topicInfo ?: topic,
+                                    isFavorite = isFavorite,
+                                    onToggleFavorite = onToggleFavorite,
+                                )
+                            },
                             canLoadMore = selState.page < selState.totalPages,
                             loadingMore = selState.loadingMore,
                             onLoadMore = { onLoadMore(topic.url, sel, selState.page) },
@@ -714,11 +724,73 @@ private fun TopicFeedOverlay(
             }
         }
         }
+        // 官方版块页红色「立即发布」FAB——发帖需登录；未登录点击提示去「我的」页登录
+        Box(
+            Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 18.dp, bottom = 24.dp)
+                .clip(RoundedCornerShape(50))
+                .background(Color(0xFFE60023))
+                .clickable {
+                    if (com.kudo.android.hupu.HupuAccount.isLoggedIn) {
+                        HuzaiToast.show("发帖暂未开放，敬请期待")
+                    } else {
+                        HuzaiToast.show("请先在「我的」页登录后再发帖")
+                    }
+                }
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        ) {
+            Text("立即发布", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        }
     }
     // 首次进入 / 切换排序：无缓存才加载
     LaunchedEffect(topic.url, selectedSort) {
         val key = "${topic.url}#${selectedSort ?: topic.url}"
         if (!feedStates.containsKey(key)) onFirstLoad(topic.url, selectedSort)
+    }
+}
+
+/** 官方版块页档案头：logo + 名称 + 「N 帖子」+ 简介 + 红色关注胶囊钮。数据取自话题页 SSR（topicInfo）。 */
+@Composable
+private fun BoardProfileHeader(
+    topic: HupuTopicInfo,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AsyncImage(
+            model = normalizeCover(topic.logo),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.size(52.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
+        )
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Text(topic.name, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(3.dp))
+            val meta = buildList {
+                if (topic.hotText.isNotBlank()) add("${topic.hotText} 帖子")
+                if (topic.desc.isNotBlank()) add(topic.desc)
+            }.joinToString(" · ")
+            if (meta.isNotBlank()) {
+                Text(meta, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(50))
+                .background(if (isFavorite) MaterialTheme.colorScheme.surfaceVariant else Color(0xFFE60023))
+                .clickable { onToggleFavorite() }
+                .padding(horizontal = 14.dp, vertical = 7.dp),
+        ) {
+            Text(
+                if (isFavorite) "已关注" else "关注",
+                color = if (isFavorite) MaterialTheme.colorScheme.onSurfaceVariant else Color.White,
+                fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            )
+        }
     }
 }
 

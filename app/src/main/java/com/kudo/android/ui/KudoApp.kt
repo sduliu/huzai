@@ -227,7 +227,8 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                                             com.kudo.android.ui.feed.HotChannelPage(app.repository,
                                                 openTopic = { topic(it) },
                                                 openBoard = { url -> nav.navigate("category/${com.kudo.android.data.HupuIds.boardId(url)}") },
-                                                openSearch = { q -> nav.navigate("search?query=${Uri.encode(q)}") })
+                                                openSearch = { q -> nav.navigate("search?query=${Uri.encode(q)}") },
+                                                openRatings = { nav.navigate("score/common") })
                                         })
                                     1 -> com.kudo.android.hupuui.pages.ZonePage()
                                     3 -> com.kudo.android.hupuui.pages.ScorePage(request = scoreRequest)

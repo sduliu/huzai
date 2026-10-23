@@ -140,3 +140,12 @@ AGP 9 迁移要点：删 `kotlin-android` 插件（内置 Kotlin）、`sdkDirect
 - **频道管理 `HomeChannelsScreen`**：列表+上下箭头改官方式两段 3 列胶囊网格（LazyVerticalGrid）——「我的频道」=热榜/推荐固定灰丸 + 已选丸，「推荐频道」=+前缀丸点选即加；右上「编辑/完成」切换，编辑态丸右上 ✕ 徽标移除、**点选两丸换位**（高亮第一枚，官方拖拽排序的轻量等价）；写 `saveHomeChannels` 仍触发 board:↔收藏同步。
 - **专区页布局**：`CateBar` 横滑条 → `CateRail` 左栏竖排导航（92dp 灰底、选中项白底+3dp 左红条、`animateScrollToItem` 跟随选中——`tabSwipeSwitch` 横滑切类逻辑不变），右侧 3 列版块网格原样；页头改「专区」。板块页 URL 回落同步补进 `topics(categoryId=)` 分支（topicPage→board()），热榜热门版块点进 `category/{boardId}` 走该路径。
 - **遗留**：官方热榜另有「评分榜/话题榜」两段（评分数据接口未探）、频道页推荐/最新切换、版块页头部档案、详情回复排序——属二~四期。
+
+## 官方形态对齐二~四期（赛事频道/版块页/赛程中心/热榜评分榜）
+
+- **赛事频道二级页**（二期，commit 323a014）：频道头部加官方结构——近期比赛大卡 +「查看近期N场热门比赛」链接 + 圆形快捷图标行（赛程恒有、积分榜按频道配置出现）+「资讯」推荐/最新切换。赛程/积分榜点开为 `score/{game}`、`standings/{game}` 二级页（可返回、不切底栏）；「最新」态在 FeedScreen 按频道键存 `latest` 布尔并就地排序（置顶优先再按 bumpedAt 倒序），「推荐」保持服务端序。
+- **版块页对齐**（三期）：`TopicFeedOverlay` 帖流首项插 `BoardProfileHeader`（logo52dp + 名称 + `countText`帖子数 + 简介 + 红色关注胶囊钮，与顶栏星标同源 `isFavorite/onToggleFavorite`）；`TopicFeedState` 增 `topicInfo` 字段承接话题页 SSR 档案（三处写站点同步填充）。帖行改官方平铺式 `FlatPostRow`（无卡片底、作者行+标题+「N回复 · N推荐」+右侧时间、底部 0.5dp 分隔线）——`FeedList` 加 `headerContent`/`flatRows` 两个参数，其他调用方不变。SSR 帖项无置顶/精华标记字段（实测 `titleFont` 恒空），置顶红标不做。红色「立即发布」FAB：未登录提示去「我的」登录，已登录提示发帖未开放（无发帖接口）。
+- **详情页回复排序**：现状已覆盖官方四键——「回复 N」行内两套 SortBar 分段控件（全部/楼主 + 默认/最新/热门≈最亮/最早/最晚/楼主），无需再动。
+- **赛程中心紧凑行**（四期）：`ScheduleList` 的每场大卡改为日卡内多行 `MatchRow`（左列开赛时间+赛事名、中列双队 18dp logo+队名+右对齐比分/胜方加粗、右列状态+`scoreCountText`评分人数），行间细分隔线；日期头/定位逻辑不变。大卡 `MatchCard` 保留未删（频道头部用的是另一组件 `BoardMatchCard`）。
+- **热榜评分榜**（四期）：`HotChannelPage` 顶部插「评分榜」LazyRow——`HupuRepository.commonSubjects()`（score-home SSR，与比赛 Tab 虎扑评分同源）主题卡（官方 bgColorDay 底色 + 大分数 scoreColorDay + N人评分）；点击导航 `score/common`——`ScoreNavRequest.game=="common"` 特判为打开虎扑评分频道（`commonOpen=true`），复用 `score/{game}` 二级路由。
+- **遗留**：评分榜卡片点击只落到评分频道首页而非具体主题详情（跨树导航代价大）；官方评分榜影视/游戏子榜切换未做；热榜话题榜以「大家都在搜」近似。

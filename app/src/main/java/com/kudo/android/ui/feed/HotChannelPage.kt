@@ -37,6 +37,7 @@ import coil.compose.AsyncImage
 import com.kudo.android.data.CommunityRepository
 import com.kudo.android.data.HupuIds
 import com.kudo.android.hupu.HupuBoardPage
+import com.kudo.android.hupuui.pages.formatCount
 
 private val RankRed = Color(0xFFE60023)
 private val RankOrange = Color(0xFFFF6B35)
@@ -51,9 +52,15 @@ fun HotChannelPage(
     openTopic: (Int) -> Unit,
     openBoard: (String) -> Unit,
     openSearch: (String) -> Unit,
+    /** 评分榜卡片点击 → 打开「比赛」Tab 的虎扑评分频道（score/common 二级页） */
+    openRatings: () -> Unit = {},
 ) {
     val page by produceState<HupuBoardPage?>(initialValue = null) {
         value = repository.boardPage("/all-gambia")
+    }
+    // 评分榜：虎扑通用评分主题（score-home SSR，与「比赛」Tab 虎扑评分同源）
+    val subjects by produceState<List<com.kudo.android.hupu.HupuCommonSubject>>(initialValue = emptyList()) {
+        value = runCatching { com.kudo.android.hupu.HupuRepository().commonSubjects() }.getOrDefault(emptyList())
     }
     val p = page
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
@@ -62,6 +69,40 @@ fun HotChannelPage(
                 CircularProgressIndicator()
             }
             return@Column
+        }
+        if (subjects.isNotEmpty()) {
+            SectionTitle("评分榜")
+            androidx.compose.foundation.lazy.LazyRow(
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
+            ) {
+                items(subjects.size) { i ->
+                    val s = subjects[i]
+                    Column(
+                        Modifier.width(140.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(
+                                s.bgColorDay?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() }
+                                    ?: MaterialTheme.colorScheme.surface
+                            )
+                            .clickable { openRatings() }
+                            .padding(horizontal = 12.dp, vertical = 12.dp),
+                    ) {
+                        Text(s.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            s.score.ifBlank { "-" }, fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                            color = s.scoreColorDay?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() }
+                                ?: Color(0xFFFF6B35),
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "${formatCount(s.scoreCountNum)}人评分", fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
         }
         if (p.recommendations.isNotEmpty()) {
             SectionTitle("热帖榜")
