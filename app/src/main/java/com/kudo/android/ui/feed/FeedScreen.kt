@@ -72,7 +72,7 @@ import kotlin.math.roundToInt
 @Composable
 fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refresh: () -> Unit, more: () -> Unit, openTopic: (Int) -> Unit, openUser: (String) -> Unit, search: () -> Unit, login: () -> Unit, categories: () -> Unit, modifier: Modifier = Modifier, category: Category? = null, back: () -> Unit = {}, listStyle: TopicListStyle = TopicListStyle.FEED, pages: Map<String, FeedState> = emptyMap(), createTopic: (Int) -> Unit = {}, glass: GlassMode = LocalDisplaySettings.current.glass,
     channels: List<Pair<String, String>> = emptyList(), manageChannels: () -> Unit = {},
-    channelHeader: (@Composable (String) -> Unit)? = null,
+    channelHeader: (@Composable (key: String, latest: Boolean, onLatestChange: (Boolean) -> Unit) -> Unit)? = null,
     hotContent: (@Composable () -> Unit)? = null,
     prefetch: (String) -> Unit = {}) {
     if (category != null) {
@@ -122,6 +122,8 @@ fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refres
                 val index = tabs.indexOfFirst { it.first == state.filter }
                 if (index >= 0 && pager.currentPage != index && !pager.isScrollInProgress) pager.scrollToPage(index)
             }
+            // 赛事频道「资讯 推荐/最新」客户端排序态（按频道键各自记忆）
+            val sportLatest = remember { mutableStateMapOf<String, Boolean>() }
             HorizontalPager(pager, Modifier.fillMaxSize().layerBackdrop(backdrop).testTag("home-pager"), key = { tabs[it].first },
                 beyondViewportPageCount = 1) { index ->
                 val value = tabs[index].first
@@ -130,14 +132,16 @@ fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refres
                 } else {
                     val page = if (value == state.filter) state else pages[value]?.takeIf { it.accountId == user?.id }
                         ?: FeedState(filter = value, accountId = user?.id, categories = state.categories)
+                    val sortLatest = sportLatest[value] == true
                     FeedPage(page, pager.settledPage == index && value == state.filter, resetHeader,
                         refresh, more, openTopic, openUser, login, listStyle,
                         expandHeader = {
                             androidx.compose.animation.core.animate(scrollBehavior.state.heightOffset, 0f) { value, _ -> scrollBehavior.state.heightOffset = value }
                             scrollBehavior.state.contentOffset = 0f
                         }, contentTopPadding = contentTopPadding,
+                            sortLatest = sortLatest,
                             headerContent = if (value.startsWith("sport:") && channelHeader != null)
-                                ({ channelHeader.invoke(value.removePrefix("sport:")) }) else null)
+                                ({ channelHeader.invoke(value.removePrefix("sport:"), sortLatest) { sportLatest[value] = it } }) else null)
                 }
             }
             Column(Modifier.fillMaxWidth().onSizeChanged { headerHeight = it.height }
@@ -188,9 +192,16 @@ internal fun FeedPage(state: FeedState, active: Boolean, scrollToTop: () -> Unit
     refresh: () -> Unit, more: () -> Unit, openTopic: (Int) -> Unit, openUser: (String) -> Unit,
     login: () -> Unit, listStyle: TopicListStyle, nested: NestedScrollConnection? = null,
     expandHeader: suspend () -> Unit = { scrollToTop() }, contentTopPadding: Dp = 0.dp,
-    headerContent: (@Composable () -> Unit)? = null) {
+    headerContent: (@Composable () -> Unit)? = null,
+    /** 赛事频道「最新」模式：客户端按 bumpedAt 倒序（推荐=服务端原序），置顶保持最前 */
+    sortLatest: Boolean = false) {
     val ignored = com.kudo.android.ui.topic.LocalIgnoredUsers.current
-    val visibleTopics = state.topics.filterNot { it.author?.username?.lowercase(java.util.Locale.ROOT) in ignored }
+    val visibleTopics = state.topics
+        .filterNot { it.author?.username?.lowercase(java.util.Locale.ROOT) in ignored }
+        .let { l ->
+            if (!sortLatest) l else l.sortedWith(
+                compareByDescending<Topic> { it.pinned }.thenByDescending { it.bumpedAt })
+        }
         val listState = rememberLazyListState()
         val scrollContext = "${state.accountId}:${state.filter}"
         var previousContext by rememberSaveable { mutableStateOf(scrollContext) }

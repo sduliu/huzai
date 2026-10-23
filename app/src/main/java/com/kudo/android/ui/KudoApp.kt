@@ -215,11 +215,13 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                                     0 -> FeedScreen(state.forUser(account.user), account.user, feed::select, feed::refresh, feed::more, { topic(it) }, ::user, { nav.navigate("search") }, { if (account.user == null) login() else user(account.user!!.username) }, { directory.useAccount(account.user?.id); if (account.sessionReady) directory.loadIfStale() }, listStyle = display.topicListStyle, pages = pages, prefetch = feed::prefetch,
                                         channels = homeChannels,
                                         manageChannels = { nav.navigate("home-channels") },
-                                        channelHeader = { key ->
+                                        channelHeader = { key, latest, onLatestChange ->
                                             com.kudo.android.ui.feed.SportChannelHeader(key, app.repository,
                                                 // 二级页打开赛程中心（可返回），不再切底栏 Tab
                                                 onOpenSchedule = { g -> nav.navigate("score/$g") },
-                                                onOpenMatch = { m -> nav.navigate("score/$key?match=${m.matchId}") })
+                                                onOpenMatch = { m -> nav.navigate("score/$key?match=${m.matchId}") },
+                                                onOpenStandings = { g -> nav.navigate("standings/$g") },
+                                                latest = latest, onLatestChange = onLatestChange)
                                         },
                                         hotContent = {
                                             com.kudo.android.ui.feed.HotChannelPage(app.repository,
@@ -287,6 +289,11 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                             request = com.kudo.android.hupuui.pages.ScoreNavRequest(g, m, System.nanoTime()),
                             onBack = { nav.popBackStack() },
                         )
+                    }
+                    // 赛事频道快捷行「积分榜」→ 原生积分榜二级页
+                    composable("standings/{game}") { entry ->
+                        val g = entry.arguments?.getString("game").orEmpty()
+                        com.kudo.android.hupuui.pages.StandingsRoutePage(g) { nav.popBackStack() }
                     }
                     composable("search?query={query}", arguments = listOf(navArgument("query") { defaultValue = "" })) { entry ->
                         val q = entry.arguments?.getString("query").orEmpty()

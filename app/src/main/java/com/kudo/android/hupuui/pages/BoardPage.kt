@@ -1120,3 +1120,44 @@ internal fun BoardMatchRow(m: HupuMatch, onOpen: () -> Unit) {
         )
     }
 }
+
+/** 「积分榜」独立路由页（首页赛事频道快捷行入口）：与板块内 overlay 同一套 StandingList 渲染。 */
+@Composable
+internal fun StandingsRoutePage(sportKey: String, back: () -> Unit) {
+    val repo = remember { HupuRepository() }
+    val cfg = HUPU_BOARDS[sportKey]
+    var data by remember { mutableStateOf<HupuStandings?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var failed by remember { mutableStateOf(false) }
+    var tick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(sportKey, tick) {
+        loading = true
+        failed = false
+        val s = when (cfg?.standing) {
+            HupuBoardStanding.NBA -> repo.nbaStandings()
+            HupuBoardStanding.SOCCER_API -> repo.soccerStandings(cfg.standingCompId)
+            else -> null
+        }
+        if (s != null) data = s else failed = true
+        loading = false
+    }
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        CenteredTopBar(
+            title = data?.league?.takeIf { it.isNotEmpty() }?.let { "$it 积分榜" }
+                ?: "${cfg?.name.orEmpty()}积分榜",
+            onBack = back,
+        )
+        when {
+            data != null -> StandingList(data!!)
+            loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(26.dp),
+                    strokeWidth = 2.5.dp,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            failed -> ErrorRetry { tick++ }
+            else -> Box(Modifier.fillMaxSize())
+        }
+    }
+}
