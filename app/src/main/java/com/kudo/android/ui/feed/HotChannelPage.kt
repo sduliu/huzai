@@ -89,12 +89,14 @@ fun HotChannelPage(
                             .padding(horizontal = 12.dp, vertical = 12.dp),
                     ) {
                         Text(s.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            s.score.ifBlank { "-" }, fontSize = 24.sp, fontWeight = FontWeight.Bold,
-                            color = s.scoreColorDay?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() }
-                                ?: Color(0xFFFF6B35),
-                        )
+                        if (s.score.isNotBlank()) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                s.score, fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                                color = s.scoreColorDay?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() }
+                                    ?: Color(0xFFFF6B35),
+                            )
+                        }
                         Spacer(Modifier.height(4.dp))
                         Text(
                             "${formatCount(s.scoreCountNum)}人评分", fontSize = 11.sp,
