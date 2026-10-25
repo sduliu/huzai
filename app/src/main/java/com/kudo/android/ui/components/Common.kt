@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
@@ -139,69 +140,91 @@ fun SectionLabel(text: String, trailing: String? = null) {
     }
 }
 
+// 批D：官方平卡复刻——全宽无圆角；作者行(仅 author 存在)→标题 16sp/Medium→图区(≥3 三图行 4:3 / 单图全宽 16:9)→底行 版块chip+👍💬。
+// 官方还有神回复预览卡与↗转发数，SSR res[] 无字段不伪造；views(阅读数)官方卡不显示。
 @Composable
 fun TopicCard(topic: Topic, category: Category?, onClick: () -> Unit, onUser: (String) -> Unit) {
     val resolvedCategory = category ?: LocalTopicPresentation.current.categories.firstOrNull { it.id == topic.categoryId }
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.surface)
+    val images = topic.images.ifEmpty { listOfNotNull(mediaUrl(topic.image)) }
+    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)
         .clickable(onClick = onClick)
-        .testTag("topic-card-${topic.id}").padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (topic.author != null) Avatar(topic.author, 35.dp) { topic.author?.username?.let(onUser) }
-            Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                if (topic.author != null) Text(topic.author?.displayName.orEmpty(), style = MaterialTheme.typography.titleSmall, maxLines = 1)
-                TopicAuthorMetadata(topic.bumpedAt, resolvedCategory)
+        .testTag("topic-card-${topic.id}")
+        .padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (topic.author != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Avatar(topic.author, 28.dp) { topic.author?.username?.let(onUser) }
+                Text(topic.author?.displayName.orEmpty(), Modifier.weight(1f).padding(horizontal = 8.dp),
+                    fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (topic.pinned) Icon(Icons.Rounded.PushPin, "置顶", Modifier.size(15.dp), MaterialTheme.colorScheme.primary)
+                Text(relativeTime(topic.bumpedAt), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1, softWrap = false)
             }
-            if (topic.pinned) Icon(Icons.Rounded.PushPin, "置顶", Modifier.size(17.dp), MaterialTheme.colorScheme.primary)
         }
-        val image = mediaUrl(topic.image)
-        if (image != null) {
-            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(topic.title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                        TopicUnreadBadge(topic)
-                    }
-                    if (topic.excerpt.isNotBlank()) Text(topic.excerpt, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                }
-                TopicThumbnail(topic.id, image, onClick)
-            }
-        } else {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(topic.title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                TopicUnreadBadge(topic)
-            }
-            if (topic.excerpt.isNotBlank()) Text(topic.excerpt, style = MaterialTheme.typography.bodyMedium, maxLines = 3, overflow = TextOverflow.Ellipsis)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (topic.pinned && topic.author == null) Icon(Icons.Rounded.PushPin, "置顶", Modifier.size(15.dp), MaterialTheme.colorScheme.primary)
+            Text(topic.title, Modifier.weight(1f), fontSize = 16.sp, fontWeight = FontWeight.Medium, lineHeight = 22.sp,
+                color = MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            TopicUnreadBadge(topic)
         }
-        // 虎扑帖子常把所属版块同时放进 topic.name：作者行已显示版块名，标签不再重复
-        val visibleTags = topic.tagDetails.filter { it.name != resolvedCategory?.name }
-        if (visibleTags.isNotEmpty()) TopicTags(visibleTags)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            if (topic.views > 0) Stat(Icons.Rounded.Visibility, compactNumber(topic.views)) else Spacer(Modifier)
-            Stat(Icons.Rounded.ChatBubbleOutline, compactNumber(topic.replies))
+        if (topic.excerpt.isNotBlank()) Text(topic.excerpt, fontSize = 13.sp, lineHeight = 18.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        when {
+            images.size >= 3 -> Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                images.take(3).forEachIndexed { i, url -> TopicFeedImage(topic.id, i, url, Modifier.weight(1f).aspectRatio(4f / 3f)) }
+            }
+            images.isNotEmpty() -> TopicFeedImage(topic.id, 0, images.first(), Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            val board = resolvedCategory?.name?.takeIf { it.isNotBlank() }
+                ?: topic.tagDetails.firstOrNull()?.name?.takeIf { it.isNotBlank() }
+            if (resolvedCategory != null) Box(Modifier.clip(RoundedCornerShape(4.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                .padding(horizontal = 6.dp, vertical = 3.dp)) { CategoryInline(resolvedCategory) }
+            else if (board != null) Text(board, Modifier.clip(RoundedCornerShape(4.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                .padding(horizontal = 6.dp, vertical = 3.dp),
+                fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            // 虎扑帖子常把所属版块同时放进 topic.name：版块 chip 已显示，标签不再重复
+            val visibleTags = topic.tagDetails.filter { it.name != resolvedCategory?.name && it.name != board }
+            if (visibleTags.isNotEmpty()) TopicTags(visibleTags, Modifier.padding(start = if (board != null) 6.dp else 0.dp))
+            Spacer(Modifier.weight(1f))
             Stat(Icons.Rounded.FavoriteBorder, compactNumber(topic.likes))
+            Spacer(Modifier.width(14.dp))
+            Stat(Icons.Rounded.ChatBubbleOutline, compactNumber(topic.replies))
         }
     }
 }
 
 @Composable
-private fun TopicThumbnail(topicId: Int, url: String, openTopic: () -> Unit) {
+private fun TopicFeedImage(topicId: Int, index: Int, url: String, modifier: Modifier) {
+    // 定位契约：index0 仍用 "topic-image-{id}"（androidTest 既有约定），其余带槽位后缀
+    val slot = if (index == 0) "$topicId" else "$topicId-$index"
     var loading by remember(url) { mutableStateOf(true) }
-    var failed by remember(url) { mutableStateOf(false) }
+    var failure by remember(url) { mutableStateOf<Throwable?>(null) }
     var retry by remember(url) { mutableIntStateOf(0) }
-    Box(Modifier.size(width = 104.dp, height = 78.dp)
-        .testTag("topic-image-$topicId").clip(RoundedCornerShape(10.dp))
-        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-        .clickable(onClickLabel = if (failed) "重新加载图片" else "进入帖子详情") {
-            if (failed) { loading = true; failed = false; retry++ } else openTopic()
-        }) {
-        key(url, retry) { AsyncImage(url, if (failed) "话题图片加载失败，点击重试" else "话题图片，点击进入帖子详情",
-            Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
-            onLoading = { loading = true; failed = false },
-            onError = { loading = false; failed = true },
-            onSuccess = { loading = false; failed = false }) }
-        if (loading) CommunityLoadingIndicator(Modifier.align(Alignment.Center).size(18.dp).testTag("topic-image-$topicId-loading"))
-        if (failed) Text("重试", Modifier.align(Alignment.Center).testTag("topic-image-$topicId-error"),
-            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    var ratio by remember(url) { mutableStateOf<Float?>(null) }
+    Box(modifier.testTag("topic-image-$slot").clip(RoundedCornerShape(8.dp))
+        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))) {
+        key(url, retry) { AsyncImage(url, "话题图片", Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
+            onLoading = { loading = true; failure = null; ratio = null },
+            onError = { loading = false; failure = it.result.throwable; ratio = null },
+            onSuccess = { state ->
+                loading = false; failure = null
+                val size = state.painter.intrinsicSize
+                ratio = if (size.isSpecified && size.height > 0f) size.width / size.height else null
+            }) }
+        if (loading) CommunityLoadingIndicator(Modifier.align(Alignment.Center).size(18.dp).testTag("topic-image-$slot-loading"))
+        val error = failure
+        if (error != null) Column(Modifier.align(Alignment.Center).testTag("topic-image-$slot-error")
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "重新加载图片") { loading = true; failure = null; retry++ }
+            .padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text("加载失败，点击重试", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            Text(com.kudo.android.media.imageLoadErrorText(error), fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.outline, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        if (!loading && error == null) ImageAspectBadge(ratio)
     }
 }
 

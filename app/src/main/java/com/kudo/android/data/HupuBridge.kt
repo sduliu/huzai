@@ -125,6 +125,7 @@ fun HupuThread.toTopic(): Topic = Topic(
     views = read,
     likes = lights,
     image = cover.orEmpty(),
+    images = covers,
     bumpedAt = isoTime(createdAt, createdAtText),
 )
 
@@ -140,6 +141,7 @@ fun com.kudo.android.hupu.HupuBoardNews.toTopic(): Topic = Topic(
     views = 0,
     likes = lights,
     image = img,
+    images = listOf(img).filter { it.isNotBlank() },
     bumpedAt = isoTime(addTime * 1000L, publishTime),
     pinned = top,
 )

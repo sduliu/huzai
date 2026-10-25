@@ -232,7 +232,8 @@ internal fun FeedPage(state: FeedState, active: Boolean, scrollToTop: () -> Unit
                 }
             }) {
             val traditional = listStyle == TopicListStyle.TITLE
-            LazyColumn(state = listState, contentPadding = if (traditional) PaddingValues(top = contentTopPadding, bottom = 112.dp) else PaddingValues(start = 8.dp, end = 8.dp, top = contentTopPadding + 8.dp, bottom = 112.dp), verticalArrangement = Arrangement.spacedBy(if (traditional) 0.dp else 8.dp), modifier = Modifier.fillMaxSize().then(if (nested != null) Modifier.nestedScroll(nested) else Modifier).testTag("feed-list-${state.filter}")
+            // 批D：平卡模式列表左右清 0、缝 10dp（官方平卡全宽贴边；sport-header 自带 horizontal=12）
+            LazyColumn(state = listState, contentPadding = if (traditional) PaddingValues(top = contentTopPadding, bottom = 112.dp) else PaddingValues(start = 0.dp, end = 0.dp, top = contentTopPadding + 8.dp, bottom = 112.dp), verticalArrangement = Arrangement.spacedBy(if (traditional) 0.dp else 10.dp), modifier = Modifier.fillMaxSize().then(if (nested != null) Modifier.nestedScroll(nested) else Modifier).testTag("feed-list-${state.filter}")
                 .quickScrollTarget(listState, enabled = active, expandHeader = expandHeader)) {
                 if (headerContent != null) item(key = "sport-header", contentType = "header") { headerContent() }
                 if (state.loading && state.topics.isEmpty()) item { LoadingRow() }

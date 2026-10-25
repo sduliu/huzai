@@ -283,3 +283,13 @@ REPORT2 记录「赛程/积分榜快捷入口 dump 中 bounds=[0,0][0,0]」。�
 - **数据**：`HupuThread.covers`（新字段）=`res[].source[]` 全量（`cover` 仍取首图保持旧契约）；FeedItem 无 covers 时回落 `cover` 单图——话题流/搜索/资讯等只带单图的流仍出图。
 - **官方有而我们没有且编不出来的**：作者行（res[] 流无）、灰底神回复预览卡（无字段）、↗转发计数（无字段）——三处均不渲染占位，在审计节已记。
 - `MetaRow`（旧左图右文 meta）随重写删除；`FlatPostRow`/版块资讯行不动。
+
+## 批D-1：首页推荐流平卡复刻（TopicCard 重写，真首页路径）
+
+批C-5 的 FeedItem 平卡只落在 hupuui FeedList 路径；首页推荐流真实组件是 `ui/feed/FeedScreen` → `ui/components/Common.kt#TopicCard`（圆角卡+右缩略图），验收证实平卡未落首页。本项将 TopicCard 重写为官方平卡：
+
+- **全宽无圆角**：去 18dp 圆角+内 margin 样式；`FeedScreen` 列表 contentPadding 左右 8→0、条目缝 8→10dp（sport-header 自带 horizontal=12 不受影响；`TopicListStyle.TITLE` 传统行模式不变）。搜索页(自带 12dp 容器)/个人页(1dp 缝)两处复用点保持兼容。
+- **结构**：作者行（avatar 28dp+名 13sp/Medium+右对齐相对时间 11sp，author==null 的流不渲）→ 标题 16sp/Medium/22sp lh/2行 → 摘要 13sp/18sp/1行 → 图区：`images≥3` 三图行 4:3/4dp缝，否则单图全宽 16:9 → 底行 版块chip(`CategoryInline` 保「分类图标：」语义)+右对齐 👍💬（views 官方卡不显示，去除）。
+- **数据**：`Topic.images`（参数表末位，位置构造兼容）=`HupuThread.covers`/`HupuBoardNews` 单图；空则回落 `mediaUrl(image)`。
+- **契约保留**（androidTest 既有）：testTag `topic-image-{id}`(index0)/`-{i}`，失败出「加载失败，点击重试」+`imageLoadErrorText` 诊断行(在重试行下方)，点击重试消费事件不进详情；加载成功按 intrinsicSize 渲 `ImageAspectBadge`(宽图/长图)；删死代码 `TopicThumbnail`。
+- 未变：置顶 pin 图标、未读徽章、标签胶囊（去重版块名后仍渲）。

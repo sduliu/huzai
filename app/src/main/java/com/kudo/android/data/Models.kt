@@ -32,6 +32,8 @@ data class Topic(
     val bumpedAt: String, val pinned: Boolean = false, val closed: Boolean = false,
     val tagDetails: List<TopicTag> = tags.map { TopicTag(it) },
     val unseen: Boolean = false, val unreadPosts: Int = 0,
+    /** 信息流多图（虎扑 res[].source[] 全量，≥3 渲染三图行）；空则回落 image 单图 */
+    val images: List<String> = emptyList(),
 )
 data class TopicPage(val topics: List<Topic>, val next: String?, val tag: TopicTag? = null)
 
