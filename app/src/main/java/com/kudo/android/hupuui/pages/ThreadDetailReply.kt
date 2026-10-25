@@ -170,6 +170,7 @@ import com.kudo.android.hupu.HupuAccount
 import com.kudo.android.hupu.HupuSticker
 import com.kudo.android.hupu.HupuAuthor
 import kotlinx.coroutines.launch
+import com.kudo.android.hupuui.components.HupuAvatarImage
 
 /** 一条回复（totalReplies>0 时可点击进楼中楼） */
 /** 底部回复框：纯文本输入，发送走 createReply（登录后可发送） */
@@ -460,7 +461,7 @@ internal fun ReplyRow(
                 // 头像（无头像时隐藏不占位）
                 r.author?.let { a ->
                     normalizeCover(a.url)?.let { avatar ->
-                        AsyncImage(
+                        HupuAvatarImage(
                             model = avatar,
                             contentDescription = null,
                             contentScale = ContentScale.Crop,

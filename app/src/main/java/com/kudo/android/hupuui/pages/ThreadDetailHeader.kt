@@ -104,7 +104,6 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.ui.platform.LocalView
 import android.content.pm.ActivityInfo
 import android.app.Activity
-import coil.compose.AsyncImage
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -175,6 +174,7 @@ import com.kudo.android.hupu.HupuAuthor
 import kotlinx.coroutines.launch
 import com.kudo.android.hupuui.glass.liquidElevation
 import com.kudo.android.hupuui.components.LiquidBackButton
+import com.kudo.android.hupuui.components.HupuAvatarImage
 
 /** 顶栏：返回＋居中专区名＋（本人帖的编辑 / 删除入口） */
 @Composable
@@ -324,7 +324,7 @@ internal fun MainPost(
             ) {
                 // 作者头像（对齐评分页形态；无头像时隐藏）
                 normalizeCover(a.url)?.let { avatar ->
-                    AsyncImage(
+                    HupuAvatarImage(
                         model = avatar,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,

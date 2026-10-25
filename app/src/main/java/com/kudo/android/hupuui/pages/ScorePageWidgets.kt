@@ -46,7 +46,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import coil.compose.AsyncImage
 import com.kudo.android.hupu.HupuCommonSubject
 import com.kudo.android.hupu.HupuCommonTree
 import com.kudo.android.hupu.HupuImage
@@ -80,6 +79,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import com.kudo.android.hupuui.components.HupuIconImage
 
 /** 选手评分卡：头像 + 名字 + 分数 + 热评 */
 @Composable
@@ -93,7 +93,7 @@ internal fun PlayerScoreCard(p: HupuPlayerScore, matchScoreCount: String) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            AsyncImage(
+            HupuIconImage(
                 model = normalizeCover(p.logo),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,

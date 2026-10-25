@@ -61,7 +61,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import coil.compose.AsyncImage
 import com.kudo.android.hupuui.components.AutoFitScore
 import com.kudo.android.hupuui.components.normalizeCover
 import kotlinx.coroutines.delay
@@ -87,6 +86,7 @@ import com.kudo.android.hupuui.components.tapGuard
 import com.kudo.android.hupuui.components.CenteredTopBar
 import com.kudo.android.hupuui.components.LiquidBackButton
 import com.kudo.android.hupuui.components.chipBarClip
+import com.kudo.android.hupuui.components.HupuIconImage
 
 /**
  * 比赛详情二级页（评分页 → 赛程卡点击进入）。
@@ -723,7 +723,7 @@ private fun TeamSide(
         modifier.then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        AsyncImage(
+        HupuIconImage(
             model = normalizeCover(logo),
             contentDescription = null,
             contentScale = ContentScale.Fit,
@@ -923,7 +923,7 @@ internal fun TeamDetailOverlay(
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                AsyncImage(
+                HupuIconImage(
                     model = normalizeCover(req.logo),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,

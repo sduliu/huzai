@@ -58,7 +58,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import com.kudo.android.hupu.HupuCategory
@@ -90,6 +89,7 @@ import com.kudo.android.hupuui.components.CenteredTopBar
 import com.kudo.android.hupuui.components.LiquidBackButton
 import com.kudo.android.hupuui.components.LiquidIconButton
 import com.kudo.android.hupuui.components.HuzaiToast
+import com.kudo.android.hupuui.components.HupuIconImage
 
 /**
  * 专区页：13 大类 → 版块网格（3 列）→ 版块话题流（盖入式二级页）。
@@ -761,7 +761,7 @@ private fun BoardProfileHeader(
         Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AsyncImage(
+        HupuIconImage(
             model = normalizeCover(topic.logo),
             contentDescription = null,
             contentScale = ContentScale.Crop,
@@ -893,7 +893,7 @@ private fun TopicCell(t: HupuTopicInfo, isFavorite: Boolean, onClick: () -> Unit
                 .padding(horizontal = 12.dp, vertical = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            AsyncImage(
+            HupuIconImage(
                 model = normalizeCover(t.logo),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,

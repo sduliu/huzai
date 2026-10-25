@@ -100,6 +100,7 @@ import com.kudo.android.hupuui.glass.FrostedHeaderLayout
 import com.kudo.android.hupuui.components.LiquidBackButton
 import com.kudo.android.hupuui.components.LiquidIconButton
 import com.kudo.android.hupuui.components.HuzaiToast
+import com.kudo.android.hupuui.components.HupuAvatarImage
 
 /**
  * \u7528\u6237\u4e3b\u9875\uff08\u76d6\u5165\u5f0f\u4e8c\u7ea7\u9875\uff09\uff1a\u8d44\u6599\u5361\uff08\u65e0\u80cc\u666f\u56fe\uff0c\u65b9\u6848A\uff09+ \u7edf\u8ba1\u884c + \u53d1\u5e16/\u56de\u5e16\u53cc Tab\u3002
@@ -907,7 +908,7 @@ private fun ProfileCard(
         // ---------- ① 身份行：头像 + 昵称/Lv + 信息行 ----------
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (p.avatar.isNotEmpty()) {
-                AsyncImage(
+                HupuAvatarImage(
                     model = p.avatar,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
@@ -1335,7 +1336,7 @@ private fun ProfileFollowRow(f: HupuFollowUser, onOpenUser: (String) -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        AsyncImage(
+        HupuAvatarImage(
             model = f.avatar.ifEmpty { null },
             contentDescription = null,
             contentScale = ContentScale.Crop,

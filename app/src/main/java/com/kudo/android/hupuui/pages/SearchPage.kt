@@ -84,7 +84,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import coil.compose.AsyncImage
 import com.kudo.android.hupu.HupuCategory
 import com.kudo.android.hupu.HupuFilter
 import com.kudo.android.hupu.HupuPrefs
@@ -107,6 +106,7 @@ import com.kudo.android.hupuui.components.LiquidBackButton
 import com.kudo.android.hupuui.components.LiquidIconButton
 import com.kudo.android.hupuui.glass.liquidElevation
 import com.kudo.android.hupuui.components.chipBarClip
+import com.kudo.android.hupuui.components.HupuThumbImage
 
 /**
  * 搜索页（盖入式二级页，桌面版搜索通道）：
@@ -694,7 +694,7 @@ private fun SearchItemRow(it: HupuSearchItem, onOpen: (HupuSearchItem) -> Unit) 
             }
         }
         normalizeCover(it.picture)?.let { pic ->
-            AsyncImage(
+            HupuThumbImage(
                 // 1.190: 100×76dp 小图位走 CDN 缩略图，避免下原图
                 model = thumbnailUrl(pic, 320),
                 contentDescription = null,

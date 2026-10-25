@@ -83,6 +83,7 @@ import com.kudo.android.hupuui.glass.buttonFill
 import com.kudo.android.hupuui.glass.liquidElevation
 import androidx.compose.foundation.border
 import com.kudo.android.hupuui.components.HuzaiToast
+import com.kudo.android.hupuui.components.HupuAvatarImage
 
 /**
  * 1.99 私信：会话列表（挂在消息中心三按钮下方）+ 聊天页（文字 + 图片每次一张）。
@@ -495,7 +496,7 @@ private fun PmConversationRow(c: PmConversation, onClick: () -> Unit) {
                     )
                 }
             } else {
-                AsyncImage(
+                HupuAvatarImage(
                     model = c.avatar,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
@@ -741,7 +742,7 @@ fun PmChatPage(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Spacer(Modifier.width(8.dp))
-                AsyncImage(
+                HupuAvatarImage(
                     model = conv.avatar,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,

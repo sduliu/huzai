@@ -53,7 +53,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import coil.compose.AsyncImage
 import com.kudo.android.hupu.HupuAccount
 import com.kudo.android.hupu.HupuBlacklist
 import com.kudo.android.hupu.HupuBlacklistEntry
@@ -77,6 +76,7 @@ import com.kudo.android.hupuui.glass.liquidElevation
 import com.kudo.android.hupuui.theme.isAppDarkTheme
 import kotlin.coroutines.cancellation.CancellationException
 import com.kudo.android.hupuui.components.HuzaiToast
+import com.kudo.android.hupuui.components.HupuAvatarImage
 
 /**
  * 「过滤与屏蔽」合并页（盖入式二级页）。
@@ -421,7 +421,7 @@ private fun BlacklistRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (entry.avatar.isNotEmpty()) {
-            AsyncImage(
+            HupuAvatarImage(
                 model = entry.avatar,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,

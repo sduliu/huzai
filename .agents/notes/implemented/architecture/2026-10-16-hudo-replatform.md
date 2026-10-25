@@ -261,3 +261,11 @@ REPORT2 记录「赛程/积分榜快捷入口 dump 中 bounds=[0,0][0,0]」。�
 - `UserSignature` exhaustive when 补 `is ArticleBlock.Video -> Unit`（签名里不出视频）。
 - 单测：`hupuVideoBlockIsExtractedFromParagraphWrapperAndBareElement` + `videoBlockKeepsTextOrderAndIframeStaysAnEmbedCard` 覆盖 <p> 包裹/裸元素/保序/iframe 回退。
 - 已知限制：滚出视口释放后滚回从头起播（不做进度保活）；hupuui HtmlContent 楼层视频仍为丢弃态（回复视频罕见，未接）。
+
+## 批C-3：图片失败兜底（HupuAvatarImage/HupuIconImage/HupuThumbImage）
+
+`hupuui` 下 64 处裸 `AsyncImage` 失败 = 透明空白洞（头像直接消失）。新增 `components/FallbackImages.kt` 三个 `SubcomposeAsyncImage` 包装（签名与 `AsyncImage` 对齐，调用点只换名）：error 槽渲「灰底 + 语义图标」——头像→人形、版块标/队徽→球标、列表缩略图→图片标（官方同款灰底占位语义）。
+
+- **已换 43 处热点**：楼层/楼中楼/详情作者/签名引用头像、我的页账号卡、私信与消息列表头像、用户主页头图与粉丝头像、黑名单页头像、信息流作者角标；赛程行/记分板/板块头/专区网格/选版块/发帖选版/比赛详情队标与版块标；资讯卡/搜索卡/信息流缩略图。
+- **保留不换**：`UserProfilePage` 封面缩略图（刻意 `onError→coverOk=false` 整块撤除，注释 1.190 已有取舍）、正文大图（已有 ImageErrorBox+自动重试）、帖子正文 `ArticleImage`（feed 路径已有重试+提示）、贴纸/表情（独立加载链）。
+- 失败图标取 `fillMaxSize(0.55f)` 居中控件，不动调用方的 clip/size modifier。

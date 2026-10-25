@@ -48,7 +48,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import androidx.compose.runtime.LaunchedEffect
 import com.kudo.android.hupu.HupuAccount
 import com.kudo.android.hupu.HupuMsgBadge
@@ -58,6 +57,7 @@ import com.kudo.android.hupuui.glass.FrostedHeaderLayout
 import com.kudo.android.hupuui.components.HupuIcons
 import com.kudo.android.hupuui.components.LiquidIconButton
 import com.kudo.android.hupuui.components.HuzaiToast
+import com.kudo.android.hupuui.components.HupuAvatarImage
 
 /** 我的：设置入口（主页频道自定义等）+ 关于 */
 @Composable
@@ -189,7 +189,7 @@ fun ProfilePage(modifier: Modifier = Modifier) {
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (prof != null) {
-                            AsyncImage(
+                            HupuAvatarImage(
                                 model = prof.avatar,
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,

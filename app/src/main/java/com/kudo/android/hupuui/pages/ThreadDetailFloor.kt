@@ -99,7 +99,6 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.ui.platform.LocalView
 import android.content.pm.ActivityInfo
 import android.app.Activity
-import coil.compose.AsyncImage
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -168,6 +167,7 @@ import com.kudo.android.hupu.HupuAccount
 import com.kudo.android.hupu.HupuSticker
 import com.kudo.android.hupu.HupuAuthor
 import kotlinx.coroutines.launch
+import com.kudo.android.hupuui.components.HupuAvatarImage
 
 /** 楼中楼单层：半屏 sheet（贴底 62% 高，顶部圆角，从底滑入；母回复置顶 + 子回复流） */
 @Composable
@@ -285,7 +285,7 @@ internal fun FloorSheet(
                                         ) {
                                             parent.author?.let { a ->
                                                 normalizeCover(a.url)?.let { avatar ->
-                                                    AsyncImage(
+                                                    HupuAvatarImage(
                                                         model = avatar,
                                                         contentDescription = null,
                                                         contentScale = ContentScale.Crop,
@@ -446,7 +446,7 @@ internal fun SubReplyRow(sub: HupuSubReply, onExpand: () -> Unit, onImageClick: 
                 // 头像（无头像时隐藏不占位）
                 sub.author?.let { a ->
                     normalizeCover(a.url)?.let { avatar ->
-                        AsyncImage(
+                        HupuAvatarImage(
                             model = avatar,
                             contentDescription = null,
                             contentScale = ContentScale.Crop,

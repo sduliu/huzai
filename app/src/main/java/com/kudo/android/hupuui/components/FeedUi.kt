@@ -167,7 +167,7 @@ internal fun HeroBadgeAvatar(
     val badge = size * 0.42f
     val badgeShape = RoundedCornerShape(badge * 0.34f)
     Box(Modifier.size(size)) {
-        AsyncImage(
+        HupuAvatarImage(
             model = normalizeCover(avatar),
             contentDescription = null,
             contentScale = ContentScale.Crop,
@@ -291,7 +291,7 @@ internal fun FeedItem(thread: HupuThread, showImage: Boolean, onOpen: (HupuThrea
             MetaRow(thread)
         }
         if (showImage) {
-            AsyncImage(
+            HupuThumbImage(
                 // 1.190: 100×76dp 小图位走 CDN 缩略图（原图 155KB → 约 15KB），避免列表里几十张原图打满带宽
                 model = thumbnailUrl(thread.cover, 320),
                 contentDescription = null,

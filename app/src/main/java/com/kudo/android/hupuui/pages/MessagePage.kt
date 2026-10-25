@@ -51,7 +51,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import coil.compose.AsyncImage
 import com.kudo.android.hupu.HupuFloorReplies
 import com.kudo.android.hupu.HupuMsgBadge
 import com.kudo.android.hupu.HupuReply
@@ -71,6 +70,7 @@ import com.kudo.android.hupuui.components.LiquidBackButton
 import com.kudo.android.hupuui.components.LiquidIconButton
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
+import com.kudo.android.hupuui.components.HupuAvatarImage
 
 /**
  * 1.97 消息中心：提到我的 / 评论 / 亮了-推荐（去掉官方「动态」）。
@@ -706,7 +706,7 @@ private fun NoticeRow(n: HupuNotice, onClick: () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (n.avatar != null) {
-                AsyncImage(
+                HupuAvatarImage(
                     model = n.avatar,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,

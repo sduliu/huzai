@@ -50,7 +50,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import coil.compose.AsyncImage
 import com.kudo.android.hupu.HupuCommonSubject
 import com.kudo.android.hupu.HupuCommonTree
 import com.kudo.android.hupu.HupuImage
@@ -82,6 +81,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import com.kudo.android.hupuui.components.HupuIconImage
 
 /** 赛程列表（按日分组、按日期升序）。默认定位到今天：当天有比赛显示当天，
  *  当天无比赛显示最近的过往比赛日（更早才全部是未来赛程时取第一天）；
@@ -230,7 +230,7 @@ internal fun MatchRow(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
 @Composable
 private fun MiniTeamScore(t: HupuMatchTeam?, isWinner: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        AsyncImage(
+        HupuIconImage(
             model = normalizeCover(t?.logo),
             contentDescription = null,
             contentScale = ContentScale.Crop,
@@ -380,14 +380,14 @@ internal fun TeamScore(
                 modifier = Modifier.weight(1f, fill = false),
             )
             Spacer(Modifier.width(8.dp))
-            AsyncImage(
+            HupuIconImage(
                 model = normalizeCover(t?.logo),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.size(32.dp).clip(CircleShape),
             )
         } else {
-            AsyncImage(
+            HupuIconImage(
                 model = normalizeCover(t?.logo),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,

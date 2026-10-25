@@ -89,6 +89,8 @@ import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.kudo.android.hupuui.components.HupuIconImage
+import com.kudo.android.hupuui.components.HupuThumbImage
 
 /**
  * board：赛事板块视图（官方板块形态的复刻）——**内嵌在「比赛」Tab 频道内容区**。
@@ -733,7 +735,7 @@ private fun BoardNewsRow(n: HupuBoardNews, onOpen: () -> Unit) {
             )
         }
         normalizeCover(n.img)?.let { img ->
-            AsyncImage(
+            HupuThumbImage(
                 model = thumbnailUrl(img, 320),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
@@ -979,7 +981,7 @@ internal fun BoardMatchCard(m: HupuMatch, onOpen: () -> Unit) {
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(8.dp))
-                AsyncImage(
+                HupuIconImage(
                     model = normalizeCover(m.home?.logo),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
@@ -996,7 +998,7 @@ internal fun BoardMatchCard(m: HupuMatch, onOpen: () -> Unit) {
                     maxLines = 1,
                     modifier = Modifier.padding(horizontal = 14.dp),
                 )
-                AsyncImage(
+                HupuIconImage(
                     model = normalizeCover(m.away?.logo),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
@@ -1084,7 +1086,7 @@ internal fun BoardMatchRow(m: HupuMatch, onOpen: () -> Unit) {
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(5.dp))
-                AsyncImage(
+                HupuIconImage(
                     model = normalizeCover(m.home?.logo),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
@@ -1100,7 +1102,7 @@ internal fun BoardMatchRow(m: HupuMatch, onOpen: () -> Unit) {
                     maxLines = 1,
                     modifier = Modifier.padding(horizontal = 7.dp),
                 )
-                AsyncImage(
+                HupuIconImage(
                     model = normalizeCover(m.away?.logo),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,

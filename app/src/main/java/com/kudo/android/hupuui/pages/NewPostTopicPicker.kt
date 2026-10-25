@@ -86,7 +86,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import coil.compose.AsyncImage
 import com.kudo.android.hupu.HupuAccount
 import com.kudo.android.hupu.HupuBlocks
 import com.kudo.android.hupu.HupuDraft
@@ -100,6 +99,7 @@ import com.kudo.android.hupuui.components.tapGuard
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
+import com.kudo.android.hupuui.components.HupuIconImage
 
 /** 内容声明选项（对齐官方 MX 列表，值是 payload 的 containsAi） */
 internal val DECLARE_OPTIONS = listOf(
@@ -549,7 +549,7 @@ internal fun PostTopicSheet(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 if (t.logo != null) {
-                                    AsyncImage(
+                                    HupuIconImage(
                                         model = t.logo,
                                         contentDescription = null,
                                         contentScale = ContentScale.Crop,

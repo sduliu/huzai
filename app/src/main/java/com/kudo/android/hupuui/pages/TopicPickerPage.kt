@@ -70,7 +70,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import coil.compose.AsyncImage
 import com.kudo.android.hupu.HupuCategory
 import com.kudo.android.hupu.HupuPrefs
 import com.kudo.android.hupu.HupuRepository
@@ -87,6 +86,7 @@ import com.kudo.android.hupuui.components.LiquidBackButton
 import com.kudo.android.hupuui.components.LiquidIconButton
 import com.kudo.android.hupuui.glass.liquidElevation
 import com.kudo.android.hupuui.components.chipBarClip
+import com.kudo.android.hupuui.components.HupuIconImage
 
 /**
  * 主页频道自定义页（盖入式二级页）：
@@ -432,7 +432,7 @@ private fun TopicPickRow(
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AsyncImage(
+        HupuIconImage(
             model = normalizeCover(topic.logo),
             contentDescription = null,
             contentScale = ContentScale.Crop,
@@ -547,7 +547,7 @@ private fun SelectedBar(
                     .padding(start = 10.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                AsyncImage(
+                HupuIconImage(
                     model = normalizeCover(t.logo),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
