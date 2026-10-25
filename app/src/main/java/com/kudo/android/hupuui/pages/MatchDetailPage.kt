@@ -519,6 +519,8 @@ data class MatchScoreboard(
     val awayWon: Boolean,
     /** 开赛时间文案（未开始/无比分时占位显示） */
     val timeText: String,
+    /** 批B-2：非空则可拉单节比分（businessType=basketball 的 matchId） */
+    val quarterMatchId: String? = null,
 )
 
 /** 1.198：记分板 —— 状态/赛制 + 两队 + 比分 + 日期时间。
@@ -620,6 +622,90 @@ private fun ScoreboardBanner(sb: MatchScoreboard, onTeam: (String, String, Strin
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+        // 批B-2：单节比分（basketballapi/teamMatchQuarterStats，匿名 GET）。
+        // 仅 businessType=basketball 且已有比分（开赛）的比赛拉取；进行中随比分变化静默重拉。
+        val qid = sb.quarterMatchId
+        var quarters by remember(qid) { mutableStateOf<com.kudo.android.hupu.HupuQuarterScore?>(null) }
+        if (qid != null && hasScore) {
+            val repo = remember { HupuRepository() }
+            LaunchedEffect(qid, scoreText) {
+                repo.quarterStats(qid)?.let { quarters = it }
+            }
+        }
+        quarters?.let { q ->
+            if (q.home.isNotEmpty() || q.away.isNotEmpty()) {
+                QuarterTable(
+                    q, sb.homeName, sb.awayName, sb.homeScore, sb.awayScore,
+                    homeWon = sb.homeWon, awayWon = sb.awayWon,
+                )
+            }
+        }
+    }
+}
+
+/** 批B-2：单节比分表（与官方详情记分板下的小表格同构）：
+ *  表头 1..N 节 + 总分；主/客两行。加时数组长度 >4 时追加 OT/OT2…。 */
+@Composable
+private fun QuarterTable(
+    q: com.kudo.android.hupu.HupuQuarterScore,
+    homeName: String,
+    awayName: String,
+    homeTotal: String,
+    awayTotal: String,
+    homeWon: Boolean,
+    awayWon: Boolean,
+) {
+    val cols = maxOf(q.home.size, q.away.size)
+    fun label(i: Int) = if (i < 4) "${i + 1}" else if (i == 4) "OT" else "OT${i - 3}"
+
+    @Composable
+    fun cell(text: String, bold: Boolean = false, dim: Boolean = false, modifier: Modifier = Modifier) {
+        Text(
+            text,
+            fontSize = 12.sp,
+            fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+            color = if (dim) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            modifier = modifier,
+        )
+    }
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        // 表头：节次 + 总分
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            cell("", modifier = Modifier.width(56.dp))
+            for (i in 0 until cols) {
+                cell(label(i), dim = true, modifier = Modifier.weight(1f))
+            }
+            cell("总分", dim = true, bold = true, modifier = Modifier.weight(1f))
+        }
+        listOf(
+            Triple(homeName, q.home, homeTotal) to homeWon,
+            Triple(awayName, q.away, awayTotal) to awayWon,
+        ).forEach { (row, won) ->
+            val (name, scores, total) = row
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    name, fontSize = 12.sp,
+                    fontWeight = if (won) FontWeight.Bold else FontWeight.Normal,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.width(56.dp),
+                )
+                for (i in 0 until cols) {
+                    cell(scores.getOrElse(i) { "-" }, bold = won, modifier = Modifier.weight(1f))
+                }
+                cell(total, bold = true, modifier = Modifier.weight(1f))
+            }
         }
     }
 }

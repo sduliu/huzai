@@ -186,3 +186,9 @@ REPORT2 记录「赛程/积分榜快捷入口 dump 中 bounds=[0,0][0,0]」。�
 - **已验证端点→字段映射**：getDataTabList→tabId/tabName/tabLinkType/tabUrl；teamStandingList→rankTypeListMap(E,W)+divRankTypeListMap(6分区)+competitionSeasonStageType；switchableRankSeasonList→seasonData(season/seasonType/select)，rankType 枚举 NBA_TEAM_RANK/NBA_PLAYER_RANK（clientId=106819853 为官方 H5 实参）；teamSeasonStatsAllRank→39 项各 top5；playerSeasonRank→dimensionList(基础/进阶)→itemList→rankInfoList(top5)；draftYearConfig→年份表、players/draft→draftMap(按轮)；allInjuryList→playerInjuryDTOList+teamInjuryPlayerListMap；teamMatchQuarterStats→home/awayQuarterScore 数组；matchallapi/oddsScheduleList→dayGameData（复用 HupuMatchParser 行结构，含 competitionName/subscribeInfo）。
 - **模型扩展**：`HupuMatch` 补 `businessType`(basketball=可拉单节比分)/`competitionName`/`subscribe`；新增 HupuDataTab/HupuSeasonOption/HupuRankCategory/HupuStandingsBoard/HupuPlayerRankBoard/HupuDraftBoard/HupuInjury/HupuQuarterScore。
 - **未接**：`basketball/public/` 签名路由族；singleMatch 的订阅/预约写接口（subscribeInfo 仅读展示）；WNBA——leagueTypeName invalid，端点不认；足球/电竞榜走各自 matchallapi 数据 tab（H5 或后续）。
+
+## 批B-2：赛程行预约占位 + 详情记分板单节比分
+
+- **预约（展示占位，不可点）**：实测 `getScheduleListByTagForH5` 行内 `subscribeInfo`——NOTSTARTED 场 `showSubscribe=true`、完赛场 false。`HupuMatch.subscribe` 映射 `showSubscribe/didSubscribe/subScribeTitle/subScribeDesc`；`MatchRow` 右列在 `show=true` 时渲染主题色「预约」胶囊（纯展示）。订阅接口为登录态写操作，**未接**，不伪造已约态。
+- **评分人数**：赛程行 `scoreCountText`（"2.0万人评分"）此前已映射渲染，本批仅复核，无改动。
+- **单节比分**：`MatchScoreboard` 加 `quarterMatchId`（ScorePage 在 `businessType=="basketball"` 时传 matchId）；`ScoreboardBanner` 在已有比分（开赛）时 LaunchedEffect 拉 `repo.quarterStats`，直播态随比分变化重拉，渲染 `QuarterTable`（节次表头 1-4 + OT/OT2… + 总分列，胜方加粗）。接口空/非篮球比赛不显示。

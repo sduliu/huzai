@@ -208,6 +208,20 @@ internal fun MatchRow(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
                 Spacer(Modifier.height(3.dp))
                 Text(m.scoreCountText, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            // 批B-2：预约占位——官方在未开赛行给「预约」入口（subscribeInfo.showSubscribe）；
+            // 订阅是写接口（需登录态），这里只做展示占位，不可点、不伪造已约态。
+            if (m.subscribe?.show == true) {
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    "预约",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                )
+            }
         }
     }
 }

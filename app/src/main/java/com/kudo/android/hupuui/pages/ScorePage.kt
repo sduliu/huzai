@@ -988,6 +988,8 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
                     homeWon = om.winnerMemberId != null && om.winnerMemberId == om.home?.memberId,
                     awayWon = om.winnerMemberId != null && om.winnerMemberId == om.away?.memberId,
                     timeText = om.startTimeText,
+                    // 批B-2：businessType=basketball → 可拉单节比分（teamMatchQuarterStats）
+                    quarterMatchId = om.matchId.takeIf { om.businessType == "basketball" },
                 ) else null,
                 live = liveMatch,
                 // 1.200：NBA（basketball_match + NBA 联赛）→ 详情页多出「数据统计 / 文字实录」两个入口。
