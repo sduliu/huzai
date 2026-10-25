@@ -1,6 +1,9 @@
 package com.kudo.android
 
+import com.kudo.android.data.toTopicDetail
 import com.kudo.android.hupu.HupuDataParser
+import com.kudo.android.ui.topic.ArticleBlock
+import com.kudo.android.ui.topic.parseArticle
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -132,5 +135,38 @@ class HupuDataParserTest {
         assertEquals(1, list[1].covers.size)
         assertTrue(list[2].covers.isEmpty())
         assertNull(list[2].topic)
+    }
+
+    @Test fun videoThread_realSample_flowsThroughBridgeToNativePlayerMount() {
+        // 批E：真实样本 tid=643103358（2026-10-26 抓取的 PC SSR __NEXT_DATA__）——
+        // detail.thread 带 hasVideo/video/videoCover，content 内无 <video>（视频是独立字段）
+        val video = "https://v.hoopchina.com.cn/bbs-editor-web/4322477422577d3d6130fa51bca3c2ec_wz_transcode.mp4?auth_key=1792993545-2-0-210e10c3e5248a5542556bf999fa9f1f"
+        val poster = "https://i5.hoopchina.com.cn/bbs-editor-web/17924935854601.jpg"
+        val html = """<html><script id="__NEXT_DATA__" type="application/json">
+            {"props":{"pageProps":{"detail":{"detailErrorInfo":{"code":200},
+             "thread":{"tid":"643103358","title":"[搬运]职业选手套路介绍：上单飞机，上单穿甲剑魔",
+               "hasVideo":true,"video":"$video","videoCover":"$poster",
+               "content":"<h1 class=\"slate-h1\">这两个玩法难道会登上S16世界赛</h1>",
+               "lights":8,"replies":14,"read":13465,"location":"天津","url":"/643103358.html",
+               "createdAt":1792493532000,"createdAtFormat":"5天前",
+               "author":{"puid":"116528540","euid":"22230928576422","puname":"求你了再让我补波兵","level":14},
+               "topic":{"topicId":"85","name":"英雄联盟","url":"/lol"}},
+             "replies":{"list":[],"count":14,"current":1}}}}}
+        </script></html>"""
+        val detail = com.kudo.android.hupu.HupuParser.parseThreadDetail(html)
+        assertNotNull(detail)
+        // hupuui 详情页挂载条件：hasVideo && video.isNotBlank() → VideoPlayer
+        assertTrue(detail!!.thread.hasVideo && detail.thread.video.isNotBlank())
+        assertEquals(video, detail.thread.video)
+        assertEquals(poster, detail.thread.videoCover)
+
+        // feed 详情路径：toTopicDetail 前置 <video> → parseArticle 出 Video 块 → RichVideoBlock 挂载
+        val cooked = detail.toTopicDetail().posts.first().cooked
+        val blocks = parseArticle(cooked)
+        val videos = blocks.filterIsInstance<ArticleBlock.Video>()
+        assertEquals(1, videos.size)
+        assertEquals(video, videos[0].url)
+        assertEquals(poster, videos[0].poster)
+        assertTrue(blocks.any { it is ArticleBlock.TextBlock })
     }
 }

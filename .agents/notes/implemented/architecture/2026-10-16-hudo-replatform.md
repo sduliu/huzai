@@ -313,3 +313,15 @@ Muse 真机验证缺定位手段（内嵌 <video> 帖子难找）。本次只加
   3. `topics()` 的 latest 分支自愈：`mobileHome` 空且非强网时 `forceNetwork` 重拉一次再判空。
 - 不伪造数据：重拉仍空则返回空（EmptyState 保留），不报假错误。
 - 未接：`HupuRepository` 是 final 具体类（构造可注入但不可 mock 子类），自愈路径无 JVM 单测；board/topicPage 等同样受益 refresh 下传，但各自的「空壳缓存」未做同类入库门槛（`res` 门槛只加在 m-home，其他端点结构不同不泛化）。
+
+## 批E-1：真实样本全链验证内嵌视频（结论：解析+桥接+挂载判定全通）
+
+Muse 找不到内嵌视频帖是「样本难找」而非链路不通。用 2026-10-26 抓到的真实帖子（`/tmp/b-lol.html` 列表中 `hasVideo:true` → tid=643103358，详情 SSR PC 页 130,857B）做端到端证据链：
+
+- **样本**：`detail.thread.hasVideo=true`、`video=v.hoopchina.com.cn/.../wz_transcode.mp4?auth_key=…`、`videoCover=i5.hoopchina.com.cn/...jpg`；`content` 正文是 slate HTML（视频是独立字段，不在正文 HTML 里）；回复楼 14 条含 0 个 `<video>`（8 条含 `<img>`）。
+- **主链路两条都通**：
+  1. hupuui `ThreadDetailPage` → `ThreadDetailHeader`：`thread.hasVideo && video.isNotBlank()` → 直接挂 `VideoPlayer`（ExoPlayer，封面+起播+全屏已齐）。
+  2. feed `TopicScreen`：`toTopicDetail()` 把 `thread.video`/`videoCover` 前置成 `<p><video src poster>` → `parseArticle` 出 `ArticleBlock.Video`（`webUrl` 过滤空/非 http(s)）→ `RichVideoBlock`（`article-video` tag）→ 同一 `VideoPlayer`。
+- **持久化单测** `HupuDataParserTest.videoThread_realSample_flowsThroughBridgeToNativePlayerMount`：fixture 用样本真实字段值，断言 `parseThreadDetail` 出 hasVideo/video/videoCover、`toTopicDetail().posts[0].cooked` 经 `parseArticle` 出恰好 1 个 Video 块且 url/poster 与源站一致、正文 TextBlock 保留。
+- **HtmlContent 楼层丢弃结论**：批C 记录的「hupuui HtmlContent 不渲 `<video>`」只影响回复楼。真实样本回复零 `<video>`，主链路（主楼视频）不受影响，维持不修复（楼层视频为罕见边缘，修复收益为负——HtmlContent 是纯文本+图渲染器，加视频渲染需为每楼层持播放器生命周期）。
+- **外链视频不变**：`<a>` 文本链接仍走 `openLink`，不出 Video 块；iframe/audio 仍 Embed 卡。
