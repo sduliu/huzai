@@ -111,6 +111,8 @@ sealed interface ArticleBlock {
         val displayWidth: Float? = null,
     ) : ArticleBlock
     data class Embed(val url: String, val title: String, val description: String = "", val image: String? = null, val site: String = "") : ArticleBlock
+    /** 内嵌视频（虎扑 <video src poster>）——渲染为 ExoPlayer 小窗，不再是跳转卡片 */
+    data class Video(val url: String, val poster: String? = null) : ArticleBlock
     data object Rule : ArticleBlock
 }
 
@@ -139,7 +141,7 @@ fun List<ArticleBlock>.articleHeadings(): List<ArticleHeading> = buildList {
                 is ArticleBlock.Spoiler -> visit(block.blocks, path)
                 is ArticleBlock.ListBlock -> block.items.forEachIndexed { item, value -> visit(value.blocks, "$path-item$item") }
                 is ArticleBlock.Quote, is ArticleBlock.Code, is ArticleBlock.Table, is ArticleBlock.Image,
-                is ArticleBlock.Embed, is ArticleBlock.Poll, ArticleBlock.Rule -> Unit
+                is ArticleBlock.Embed, is ArticleBlock.Video, is ArticleBlock.Poll, ArticleBlock.Rule -> Unit
             }
         }
     }
@@ -307,8 +309,12 @@ fun parseArticle(html: String): List<ArticleBlock> {
             "iframe", "video", "audio" -> {
                 val raw = element.attr("src").ifBlank { element.selectFirst("source")?.attr("src").orEmpty() }
                 val poster = element.attr("poster").ifBlank { null }
-                val label = if (element.normalName() == "video") "播放视频" else "打开媒体网页"
-                LinuxDoLink.webUrl(raw)?.let { result.add(ArticleBlock.Embed(it, label, image = poster)) }
+                if (element.normalName() == "video") {
+                    LinuxDoLink.webUrl(raw)?.let { result.add(ArticleBlock.Video(it, poster)) }
+                } else {
+                    val label = "打开媒体网页"
+                    LinuxDoLink.webUrl(raw)?.let { result.add(ArticleBlock.Embed(it, label, image = poster)) }
+                }
             }
             "blockquote", "aside" -> {
                 if (element.hasClass("onebox")) {
@@ -353,7 +359,9 @@ fun parseArticle(html: String): List<ArticleBlock> {
                     flush(); return
                 }
                 val images = element.select("img:not(.emoji)")
-                val copy = element.clone().apply { select("img:not(.emoji), .lightbox .meta, .lightbox-wrapper .meta").remove() }
+                // <p><video …> 包视频：此前只提取 img，video 被静默吞掉——像图片一样拆出来 walk
+                val videos = element.select("video")
+                val copy = element.clone().apply { select("img:not(.emoji), video, .lightbox .meta, .lightbox-wrapper .meta").remove() }
                 val level = element.normalName().removePrefix("h").toIntOrNull()?.takeIf { it in 1..6 } ?: 0
                 if (copy.text().isNotBlank() || copy.select("img.emoji").isNotEmpty()) result.add(
                     ArticleBlock.TextBlock(
@@ -365,6 +373,7 @@ fun parseArticle(html: String): List<ArticleBlock> {
                     )
                 )
                 images.forEach { walk(it, quote) }
+                videos.forEach { walk(it, quote) }
             }
             else -> {
                 if (element.children().isEmpty() && element.text().isNotBlank()) result.add(ArticleBlock.TextBlock(element.html(), quote))
@@ -718,6 +727,7 @@ private fun ArticleBlocks(blocks: List<ArticleBlock>, parent: String, collapsed:
             }
             is ArticleBlock.Image -> image(block, path)
             is ArticleBlock.Embed -> OneboxPreview(block, onLink)
+            is ArticleBlock.Video -> RichVideoBlock(block)
             is ArticleBlock.Poll -> poll(block.name)
             ArticleBlock.Rule -> Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
         } } }

@@ -250,3 +250,14 @@ REPORT2 记录「赛程/积分榜快捷入口 dump 中 bounds=[0,0][0,0]」。�
 - C3：头像兜底人形 + 列表小图灰底空态（热点调用点：楼层头像/详情作者/我的卡/版块标/搜索图）
 - C4：已登录账号卡补 关注/粉丝/Lv 行（`parseSpaceUserInfo` 同源接口）
 - C5：`FeedItem` 官方平卡复刻（单图全宽/三图行需 `HupuThread` 补 `covers`+`picType`，解析器保留 source[] 全量）
+
+## 批C-2：信息流详情路径内嵌视频播放（ArticleBlock.Video + RichVideoBlock）
+
+审计发现的真问题比预期更深：`HupuBridge.toTopicDetail` 把 `thread.video` 前置为 `<p><video src poster>`，而 `parseArticle` 的 `<p>` 分支只拆 `img` —— **视频在 feed 路径被整段吞掉**（连 Embed 卡都不出）。裸 `<video>`（非 <p> 包裹）才走到 Embed 卡 → openLink → WebView 播放（跳走即停、无控件）。
+
+- **`ArticleBlock.Video(url, poster)`**：`"video"` normalName 直出；`<p>` 分支补 `element.select("video")` 与 img 同列拆出 walk（保序：video 在其所在段落位置渲染）。
+- **`RichVideoBlock`**（`ui/topic/RichVideoPlayer.kt`）：复用 `hupuui/player` 三件套——`VideoHost`（块内 remember，滚出 LazyItem 即 release，不为低频视频帖维护页级映射）、`VideoPlayer`（封面+播放键→ExoPlayer 起播，控件含暂停/进度/倍速/全屏钮）、`FullscreenVideo`（自管旋转+沉浸式）。全屏容器用 `Dialog(usePlatformDefaultWidth=false, decorFitsSystemWindows=false)`——TopicScreen 是 NavHost destination 无页级 overlay 位，Dialog 即满屏；返回键走 `BackHandler`+Dialog dismiss 同路径退出。
+- iframe/audio 仍走 Embed 卡（无内嵌播放器语义，不变）。
+- `UserSignature` exhaustive when 补 `is ArticleBlock.Video -> Unit`（签名里不出视频）。
+- 单测：`hupuVideoBlockIsExtractedFromParagraphWrapperAndBareElement` + `videoBlockKeepsTextOrderAndIframeStaysAnEmbedCard` 覆盖 <p> 包裹/裸元素/保序/iframe 回退。
+- 已知限制：滚出视口释放后滚回从头起播（不做进度保活）；hupuui HtmlContent 楼层视频仍为丢弃态（回复视频罕见，未接）。

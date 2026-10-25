@@ -217,4 +217,30 @@ println(x)</code></pre><p><img src="/uploads/image.png" width="800" height="600"
         val small = parseArticle("""<img src="/base.png" width="200" height="1000" srcset="/small.png 100w, /low.png 0.5x">""").single() as ArticleBlock.Image
         assertEquals("https://linux.do/base.png", small.url)
     }
+
+    @Test fun hupuVideoBlockIsExtractedFromParagraphWrapperAndBareElement() {
+        // 虎扑桥接层把视频前置成 <p><video src poster></video></p>；
+        // 此前 <p> 分支只拆 img，视频被整段吞掉
+        val wrapped = parseArticle("""<p><video src="https://v.hoopchina.com.cn/a.mp4" poster="https://c.hoopchina.com.cn/c.jpg"></video></p><p>正文</p>""")
+        assertEquals(2, wrapped.size)
+        val video = wrapped[0] as ArticleBlock.Video
+        assertEquals("https://v.hoopchina.com.cn/a.mp4", video.url)
+        assertEquals("https://c.hoopchina.com.cn/c.jpg", video.poster)
+        assertTrue(wrapped[1] is ArticleBlock.TextBlock)
+
+        val bare = parseArticle("""<video src="https://v.hoopchina.com.cn/b.mp4"></video>""").single() as ArticleBlock.Video
+        assertEquals("https://v.hoopchina.com.cn/b.mp4", bare.url)
+        assertEquals(null, bare.poster)
+    }
+
+    @Test fun videoBlockKeepsTextOrderAndIframeStaysAnEmbedCard() {
+        val blocks = parseArticle("""<p>前文</p><p><video src="https://v.hoopchina.com.cn/a.mp4"></video></p><p>后文</p>""")
+        assertEquals(3, blocks.size)
+        assertTrue(blocks[0] is ArticleBlock.TextBlock)
+        assertTrue(blocks[1] is ArticleBlock.Video)
+        assertTrue(blocks[2] is ArticleBlock.TextBlock)
+
+        val embed = parseArticle("""<iframe src="https://player.example.com/x"></iframe>""").single() as ArticleBlock.Embed
+        assertEquals("https://player.example.com/x", embed.url)
+    }
 }

@@ -114,6 +114,7 @@ private fun SignatureContent(blocks: List<ArticleBlock>, openLink: (String) -> U
                 } }
             }
             is ArticleBlock.Table -> Unit
+            is ArticleBlock.Video -> Unit
             is ArticleBlock.Poll -> Unit
             ArticleBlock.Rule -> Unit
         } } }
