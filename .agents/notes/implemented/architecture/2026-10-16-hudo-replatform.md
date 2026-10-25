@@ -165,3 +165,7 @@ REPORT2 实测确认：信息流/搜索点帖走 `topic/{id}` → `ui/topic/Topi
 - **常驻底栏**：`TopicBottomBar` 本就存在（写回复 + 楼层索引 + 动作组三枚液态胶囊），但 `a1f985b`「去楼层条」把 `floorEnabled=false` 关掉了页码件——批A-1 重新置 true（官方「N/M页」对应物，点开展开 `FloorNavigationBar` 跳楼层）。动作组在回应钮后补「💬回复计数（`highestPostNumber-1`）+ ↗分享」对齐官方 👍💬↗。
 - **回复排序 `ReplySortBar`**（TopicControls.kt）：`回复 N` + 四胶囊 `最亮/最早/最晚/楼主`，插在 OP 与首条回复之间（`items()` 拆成 `number==1` + sort 项 + `number>1` 三段，`postItem` 共享 lambda）。**仅作用于已加载楼层**：`displayPosts` 对 `posts` 做 partition 后重排/过滤——最亮=`likes` 降序、最早=楼层序（默认）、最晚=`number` 降序、楼主=`author.username==OP` 过滤；选中非默认时条下显式提示「排序仅作用于已加载楼层」，不伪装服务端排序。索引类引用（scrollToPost/navigatePost/mainVisible/previous 触发集）同步改用 `displayPosts`。
 - **未对齐**：官方是服务端分页排序（翻页即整帖序），我们流式增量加载只能排已加载段——DECISIONS 见批A总结；`ThreadDetailPage` 路径未动（它已有自己的排序条）。
+
+## 批A-2：推荐流 ♥50 高频重复——确认为服务端真实值，不改解析
+
+REPORT2 观察「推荐流各卡 ♥50 恒定、回复数各异」。实测当前 m.hupu.com 首页 SSR（`__NEXT_DATA__.props.pageProps.res`，30 条）：`lights` 字段字符串有 18/30 条恰为 `'50'`，其余 48/45/33/37/41/19/46/39 等——分布与设备观察（50 高频 + 偶见 42/43/49）完全吻合。`parseMobileHome` 用 `toIntOrNull ?: 0`，缺失/空串→0 而非 50，`compactNumber` 也不会把 0 显示成 50——解析链无默认值污染。**结论：`lights` 在移动站 SSR 中被服务端截顶在 50（热帖真实亮数远高于此），50 是服务端下发的真实字段值，不改数据、不显示加号伪造。** 若官方 app 显示更高数值，走的是私有接口真实计数，不在可达范围内。
