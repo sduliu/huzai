@@ -325,3 +325,11 @@ Muse 找不到内嵌视频帖是「样本难找」而非链路不通。用 2026-
 - **持久化单测** `HupuDataParserTest.videoThread_realSample_flowsThroughBridgeToNativePlayerMount`：fixture 用样本真实字段值，断言 `parseThreadDetail` 出 hasVideo/video/videoCover、`toTopicDetail().posts[0].cooked` 经 `parseArticle` 出恰好 1 个 Video 块且 url/poster 与源站一致、正文 TextBlock 保留。
 - **HtmlContent 楼层丢弃结论**：批C 记录的「hupuui HtmlContent 不渲 `<video>`」只影响回复楼。真实样本回复零 `<video>`，主链路（主楼视频）不受影响，维持不修复（楼层视频为罕见边缘，修复收益为负——HtmlContent 是纯文本+图渲染器，加视频渲染需为每楼层持播放器生命周期）。
 - **外链视频不变**：`<a>` 文本链接仍走 `openLink`，不出 Video 块；iframe/audio 仍 Embed 卡。
+
+## 批E-2：图片兜底可测试化（纯函数映射 + hupu-fallback-* 定位标签）
+
+`FallbackImages.kt` 重构：兜底分支「渲哪个图标」收敛为纯函数 `fallbackIcon(HupuImageFallback)`（Avatar→Person / Icon→SportsBasketball / Thumb→Image，三者互异）与 `fallbackTag`（`hupu-fallback-avatar|icon|thumb`）；`ImageFallbackBox` 图标挂对应 testTag，uiautomator 可判兜底态。
+
+- **JVM 单测** `FallbackImagesTest`：三类→三互异图标的映射、tag 命名、enum 穷尽（新增种类强制补映射）。`ImageVector`/`materialIcon` 构造是纯 Kotlin（PathBuilder 不触 android.*），可跑 JVM。coil `SubcomposeAsyncImage` 何时进 error 槽是库行为，不在 JVM 覆盖。
+- **androidTest** `FallbackImagesUiTest`：三类组件喂 `http://127.0.0.1:1/unreachable.png`（连接拒绝、离线可复现）→ 断言对应 `hupu-fallback-*` 节点 `assertIsDisplayed`——真机侧证明「error 回调确实渲了兜底分支而非透明洞」。
+- **刻意取舍保留**：`UserProfilePage` 封面缩略图失败仍「整块撤除」（`onError→coverOk=false`，注释 1.190）——84×60 占位洞会压窄标题换行，撤块优于空洞；该项不接兜底组件，笔记留痕为设计决定而非缺陷。
