@@ -7,6 +7,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -89,6 +90,18 @@ fun TopicScreen(state: TopicState, glass: GlassMode, back: () -> Unit, retry: ()
         threadVisibility.targetState = false; visibility.targetState = false; action(post, markdown)
     } }
     val detail = state.detail
+    // 批A-1：回复排序（0 最亮 / 1 最早 / 2 最晚 / 3 只看楼主），默认最早＝楼层顺序，仅作用于已加载楼层
+    var replySort by rememberSaveable(detail?.id) { mutableIntStateOf(1) }
+    val displayPosts = remember(posts, replySort, originalPost?.author?.username) {
+        if (replySort == 1) posts else {
+            val (ops, replies) = posts.partition { it.number == 1 }
+            ops + when (replySort) {
+                0 -> replies.sortedByDescending(Post::likes)
+                2 -> replies.sortedByDescending(Post::number)
+                else -> replies.filter { it.author.username == originalPost?.author?.username }
+            }
+        }
+    }
     val presentation = LocalTopicPresentation.current
     LaunchedEffect(detail?.id, state.loading) {
         if (!state.loading && detail != null && presentation.categories.none { it.id == detail.categoryId }) presentation.refreshCategories()
@@ -115,7 +128,7 @@ fun TopicScreen(state: TopicState, glass: GlassMode, back: () -> Unit, retry: ()
     fun jumpToHeading(entry: ArticleHeading) {
         tocVisibility.targetState = false
         scope.launch {
-            val index = posts.indexOfFirst { it.number == 1 }
+            val index = displayPosts.indexOfFirst { it.number == 1 }
             if (index < 0) return@launch
             scrollToPost(index)
             val requester = withTimeoutOrNull(2_000) {
@@ -126,7 +139,7 @@ fun TopicScreen(state: TopicState, glass: GlassMode, back: () -> Unit, retry: ()
     }
     fun navigatePost(number: Int) {
         threadVisibility.targetState = false
-        val index = posts.indexOfFirst { it.number == number }
+        val index = displayPosts.indexOfFirst { it.number == number }
         if (index < 0) jumpTo(number)
         else scope.launch {
             scrollToPost(index)
@@ -170,18 +183,18 @@ fun TopicScreen(state: TopicState, glass: GlassMode, back: () -> Unit, retry: ()
         previousAnchor = null
     }
     val endLoaded = !hasMore && !state.loading && !state.loadingMore && state.error == null && state.moreError == null
-    val mainVisible by remember(listState, posts, endLoaded) { derivedStateOf {
+    val mainVisible by remember(listState, displayPosts, endLoaded) { derivedStateOf {
         val visible = listState.layoutInfo.visibleItemsInfo
-        val last = posts.lastOrNull()
+        val last = displayPosts.lastOrNull()
         if (endLoaded && !listState.canScrollForward && last != null && visible.any { it.key == last.id }) last.number
-        else visible.firstNotNullOfOrNull { item -> posts.firstOrNull { it.id == item.key }?.number }
+        else visible.firstNotNullOfOrNull { item -> displayPosts.firstOrNull { it.id == item.key }?.number }
     } }
     LaunchedEffect(mainVisible, showing, state.jumping, located) {
         if (!showing && !state.jumping && (state.targetNumber == null || located)) mainVisible?.let { currentFloor = it }
     }
     LaunchedEffect(posts, state.loading, state.jumping, state.targetNumber, state.targetRevision) {
         if (!located && !state.loading && !state.jumping && state.error == null && state.targetNumber != null) {
-            val index = posts.indexOfFirst { it.number == state.targetNumber }
+            val index = displayPosts.indexOfFirst { it.number == state.targetNumber }
             if (index >= 0) {
                 threadVisibility.targetState = false
                 try {
@@ -209,7 +222,7 @@ fun TopicScreen(state: TopicState, glass: GlassMode, back: () -> Unit, retry: ()
     AutomaticPostLoading(listState, "more-posts", detail?.stream to posts.map(Post::id),
         hasMore && !showing && !covered && !state.loading && !state.jumping && !state.loadingMore && !state.loadingPrevious && previousAnchor == null &&
             state.error == null && state.moreError == null && (state.targetNumber == null || located), more)
-    AutomaticPreviousPostLoading(listState, "previous-posts", posts.take(3).map(Post::id).toSet(), detail?.stream to posts.map(Post::id),
+    AutomaticPreviousPostLoading(listState, "previous-posts", displayPosts.take(3).map(Post::id).toSet(), detail?.stream to posts.map(Post::id),
         hasPrevious && !showing && !covered && !state.loading && !state.jumping && !state.loadingPrevious && !state.loadingMore && previousAnchor == null &&
             state.error == null && state.previousError == null && (state.targetNumber == null || located)) {
         // A local function reference compares equal even when its captured loading state changes.
@@ -269,7 +282,7 @@ fun TopicScreen(state: TopicState, glass: GlassMode, back: () -> Unit, retry: ()
                             }
                             }
                         }
-                        items(posts, key = { it.id }) { post ->
+                        val postItem: @Composable LazyItemScope.(Post) -> Unit = { post ->
                             val thread = threads.firstOrNull { it.root.id == post.id }
                             LaunchedEffect(post.id, state.contextLoading) {
                                 if (!state.contextLoading && post.number > 1 && thread != null) loadReplies(post, true)
@@ -286,6 +299,11 @@ fun TopicScreen(state: TopicState, glass: GlassMode, back: () -> Unit, retry: ()
                                 }
                             }
                         }
+                        items(displayPosts.filter { it.number == 1 }, key = { it.id }, itemContent = postItem)
+                        if (displayPosts.isNotEmpty()) item("reply-sort") {
+                            ReplySortBar(replySort, replies = (detail.highestPostNumber - 1).coerceAtLeast(0), onSort = { replySort = it })
+                        }
+                        items(displayPosts.filter { it.number > 1 }, key = { it.id }, itemContent = postItem)
                         if (state.contextLoading) item { Text("正在补齐回复关系…", Modifier.padding(16.dp), style = MaterialTheme.typography.bodySmall) }
                         if (state.contextError != null) item { TextButton(onClick = resolveContext) { Text("部分原评论暂不可访问，点击重试") } }
                         if (state.loadingMore) item { LoadingRow() }
@@ -302,7 +320,7 @@ fun TopicScreen(state: TopicState, glass: GlassMode, back: () -> Unit, retry: ()
                 floorEditing = floorShowing, floorRaw = floorRaw,
                 floorChange = { floorRaw = it }, floorHighest = detail?.highestPostNumber ?: 1,
                 floorJumping = state.jumping, floorError = state.jumpError, floorConfirm = jumpTo, floorClose = ::closeFloor,
-                floorEnabled = false)
+                floorEnabled = true)
         }
         LiquidModal(tocVisibility, "目录", false, modalBackdrop, glass, { tocVisibility.targetState = false },
             showActions = false, maxDialogHeightFraction = .72f,

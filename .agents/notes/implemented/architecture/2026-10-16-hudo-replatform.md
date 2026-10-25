@@ -157,3 +157,11 @@ AGP 9 迁移要点：删 `kotlin-android` 插件（内置 Kotlin）、`sdkDirect
 - **改法**：`KudoApp` 的 `search?query=` 路由弃用 Discourse `SearchScreen`/`SearchViewModel`，改挂 `hupuui.pages.SearchPage`；`onOpenThread` 走 `HupuIds.topicId(tid)`→`topic/{id}`（与热榜版块热帖同源路径）。`SearchPage` 新增 `initialQuery` 参数承接 `search?query=`（热榜「大家都在搜」入口）；落地页 `HistoryPanel` 增加「大家都在搜」热词块（`repo.board("/all-gambia").trending`，与热榜频道同一数据源，失败静默隐藏）。
 - **未动**：`user-search/{username}` 路由仍走 Discourse `SearchViewModel`（用户帖内搜索，本就登录态功能）；`SearchScreen` 文件保留。
 - **未实现**（匿名端点只返 `type:"posts"` 帖子结果，bbs SSR 无其他类型字段）：官方结果页的综合/评分/赛程/用户/问AI 多类聚合、赛事大卡、球员评分卡均不可达——官方那些结果来自 app 私有接口，不摸。官方落地页的榜单切换（话题/影视/游戏等）未接，热词已接。
+
+## 批A-1：TopicScreen 详情底栏对齐 + 回复排序（信息流路径）
+
+REPORT2 实测确认：信息流/搜索点帖走 `topic/{id}` → `ui/topic/TopicScreen`（Discourse 形流式楼层），此前笔记「详情回复排序已覆盖」说的是 hupuui `ThreadDetailPage`（专区版块/评分/历史叠层路径）——两条详情栈并存，信息流这条才是对比证据里缺排序的那条。
+
+- **常驻底栏**：`TopicBottomBar` 本就存在（写回复 + 楼层索引 + 动作组三枚液态胶囊），但 `a1f985b`「去楼层条」把 `floorEnabled=false` 关掉了页码件——批A-1 重新置 true（官方「N/M页」对应物，点开展开 `FloorNavigationBar` 跳楼层）。动作组在回应钮后补「💬回复计数（`highestPostNumber-1`）+ ↗分享」对齐官方 👍💬↗。
+- **回复排序 `ReplySortBar`**（TopicControls.kt）：`回复 N` + 四胶囊 `最亮/最早/最晚/楼主`，插在 OP 与首条回复之间（`items()` 拆成 `number==1` + sort 项 + `number>1` 三段，`postItem` 共享 lambda）。**仅作用于已加载楼层**：`displayPosts` 对 `posts` 做 partition 后重排/过滤——最亮=`likes` 降序、最早=楼层序（默认）、最晚=`number` 降序、楼主=`author.username==OP` 过滤；选中非默认时条下显式提示「排序仅作用于已加载楼层」，不伪装服务端排序。索引类引用（scrollToPost/navigatePost/mainVisible/previous 触发集）同步改用 `displayPosts`。
+- **未对齐**：官方是服务端分页排序（翻页即整帖序），我们流式增量加载只能排已加载段——DECISIONS 见批A总结；`ThreadDetailPage` 路径未动（它已有自己的排序条）。

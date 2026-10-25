@@ -222,6 +222,18 @@ internal fun TopicBottomBar(
                 TopicReactionButton(first, available && (state.viewerId == null || first?.canReact == true),
                     choose = if (first?.reactionsAvailable == true && detail.validReactions.isNotEmpty()) ({ choose(first) }) else null,
                     click = { first?.let(like) }, bottom = true)
+                // 批A-1：底栏对齐官方「👍 💬 ↗」——补回复计数与分享（回应钮已有）
+                Row(Modifier.testTag("topic-reply-count"), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.ModeComment, "回复数", Modifier.size(19.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .75f * LocalContentColor.current.alpha))
+                    Text((detail.highestPostNumber - 1).coerceAtLeast(0).toString(),
+                        Modifier.padding(start = 3.dp), style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .75f * LocalContentColor.current.alpha))
+                }
+                IconButton(onClick = share, enabled = enabled, modifier = Modifier.testTag("topic-share")) {
+                    Icon(Icons.Rounded.Share, "分享帖子", Modifier.size(19.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .75f * LocalContentColor.current.alpha))
+                }
                 if (ownFirst) {
                     IconButton(onClick = { first?.let { actions.edit(detail.id, it) } },
                         enabled = available && first?.editableBy(state.viewerId) == true, modifier = Modifier.testTag("topic-edit")) {
@@ -249,6 +261,39 @@ internal fun TopicBottomBar(
             right.placeRelative(end + gap, (height - right.height) / 2)
         }
     }
+    }
+}
+
+// 批A-1：回复排序条（对齐官方「最亮/最早/最晚/楼主」四键）。
+// 官方是服务端分页排序；这里只重排/过滤已加载楼层——选中非默认排序时显式提示，不伪造结果。
+internal val REPLY_SORTS = listOf("最亮", "最早", "最晚", "楼主")
+
+@Composable
+internal fun ReplySortBar(sort: Int, replies: Int, onSort: (Int) -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).testTag("reply-sort-bar")) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("回复 $replies", style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.weight(1f))
+            REPLY_SORTS.forEachIndexed { index, label ->
+                val selected = sort == index
+                Text(label, Modifier.clip(RoundedCornerShape(50))
+                    .background(if (selected) LogoYellow.copy(alpha = .22f)
+                        else MaterialTheme.colorScheme.onSurface.copy(alpha = .05f))
+                    .clickable(role = Role.Button) { onSort(index) }
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = "回复排序：$label"
+                        stateDescription = if (selected) "已选择" else "未选择"
+                    }
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .testTag("reply-sort-$label"),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    color = if (selected) Ink else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        if (sort != 1) Text("排序仅作用于已加载楼层", Modifier.padding(top = 6.dp),
+            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
