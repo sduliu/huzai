@@ -243,4 +243,21 @@ println(x)</code></pre><p><img src="/uploads/image.png" width="800" height="600"
         val embed = parseArticle("""<iframe src="https://player.example.com/x"></iframe>""").single() as ArticleBlock.Embed
         assertEquals("https://player.example.com/x", embed.url)
     }
+
+    @Test fun videoMountsOnlyWhenHttpSourceExists() {
+        // 播放器挂载条件：src（或 <source> 兜底）非空且解析为 http(s)——
+        // 空 src / 无 src / 非 http(s) 一律不产出 Video 块，外链视频不进内嵌播放器
+        assertTrue(parseArticle("""<video></video>""").none { it is ArticleBlock.Video })
+        assertTrue(parseArticle("""<video src=""></video>""").none { it is ArticleBlock.Video })
+        assertTrue(parseArticle("""<video src="javascript:alert(1)"></video>""").none { it is ArticleBlock.Video })
+
+        val viaSource = parseArticle("""<video><source src="https://v.hoopchina.com.cn/s.mp4"></video>""").single() as ArticleBlock.Video
+        assertEquals("https://v.hoopchina.com.cn/s.mp4", viaSource.url)
+
+        // <p> 包裹下同样条件
+        val wrapped = parseArticle("""<p><video></video></p><p><video><source src="https://v.hoopchina.com.cn/p.mp4"></video></p>""")
+        val videos = wrapped.filterIsInstance<ArticleBlock.Video>()
+        assertEquals(1, videos.size)
+        assertEquals("https://v.hoopchina.com.cn/p.mp4", videos[0].url)
+    }
 }

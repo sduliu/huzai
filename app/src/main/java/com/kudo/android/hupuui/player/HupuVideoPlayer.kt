@@ -66,6 +66,10 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -499,7 +503,13 @@ internal fun VideoPlayer(
                 .fillMaxWidth()
                 .height(spec.heightDp.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color.Black),
+                .background(Color.Black)
+                // 批D：详情页视频块可定位（uiautomator 按 testTag/状态描述找到封面与播放态）
+                .semantics {
+                    contentDescription = "视频"
+                    stateDescription = if (host.started) "已起播" else "待播放"
+                }
+                .testTag("hupu-video-player"),
         ) {
             if (isFullscreen) {
                 // 全屏时渲染由页面级 overlay 接管，这里只占位避免布局跳动

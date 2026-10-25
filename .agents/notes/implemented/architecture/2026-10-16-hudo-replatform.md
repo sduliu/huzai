@@ -293,3 +293,11 @@ REPORT2 记录「赛程/积分榜快捷入口 dump 中 bounds=[0,0][0,0]」。�
 - **数据**：`Topic.images`（参数表末位，位置构造兼容）=`HupuThread.covers`/`HupuBoardNews` 单图；空则回落 `mediaUrl(image)`。
 - **契约保留**（androidTest 既有）：testTag `topic-image-{id}`(index0)/`-{i}`，失败出「加载失败，点击重试」+`imageLoadErrorText` 诊断行(在重试行下方)，点击重试消费事件不进详情；加载成功按 intrinsicSize 渲 `ImageAspectBadge`(宽图/长图)；删死代码 `TopicThumbnail`。
 - 未变：置顶 pin 图标、未读徽章、标签胶囊（去重版块名后仍渲）。
+
+## 批D-2：内嵌视频可定位语义 + 挂载条件单测
+
+Muse 真机验证缺定位手段（内嵌 <video> 帖子难找）。本次只加语义与测试，不改播放行为：
+
+- **`VideoPlayer` 帧盒**（feed 路径与 hupuui 详情页共用）：`testTag("hupu-video-player")` + semantics `contentDescription="视频"`、`stateDescription=待播放/已起播`（读 `host.started` 可观测态）。播放/暂停/全屏钮原有 cd「播放」「暂停」「全屏/退出全屏」不变。
+- **`RichVideoBlock`**（feed 详情路径专属）：容器 `testTag("article-video")` 区分于详情页直接挂载。
+- **单测** `videoMountsOnlyWhenHttpSourceExists`：挂载条件= src（或 `<source>` 兜底）非空且 `webUrl` 解析为 http(s)——空 src/无 src/javascript: 不出 Video 块；`<source>` 兜底与 `<p>` 包裹同条件覆盖。外链视频（微博等文本链接）仍走链接，不冒充内嵌。

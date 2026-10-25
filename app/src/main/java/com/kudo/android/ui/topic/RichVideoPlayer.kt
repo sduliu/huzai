@@ -1,12 +1,15 @@
 package com.kudo.android.ui.topic
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.kudo.android.hupuui.player.FullscreenVideo
@@ -38,16 +41,19 @@ internal fun RichVideoBlock(block: ArticleBlock.Video) {
         }
     }
 
-    VideoPlayer(
-        url = block.url,
-        cover = block.poster.orEmpty(),
-        host = host,
-        isFullscreen = fullscreen && revealed,
-        onToggleFullscreen = { v ->
-            fullscreen = v
-            if (v) revealed = false
-        },
-    )
+    // 批D：信息流详情视频块可定位——容器 testTag=article-video，内层帧盒带「视频/待播放」语义
+    Box(Modifier.testTag("article-video")) {
+        VideoPlayer(
+            url = block.url,
+            cover = block.poster.orEmpty(),
+            host = host,
+            isFullscreen = fullscreen && revealed,
+            onToggleFullscreen = { v ->
+                fullscreen = v
+                if (v) revealed = false
+            },
+        )
+    }
 
     val player = host.player
     if (fullscreen && player != null) {
