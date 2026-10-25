@@ -177,3 +177,12 @@ REPORT2 观察「推荐流各卡 ♥50 恒定、回复数各异」。实测当�
 ## 批A-4：频道快捷行层级——非 WebView/自绘，补合并语义与 testTag
 
 REPORT2 记录「赛程/积分榜快捷入口 dump 中 bounds=[0,0][0,0]」。复核源码+新 dump（`crash3/a3_nba3.xml`）：`SportChannelHeader` 是纯 Compose 原生布局，`ShortcutIcon`=Column(clickable)+Icon+Text——语义本来就产生，只是①Text 节点的 bounds 是字形小框而非整列触控区、②LazyColumn 里部分可见/刚出视口的 item 会报 [0,0][0,0]（Compose 对离屏已组合项的固有行为），不是层级缺失。**修法**：ShortcutIcon 列改 `clickable(role=Button) + semantics(mergeDescendants){contentDescription=label} + testTag("shortcut-赛程|积分榜")`——uiautomator 得到单个可点节点、bounds=整列触控区；「查看近期N场」行与「推荐/最新」chip 同步补 role/merge/testTag。定位策略：优先 `testTag`/`contentDescription` 文本匹配（如 `shortcut-积分榜`），坐标兜底用整列 bounds 中心。
+
+## 批B-1：联赛数据网络层 HupuDataApi/HupuDataParser（私有 mobileapi 匿名只读）
+
+批B 获准使用私有赛程接口读数（仅限本单）。探测结论：**games.mobileapi.hupu.com 的 basketballapi 系列与 match-api.hupu.com 的 matchallapi 系列不需要 §9 签名**——官方数据 H5 页（offline-download.hupu.com/online/prod/300003 系列）同域同参匿名调用，参数形态全部照抄其 JS 包；`basketball/public/` 老路由才要求旧签（实测「签名验证不正确」），一律不碰。
+
+- **新文件**：`HupuDataApi`（两个 BASE + 公共参数封装，HupuCache 内存缓存，只暴露 fetch→String?）与 `HupuDataParser`（JSON→模型，失败归零不编造）。签名逻辑零行——探针证实可达即不实现，避免维护死代码。
+- **已验证端点→字段映射**：getDataTabList→tabId/tabName/tabLinkType/tabUrl；teamStandingList→rankTypeListMap(E,W)+divRankTypeListMap(6分区)+competitionSeasonStageType；switchableRankSeasonList→seasonData(season/seasonType/select)，rankType 枚举 NBA_TEAM_RANK/NBA_PLAYER_RANK（clientId=106819853 为官方 H5 实参）；teamSeasonStatsAllRank→39 项各 top5；playerSeasonRank→dimensionList(基础/进阶)→itemList→rankInfoList(top5)；draftYearConfig→年份表、players/draft→draftMap(按轮)；allInjuryList→playerInjuryDTOList+teamInjuryPlayerListMap；teamMatchQuarterStats→home/awayQuarterScore 数组；matchallapi/oddsScheduleList→dayGameData（复用 HupuMatchParser 行结构，含 competitionName/subscribeInfo）。
+- **模型扩展**：`HupuMatch` 补 `businessType`(basketball=可拉单节比分)/`competitionName`/`subscribe`；新增 HupuDataTab/HupuSeasonOption/HupuRankCategory/HupuStandingsBoard/HupuPlayerRankBoard/HupuDraftBoard/HupuInjury/HupuQuarterScore。
+- **未接**：`basketball/public/` 签名路由族；singleMatch 的订阅/预约写接口（subscribeInfo 仅读展示）；WNBA——leagueTypeName invalid，端点不认；足球/电竞榜走各自 matchallapi 数据 tab（H5 或后续）。

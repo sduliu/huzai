@@ -274,6 +274,20 @@ data class HupuMatch(
     val playerScore: HupuPlayerScore?, // 选手评分卡（本场焦点选手）
     val scoreBizType: String?,          // 评分树钥匙（scoreItemKey.outBizType，如 lol_match）
     val scoreBizNo: String?,            // 评分树钥匙（scoreItemKey.outBizNo，如 3837）
+    /** match-api 的 businessType（basketball/common_match/…）；单节比分等篮球数据接口按它分流 */
+    val businessType: String = "",
+    /** 比赛所属联赛名（全球赛程 oddsScheduleList 的 competitionName；普通赛程为空） */
+    val competitionName: String = "",
+    /** 预约信息（subscribeInfo；仅展示占位，不做真实订阅） */
+    val subscribe: HupuSubscribe? = null,
+)
+
+/** 赛程行预约信息（match-api subscribeInfo 原样映射；只读展示） */
+data class HupuSubscribe(
+    val show: Boolean,        // showSubscribe：官方是否展示预约入口
+    val subscribed: Boolean,  // didSubscribe：官方口径的已订阅态（匿名恒 false）
+    val title: String,        // subScribeTitle
+    val desc: String,         // subScribeDesc（如「湖人 vs 爵士」）
 )
 
 /** ============ 虎扑通用评分（m.hupu.com/score-home，非赛事体系） ============ */
@@ -623,6 +637,111 @@ data class HupuStandings(
     /** 榜单名（英超 / NBA） */
     val league: String,
     val groups: List<HupuStandingGroup>,
+)
+
+/** ============ 批B：联赛数据中枢（games.mobileapi basketballapi + match-api matchallapi，匿名 GET） ============ */
+
+/** 赛程中心 tab 项（matchallapi/getDataTabList 一项）。
+ *  linkType: oddsSchedule=全球页 / schedule=赛程页 / h5=官方 H5 数据页（可内嵌 WebView）。 */
+data class HupuDataTab(
+    val id: String,
+    val name: String,
+    val linkType: String,
+    val url: String,
+)
+
+/** 赛季选项（basketballapi/switchableRankSeasonList 的 seasonData 一项）。 */
+data class HupuSeasonOption(
+    val season: String,          // "2026-2027"
+    val shortSeason: String,     // "2026-27"
+    val seasonType: String,      // REGULAR / PRESEASON / PLAYOFF …
+    val seasonTypeName: String,  // 常规赛
+    val selected: Boolean,
+)
+
+/** 积分榜左栏类别（东部/西部/分区/技术统计…）：标题 + 可并列的分组表。 */
+data class HupuRankCategory(
+    val id: String,
+    val title: String,
+    val groups: List<HupuStandingGroup>,
+)
+
+/** 球队榜整版（basketballapi/teamStandingList + teamSeasonStatsAllRank）。 */
+data class HupuStandingsBoard(
+    val leagueName: String,      // "NBA"
+    val season: String,          // "2026-2027"
+    val stageName: String,       // 常规赛（competitionStageTypeName）
+    val categories: List<HupuRankCategory>,
+    /** 技术统计榜（teamSeasonStatsAllRank 各项，每项一个分组表，top5） */
+    val statCategories: List<HupuStandingGroup>,
+)
+
+/** 球员榜单项 top-N 行（playerSeasonRank rankInfoList 一项）。 */
+data class HupuRankEntry(
+    val rank: Int,
+    val playerId: String,
+    val name: String,
+    val teamName: String,
+    val photo: String,
+    val value: String,
+)
+
+/** 球员榜统计项（如「得分」basic.ptsAvg）。 */
+data class HupuRankItem(
+    val key: String,             // engName，如 basic.ptsAvg
+    val name: String,            // chineseName，如 得分
+    val leaders: List<HupuRankEntry>,
+)
+
+/** 球员榜维度（基础/进阶）。 */
+data class HupuRankDimension(
+    val key: String,             // basic / advanced
+    val name: String,
+    val items: List<HupuRankItem>,
+)
+
+/** 球员榜整版（basketballapi/playerSeasonRank）。 */
+data class HupuPlayerRankBoard(
+    val season: String,
+    val stageName: String,
+    val dimensions: List<HupuRankDimension>,
+)
+
+/** 选秀一行（basketballapi/players/draft draftMap 的一项）。 */
+data class HupuDraftPick(
+    val round: Int,
+    val rank: Int,               // 顺位
+    val playerId: String,
+    val name: String,
+    val photo: String,
+    val teamName: String,        // draftTeamName（选中球队）
+    val position: String,
+    val heightCm: Int,
+)
+
+/** 选秀整版（draftYearConfig 年份表 + draftMap 按轮次分组）。 */
+data class HupuDraftBoard(
+    val year: String,
+    val years: List<String>,
+    val rounds: List<Pair<Int, List<HupuDraftPick>>>,
+)
+
+/** 伤病一行（basketballapi/allInjuryList playerInjuryDTOList 一项）。 */
+data class HupuInjury(
+    val playerId: String,
+    val name: String,
+    val photo: String,
+    val teamName: String,
+    val part: String,      // injuryPart 部位（后背受伤）
+    val status: String,    // injuryStatus（每日观察/无法出场）
+    val date: String,      // injuryDate
+    val detail: String,    // zhDetail（可空）
+)
+
+/** 单节比分（basketballapi/teamMatchQuarterStats 的 home/awayQuarterScore）。 */
+data class HupuQuarterScore(
+    val home: List<String>,
+    val away: List<String>,
 )
 
 /** ============ 球队页（nba.hupu.com/teams|schedule/{slug} SSR） ============ */

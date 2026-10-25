@@ -421,6 +421,68 @@ class HupuRepository {
         )
     }
 
+    // ---------- 批B：联赛数据中枢（私有 mobileapi 匿名 GET，见 HupuDataApi 头注释） ----------
+
+    /** 联赛数据 tab 轨道（getDataTabList）。enType=联赛小写；只回接口真实给出的 tab。 */
+    suspend fun leagueDataTabs(enType: String, refresh: Boolean = false): List<HupuDataTab> {
+        val json = HupuDataApi.fetchDataTabs(enType, forceNetwork = refresh) ?: return emptyList()
+        return withContext(Dispatchers.Default) { HupuDataParser.parseDataTabs(json) }
+    }
+
+    /** 「全球」赛程（oddsScheduleList）；dayGameData 复用 HupuMatchParser 行结构。 */
+    suspend fun globalSchedule(code: String, filterCode: String = "all", refresh: Boolean = false): List<HupuMatchDay> {
+        val json = HupuDataApi.fetchGlobalSchedule(code, filterCode, forceNetwork = refresh) ?: return emptyList()
+        return withContext(Dispatchers.Default) { HupuMatchParser.parseSchedule(json) }
+    }
+
+    /** 球队榜整版：东/西/分区类别 + 技术统计（两次匿名请求聚合）。赛季参数空=当前季。 */
+    suspend fun standingsBoard(leagueType: String, season: String = "", stageType: String = "", refresh: Boolean = false): HupuStandingsBoard? {
+        val json = HupuDataApi.fetchTeamStandings(leagueType, season, stageType, forceNetwork = refresh)
+            ?: return null
+        val board = withContext(Dispatchers.Default) { HupuDataParser.parseStandingsBoard(json) }
+            ?: return null
+        val statsJson = HupuDataApi.fetchTeamStatRanks(leagueType, forceNetwork = refresh)
+        val stats = statsJson?.let { withContext(Dispatchers.Default) { HupuDataParser.parseTeamStatRanks(it) } }
+            ?: emptyList()
+        return board.copy(statCategories = stats)
+    }
+
+    /** 赛季选项（rankType 枚举：NBA_TEAM_RANK / NBA_PLAYER_RANK）。 */
+    suspend fun rankSeasons(rankType: String, refresh: Boolean = false): List<HupuSeasonOption> {
+        val json = HupuDataApi.fetchRankSeasons(rankType, forceNetwork = refresh) ?: return emptyList()
+        return withContext(Dispatchers.Default) { HupuDataParser.parseSeasons(json) }
+    }
+
+    /** 球员榜整版（基础/进阶维度，每项 top5）。 */
+    suspend fun playerRankBoard(leagueType: String, season: String = "", stageType: String = "", refresh: Boolean = false): HupuPlayerRankBoard? {
+        val json = HupuDataApi.fetchPlayerSeasonRank(leagueType, season, stageType, forceNetwork = refresh)
+            ?: return null
+        return withContext(Dispatchers.Default) { HupuDataParser.parsePlayerRankBoard(json) }
+    }
+
+    /** 选秀整版（年份表 + 指定年顺位）。 */
+    suspend fun draftBoard(leagueType: String, year: String?, refresh: Boolean = false): HupuDraftBoard? {
+        val yearsJson = HupuDataApi.fetchDraftYears(leagueType, forceNetwork = refresh)
+        val years = yearsJson?.let { withContext(Dispatchers.Default) { HupuDataParser.parseDraftYears(it) } }
+            ?: emptyList()
+        val y = year ?: years.firstOrNull() ?: return null
+        val json = HupuDataApi.fetchDraft(leagueType, y, forceNetwork = refresh) ?: return null
+        val rounds = withContext(Dispatchers.Default) { HupuDataParser.parseDraftBoard(json, y) }
+        return HupuDraftBoard(y, years, rounds)
+    }
+
+    /** 伤病表。 */
+    suspend fun injuries(leagueType: String, refresh: Boolean = false): List<HupuInjury> {
+        val json = HupuDataApi.fetchInjuries(leagueType, forceNetwork = refresh) ?: return emptyList()
+        return withContext(Dispatchers.Default) { HupuDataParser.parseInjuries(json) }
+    }
+
+    /** 单节比分（仅 businessType=basketball 的比赛有效；失败返回 null）。 */
+    suspend fun quarterStats(matchId: String, refresh: Boolean = false): HupuQuarterScore? {
+        val json = HupuDataApi.fetchQuarterStats(matchId, forceNetwork = refresh) ?: return null
+        return withContext(Dispatchers.Default) { HupuDataParser.parseQuarterStats(json) }
+    }
+
     /** board：NBA 积分榜（nba.hupu.com/standings SSR 表格）。失败返回 null。 */
     suspend fun nbaStandings(refresh: Boolean = false): HupuStandings? {
         val html = HupuBoardApi.fetchNbaStandingsHtml(forceNetwork = refresh) ?: return null

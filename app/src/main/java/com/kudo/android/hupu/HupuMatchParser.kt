@@ -73,6 +73,18 @@ object HupuMatchParser {
             },
             scoreBizType = o.optJSONObject("scoreItemKey")?.optString("outBizType")?.ifEmpty { null },
             scoreBizNo = o.optJSONObject("scoreItemKey")?.optString("outBizNo")?.ifEmpty { null },
+            businessType = o.optString("businessType"),
+            competitionName = o.optString("competitionName"),
+            subscribe = o.optJSONObject("subscribeInfo")?.let { s ->
+                if (!s.optBoolean("showSubscribe", false) &&
+                    s.optString("subScribeTitle").isEmpty()
+                ) null else HupuSubscribe(
+                    show = s.optBoolean("showSubscribe", false),
+                    subscribed = s.optBoolean("didSubscribe", false),
+                    title = s.optString("subScribeTitle"),
+                    desc = s.optString("subScribeDesc"),
+                )
+            },
         )
     }
 
