@@ -173,3 +173,7 @@ REPORT2 观察「推荐流各卡 ♥50 恒定、回复数各异」。实测当�
 ## 批A-3：赛程展开态返回键——复现定性为「层级被跳过」而非栈损坏
 
 实测复现链（redroid，dump+截图取证）：频道首页 → 点快捷「赛程」→ `score/{game}` 二级页（BoardContent 板块视图）→ 点「查看全部赛程」→ 就地展开紧凑全赛程 → **返回** → dump 显示直接落回频道首页资讯流（非赛程页）。定性：`showAllMatches` 是 `BoardUiState` 的就地展开态（非导航层），返回键直接弹出整个 `score/{game}` 二级页——栈本身没坏，但用户钻入的「全部赛程」层级被返回跳过，随后按旧坐标点「积分榜」自然点到资讯流帖行。**修法**：`BoardContent` 内加 `BackHandler(enabled = showAllMatches) { showAllMatches = false }`——返回先收起展开态（收起时 LaunchedEffect 已回顶到「近期比赛」），再按返回才退页；与同页 openedThread/standingsOpen/embedPage overlay 各自的返回拦截同一约定。证据存 `kudo-hupu-compare/crash3/a3_*.xml|png`。
+
+## 批A-4：频道快捷行层级——非 WebView/自绘，补合并语义与 testTag
+
+REPORT2 记录「赛程/积分榜快捷入口 dump 中 bounds=[0,0][0,0]」。复核源码+新 dump（`crash3/a3_nba3.xml`）：`SportChannelHeader` 是纯 Compose 原生布局，`ShortcutIcon`=Column(clickable)+Icon+Text——语义本来就产生，只是①Text 节点的 bounds 是字形小框而非整列触控区、②LazyColumn 里部分可见/刚出视口的 item 会报 [0,0][0,0]（Compose 对离屏已组合项的固有行为），不是层级缺失。**修法**：ShortcutIcon 列改 `clickable(role=Button) + semantics(mergeDescendants){contentDescription=label} + testTag("shortcut-赛程|积分榜")`——uiautomator 得到单个可点节点、bounds=整列触控区；「查看近期N场」行与「推荐/最新」chip 同步补 role/merge/testTag。定位策略：优先 `testTag`/`contentDescription` 文本匹配（如 `shortcut-积分榜`），坐标兜底用整列 bounds 中心。

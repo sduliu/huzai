@@ -27,6 +27,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kudo.android.data.CommunityRepository
@@ -95,7 +99,11 @@ fun SportChannelHeader(
             Row(
                 Modifier.fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
-                    .clickable { onOpenSchedule(sportKey) }
+                    .clickable(role = Role.Button) { onOpenSchedule(sportKey) }
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = "查看近期${recentCount}场热门比赛"
+                    }
+                    .testTag("schedule-all-link")
                     .padding(vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -140,7 +148,9 @@ fun SportChannelHeader(
                     Box(
                         Modifier.clip(RoundedCornerShape(6.dp))
                             .background(if (latest == v) MaterialTheme.colorScheme.surface else androidx.compose.ui.graphics.Color.Transparent)
-                            .clickable { onLatestChange(v) }
+                            .clickable(role = Role.Tab) { onLatestChange(v) }
+                            .semantics(mergeDescendants = true) { contentDescription = "资讯排序：$label" }
+                            .testTag("feed-sort-$label")
                             .padding(horizontal = 14.dp, vertical = 4.dp),
                     ) {
                         Text(
@@ -162,7 +172,13 @@ private fun androidx.compose.foundation.layout.RowScope.ShortcutIcon(
     onClick: () -> Unit,
 ) {
     Column(
-        Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(vertical = 4.dp),
+        // 批A-4：合并语义——让 uiautomator 只看到一个「赛程/积分榜」可点节点且
+        // bounds=整列触控区，而不是文字字形小框/部分可见时的 [0,0] 节点
+        Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick, role = Role.Button)
+            .semantics(mergeDescendants = true) { contentDescription = label }
+            .padding(vertical = 4.dp)
+            .testTag("shortcut-$label"),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
