@@ -333,3 +333,14 @@ Muse 找不到内嵌视频帖是「样本难找」而非链路不通。用 2026-
 - **JVM 单测** `FallbackImagesTest`：三类→三互异图标的映射、tag 命名、enum 穷尽（新增种类强制补映射）。`ImageVector`/`materialIcon` 构造是纯 Kotlin（PathBuilder 不触 android.*），可跑 JVM。coil `SubcomposeAsyncImage` 何时进 error 槽是库行为，不在 JVM 覆盖。
 - **androidTest** `FallbackImagesUiTest`：三类组件喂 `http://127.0.0.1:1/unreachable.png`（连接拒绝、离线可复现）→ 断言对应 `hupu-fallback-*` 节点 `assertIsDisplayed`——真机侧证明「error 回调确实渲了兜底分支而非透明洞」。
 - **刻意取舍保留**：`UserProfilePage` 封面缩略图失败仍「整块撤除」（`onError→coverOk=false`，注释 1.190）——84×60 占位洞会压窄标题换行，撤块优于空洞；该项不接兜底组件，笔记留痕为设计决定而非缺陷。
+
+## 批E-3：我的页登录账号卡复核 + 缺字段降级
+
+逐链核查结论（源码级，未登录真机不可验）：
+
+- **无空指针面**：`spaceUserInfo` 双源（PC getUserInfo→移动 SSR 回落）全链 `opt*`+try/catch 出 null；`fetchSpaceApi`/`fetchUserHtml` 网络异常吞为 null，`RequestThrottle.acquire` 走 `delay`（挂起、取消安全）；`HupuCache.get` 磁盘读 try/catch。`HupuUserProfile` 字段全非空默认值。
+- **点开卡片** → `userPageStack.add(euid)` → `UserProfilePage`：null profile → `failed` 态（可重试），不崩。
+- **补三处缺字段降级**（不改登录/未登录行为）：
+  1. `prof.euid` 为空串（cookie 缺字段时 `optString`→""）→ 跳过 `euid=` 无效请求，点击改为 toast「账号资料缺失，请重新登录」而非打开注定失败的 UserProfilePage；
+  2. `prof.name` 空 → 显示占位「虎扑用户」；
+  3. `ownInfo` 四字段（levelDesc/following/followers/regTimeStr）全空 → 统计行回落「已登录」——缺字段不再冒充「关注 0 · 粉丝 0」真实计数（0/0 真实账号的 regTimeStr 非空，不受影响）。

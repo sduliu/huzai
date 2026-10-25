@@ -176,11 +176,12 @@ fun ProfilePage(modifier: Modifier = Modifier) {
                 // 批C-4：登录后拉本人全量资料（缓存先渲、静默失败不挡卡片）——
                 // 官方「我的」页本就有 关注/粉丝/Lv 行；点开卡片进 UserProfilePage 看全量
                 val profileRepo = remember { com.kudo.android.hupu.HupuRepository() }
-                var ownInfo by remember(prof?.euid) {
-                    mutableStateOf(prof?.euid?.let { profileRepo.cachedUserInfo(it) })
+                val myEuid = prof?.euid?.takeIf { it.isNotBlank() }
+                var ownInfo by remember(myEuid) {
+                    mutableStateOf(myEuid?.let { profileRepo.cachedUserInfo(it) })
                 }
-                LaunchedEffect(prof?.euid) {
-                    val euid = prof?.euid ?: return@LaunchedEffect
+                LaunchedEffect(myEuid) {
+                    val euid = myEuid ?: return@LaunchedEffect
                     profileRepo.spaceUserInfo(euid)?.let { ownInfo = it }
                 }
                 Column(
@@ -192,6 +193,8 @@ fun ProfilePage(modifier: Modifier = Modifier) {
                             if (profilePageOpen()) return@clickable
                             if (prof == null) {
                                 loginEpoch++
+                            } else if (prof.euid.isBlank()) {
+                                com.kudo.android.hupuui.components.HuzaiToast.show("账号资料缺失，请重新登录")
                             } else {
                                 userPageStack.add(prof.euid)
                             }
@@ -211,7 +214,7 @@ fun ProfilePage(modifier: Modifier = Modifier) {
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(prof.name, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                                    Text(prof.name.ifBlank { "虎扑用户" }, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                                     ownInfo?.levelDesc?.takeIf { it.isNotBlank() }?.let { lv ->
                                         Spacer(Modifier.width(6.dp))
                                         Text(
@@ -225,12 +228,16 @@ fun ProfilePage(modifier: Modifier = Modifier) {
                                         )
                                     }
                                 }
-                                val stats = ownInfo?.let {
-                                    buildString {
-                                        append("关注 ${formatCount(it.following)} · 粉丝 ${formatCount(it.followers)}")
-                                        if (it.regTimeStr.isNotBlank()) append(" · ${it.regTimeStr}")
-                                    }
-                                } ?: "已登录"
+                                // 资料有任一信号（等级/计数/入站天数）才渲统计行；四字段全空的
+                                // payload 回落「已登录」，避免把缺字段渲染成「关注 0 · 粉丝 0」假计数
+                                val stats = ownInfo
+                                    ?.takeIf { it.levelDesc.isNotBlank() || it.following > 0 || it.followers > 0 || it.regTimeStr.isNotBlank() }
+                                    ?.let {
+                                        buildString {
+                                            append("关注 ${formatCount(it.following)} · 粉丝 ${formatCount(it.followers)}")
+                                            if (it.regTimeStr.isNotBlank()) append(" · ${it.regTimeStr}")
+                                        }
+                                    } ?: "已登录"
                                 Text(stats, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         } else {
