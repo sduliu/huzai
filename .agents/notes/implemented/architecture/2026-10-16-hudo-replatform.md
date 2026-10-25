@@ -169,3 +169,7 @@ REPORT2 实测确认：信息流/搜索点帖走 `topic/{id}` → `ui/topic/Topi
 ## 批A-2：推荐流 ♥50 高频重复——确认为服务端真实值，不改解析
 
 REPORT2 观察「推荐流各卡 ♥50 恒定、回复数各异」。实测当前 m.hupu.com 首页 SSR（`__NEXT_DATA__.props.pageProps.res`，30 条）：`lights` 字段字符串有 18/30 条恰为 `'50'`，其余 48/45/33/37/41/19/46/39 等——分布与设备观察（50 高频 + 偶见 42/43/49）完全吻合。`parseMobileHome` 用 `toIntOrNull ?: 0`，缺失/空串→0 而非 50，`compactNumber` 也不会把 0 显示成 50——解析链无默认值污染。**结论：`lights` 在移动站 SSR 中被服务端截顶在 50（热帖真实亮数远高于此），50 是服务端下发的真实字段值，不改数据、不显示加号伪造。** 若官方 app 显示更高数值，走的是私有接口真实计数，不在可达范围内。
+
+## 批A-3：赛程展开态返回键——复现定性为「层级被跳过」而非栈损坏
+
+实测复现链（redroid，dump+截图取证）：频道首页 → 点快捷「赛程」→ `score/{game}` 二级页（BoardContent 板块视图）→ 点「查看全部赛程」→ 就地展开紧凑全赛程 → **返回** → dump 显示直接落回频道首页资讯流（非赛程页）。定性：`showAllMatches` 是 `BoardUiState` 的就地展开态（非导航层），返回键直接弹出整个 `score/{game}` 二级页——栈本身没坏，但用户钻入的「全部赛程」层级被返回跳过，随后按旧坐标点「积分榜」自然点到资讯流帖行。**修法**：`BoardContent` 内加 `BackHandler(enabled = showAllMatches) { showAllMatches = false }`——返回先收起展开态（收起时 LaunchedEffect 已回顶到「近期比赛」），再按返回才退页；与同页 openedThread/standingsOpen/embedPage overlay 各自的返回拦截同一约定。证据存 `kudo-hupu-compare/crash3/a3_*.xml|png`。

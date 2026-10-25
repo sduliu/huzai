@@ -1,5 +1,6 @@
 package com.kudo.android.hupuui.pages
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -323,6 +324,10 @@ internal fun BoardContent(
         loadSchedule(force = refreshTick > 0)
         loadNews(first = true, force = refreshTick > 0)
     }
+
+    // 批A-3：「查看全部赛程」是就地展开态（非导航层），返回键先收起再退页——
+    // 否则展开态按返回会直接弹出整个二级页，实测落回频道首页
+    BackHandler(enabled = showAllMatches) { showAllMatches = false }
 
     // 顶部热门比赛（官方式：≤4 场）——进行中优先，锚定日（今天/最近过往日/首日）起填充；
     // 数据源：本页拉到的 days 优先，未落地前用宿主频道的 hostSchedule 首帧直出
