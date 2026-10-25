@@ -131,12 +131,17 @@ object HupuParser {
             val title = o.optString("title")
             if (tid.isEmpty() || title.isEmpty()) continue
             val label = o.optString("label").takeUnless { it == "null" } ?: ""
-            val cover = o.optJSONArray("source")?.optString(0)
-                ?.takeUnless { it.isEmpty() || it == "null" }
+            val covers = buildList {
+                val src = o.optJSONArray("source") ?: return@buildList
+                for (j in 0 until src.length()) {
+                    src.optString(j).takeUnless { it.isEmpty() || it == "null" }?.let { add(it) }
+                }
+            }
             out += HupuThread(
                 tid = tid,
                 title = title,
-                cover = cover,
+                cover = covers.firstOrNull(),
+                covers = covers,
                 lights = o.optString("lights").toIntOrNull() ?: 0,
                 replies = o.optString("replies").toIntOrNull() ?: 0,
                 url = o.optString("url").takeUnless { it == "null" } ?: "",

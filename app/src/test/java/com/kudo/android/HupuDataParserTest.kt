@@ -112,4 +112,25 @@ class HupuDataParserTest {
         assertEquals(4, q.away.size)
         assertNull(HupuDataParser.parseQuarterStats("""{"success":true,"result":{}}"""))
     }
+
+    @Test fun mobileHome_keepsAllSourceCoversAndBoardLabel() {
+        // 批C-5：三图卡需要 source[] 全量而非仅 source[0]
+        val html = """<html><script id="__NEXT_DATA__" type="application/json">{
+            "props":{"pageProps":{"res":[
+              {"tid":"1","title":"三图","label":"步行街主干道","lights":"50","replies":"120","type":"3_pic",
+               "source":["//a.jpg","//b.jpg","//c.jpg"],"url":"/1.html"},
+              {"tid":"2","title":"单图","label":"NBA","lights":"10","replies":"5","type":"1_pic",
+               "source":["//d.jpg"],"url":"/2.html"},
+              {"tid":"3","title":"纯文","label":"","lights":"1","replies":"0","source":[],"url":"/3.html"}
+            ]}}
+        }</script></html>"""
+        val list = com.kudo.android.hupu.HupuParser.parseMobileHome(html)
+        assertEquals(3, list.size)
+        assertEquals(listOf("//a.jpg", "//b.jpg", "//c.jpg"), list[0].covers)
+        assertEquals("//a.jpg", list[0].cover)
+        assertEquals("步行街主干道", list[0].topic?.name)
+        assertEquals(1, list[1].covers.size)
+        assertTrue(list[2].covers.isEmpty())
+        assertNull(list[2].topic)
+    }
 }

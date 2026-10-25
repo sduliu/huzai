@@ -273,3 +273,13 @@ REPORT2 记录「赛程/积分榜快捷入口 dump 中 bounds=[0,0][0,0]」。�
 ## 批C-4：我的页账号卡补个人信息（关注/粉丝/Lv/入站天数）
 
 已登录账号卡原只有 头像+昵称+「已登录」，个人信息要再点一层才见。现登录后 `LaunchedEffect` 拉 `repo.spaceUserInfo(prof.euid)`（先读 `cachedUserInfo` 即渲、静默失败落回「已登录」）：昵称右侧渲染 `levelDesc` 胶囊、副行改「关注 N · 粉丝 N · 加入虎扑N天」——与官方「我的」页的计数行同构（官方另有点击跳转计数页，我们保持整卡进 `UserProfilePage`，不拆三个入口）。未登录卡形态不变（优势保留）。
+
+## 批C-5：信息流大卡官方平卡复刻（FeedItem 重写 + res[] source[] 全量）
+
+对照 `hupu_04` 官方信息流：`FeedItem` 从「圆角卡：标题+右缩略图+♥💬作者·时间」重写为官方式平卡——
+
+- **平卡全宽**：去圆角/卡片间距改 10dp 页面底色缝；FeedList 大卡模式 `contentPadding` 左右清 0（`flatRows` 版块行不受影响，headerContent 只在 flatRows 用到）。
+- **自上而下**：作者行（avatar 28dp+名 13sp+时间 11sp，**仅解析器带 author 的流渲染**，SSR res[] 无作者字段的流不出现）→ 标题 16sp/Medium/22sp 行高/2 行 → desc → **图区**：`covers≥3` 三图行（4:3、4dp 缝、圆角 6dp）、1~2 图全宽 16:9（圆角 8dp）→ 底行：左版块 chip（灰底胶囊 11sp）+ 右 👍💬（亮数金）。
+- **数据**：`HupuThread.covers`（新字段）=`res[].source[]` 全量（`cover` 仍取首图保持旧契约）；FeedItem 无 covers 时回落 `cover` 单图——话题流/搜索/资讯等只带单图的流仍出图。
+- **官方有而我们没有且编不出来的**：作者行（res[] 流无）、灰底神回复预览卡（无字段）、↗转发计数（无字段）——三处均不渲染占位，在审计节已记。
+- `MetaRow`（旧左图右文 meta）随重写删除；`FlatPostRow`/版块资讯行不动。

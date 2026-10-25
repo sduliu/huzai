@@ -25,6 +25,8 @@ data class HupuThread(
     val title: String,
     val fid: String = "",
     val cover: String? = null,
+    /** 信息流多图卡（SSR res[].source[] 全量，≥3 张渲染三图行）；单图源回落 cover */
+    val covers: List<String> = emptyList(),
     val desc: String? = null,
     val lights: Int = 0,
     val replies: Int = 0,

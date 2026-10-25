@@ -10,6 +10,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -255,51 +256,109 @@ internal fun formatCount(n: Int): String = when {
 /** 1.223：信息流「点亮」的金色（真机反馈：金色填充） */
 internal val META_LIGHT_GOLD = Color(0xFFF5B301)
 
-/** 信息流条目：左文右图（无图时纯文字） */
+/**
+ * 官方信息流大卡（批C-5 排布复刻）：平卡全宽无圆角，自上而下——
+ *   作者行（有 author 才渲染：头像+昵称+时间，SSR res[] 无作者字段的流不显示）→
+ *   标题 16sp/Medium/2行 → 摘要 → 图区（≥3 图三图行 4:3；1~2 图全宽 16:9）→
+ *   版块 chip + 右对齐 👍💬。
+ * 官方卡头下的灰底神回复预览卡：res[] 无该字段，不编数据、不做占位。
+ */
 @Composable
 internal fun FeedItem(thread: HupuThread, showImage: Boolean, onOpen: (HupuThread) -> Unit = {}) {
-    Row(
+    val covers = remember(thread.tid) {
+        (thread.covers.ifEmpty { listOfNotNull(thread.cover) }).mapNotNull(::normalizeCover)
+    }
+    Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.surface)
             .clickable { onOpen(thread) }
-            .padding(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                thread.title,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                lineHeight = 21.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            thread.desc?.takeIf { it.isNotBlank() }?.let {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    it,
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    lineHeight = 18.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+        // 作者行（仅数据带 author 的流显示：头像+昵称+时间）
+        thread.author?.takeIf { it.name.isNotBlank() }?.let { a ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                HupuAvatarImage(
+                    model = normalizeCover(a.url),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(28.dp).clip(CircleShape),
                 )
+                Spacer(Modifier.width(8.dp))
+                Text(a.name, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                if (thread.createdAtText.isNotBlank()) {
+                    Text(thread.createdAtText, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             Spacer(Modifier.height(8.dp))
-            MetaRow(thread)
         }
-        if (showImage) {
-            HupuThumbImage(
-                // 1.190: 100×76dp 小图位走 CDN 缩略图（原图 155KB → 约 15KB），避免列表里几十张原图打满带宽
-                model = thumbnailUrl(thread.cover, 320),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(width = 100.dp, height = 76.dp)
-                    .clip(RoundedCornerShape(10.dp)),
+        Text(
+            thread.title,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            lineHeight = 22.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        thread.desc?.takeIf { it.isNotBlank() }?.let {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                it,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 18.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
+        }
+        if (showImage && covers.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            if (covers.size >= 3) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    covers.take(3).forEach { c ->
+                        HupuThumbImage(
+                            model = thumbnailUrl(c, 240),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(4f / 3f)
+                                .clip(RoundedCornerShape(6.dp)),
+                        )
+                    }
+                }
+            } else {
+                HupuThumbImage(
+                    model = thumbnailUrl(covers.first(), 640),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f)
+                        .clip(RoundedCornerShape(8.dp)),
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // 版块 chip（官方底部左侧版块徽标语义；无版块名时不占空间）
+            thread.topic?.name?.takeIf { it.isNotBlank() }?.let { board ->
+                Text(
+                    board,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            MetaCount(HupuIcons.MetaLightFilled, formatCount(thread.lights), tint = META_LIGHT_GOLD)
+            Spacer(Modifier.width(14.dp))
+            MetaCount(HupuIcons.MetaComment, formatCount(thread.replies))
         }
     }
 }
@@ -331,28 +390,6 @@ private fun FlatPostRow(thread: HupuThread, onOpen: (HupuThread) -> Unit) {
         )
         Spacer(Modifier.height(11.dp))
         Box(Modifier.fillMaxWidth().height(0.5.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
-    }
-}
-
-@Composable
-private fun MetaRow(thread: HupuThread) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        MetaCount(HupuIcons.MetaLightFilled, formatCount(thread.lights), tint = META_LIGHT_GOLD)
-        Spacer(Modifier.width(12.dp))
-        MetaCount(HupuIcons.MetaComment, formatCount(thread.replies))
-        // 1.223v: 显示**作者名**（话题流/专区流解析时已带 author，零额外请求）；
-        // 用作者位替换原来的专区名 —— 这类流天然隐含专区，行内信息量更合理。
-        // 作者缺失时（如搜索结果那类没有 author 的流）回退显示专区名，避免出现空档。
-        val who = thread.author?.name?.takeIf { it.isNotBlank() }
-            ?: thread.topic?.name?.takeIf { it.isNotBlank() }
-        who?.let {
-            Spacer(Modifier.width(12.dp))
-            MetaText(it)
-        }
-        if (thread.createdAtText.isNotBlank()) {
-            Spacer(Modifier.width(12.dp))
-            MetaText(thread.createdAtText)
-        }
     }
 }
 
@@ -453,13 +490,19 @@ internal fun FeedList(
         state = listState,
         // 1.199：上方留白交给横滑条自身的 bottom padding，这里不再叠加（否则空隙过大）
         // 1.198：浮空顶栏模式下 topInset = 实测栏高（含横滑条的 bottom padding），首项从栏下开始
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = topInset, bottom = 140.dp),
-        verticalArrangement = if (flatRows) Arrangement.Top else Arrangement.spacedBy(12.dp),
+        // 批C-5：大卡模式官方式全宽平卡——两侧不留 padding（版块行 flatRows 维持 16dp）
+        contentPadding = PaddingValues(
+            start = if (flatRows) 16.dp else 0.dp,
+            end = if (flatRows) 16.dp else 0.dp,
+            top = topInset,
+            bottom = 140.dp,
+        ),
+        verticalArrangement = if (flatRows) Arrangement.Top else Arrangement.spacedBy(10.dp),
     ) {
         if (headerContent != null) item(key = "__header") { headerContent() }
         items(filteredThreads, key = { it.tid }) { thread ->
             if (flatRows) FlatPostRow(thread, onOpen = onOpenThread ?: {})
-            else FeedItem(thread, showImage = useBigCards && normalizeCover(thread.cover) != null, onOpen = onOpenThread ?: {})
+            else FeedItem(thread, showImage = useBigCards, onOpen = onOpenThread ?: {})
         }
         if (canLoadMore) {
             item(key = "loading-more") {
