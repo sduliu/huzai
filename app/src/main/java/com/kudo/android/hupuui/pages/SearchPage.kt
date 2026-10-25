@@ -119,6 +119,8 @@ import com.kudo.android.hupuui.components.chipBarClip
 fun SearchPage(
     onOpenThread: (HupuSearchItem) -> Unit,
     onClose: () -> Unit,
+    /** 路由带参进入（热榜「大家都在搜」）时直接提交该词 */
+    initialQuery: String = "",
 ) {
     val repo = remember { HupuRepository() }
     val scope = rememberCoroutineScope()
@@ -133,7 +135,7 @@ fun SearchPage(
         drawContent()
     }
 
-    var query by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf(initialQuery) }
     var activeQuery by remember { mutableStateOf<String?>(null) } // 已提交的查询（null=未搜索）
     var sortby by remember { mutableStateOf("general") }
     var topicId by remember { mutableStateOf<String?>(null) }
@@ -265,6 +267,19 @@ fun SearchPage(
         activeQuery?.let { submit(it) }
     }
 
+    // 落地页热词：复用热榜频道同源的板块页 SSR trending 字段（与官方搜索页「大家都在搜」对应）
+    var hotWords by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        if (hotWords.isEmpty()) {
+            hotWords = runCatching { repo.board("/all-gambia")?.trending.orEmpty() }
+                .getOrDefault(emptyList())
+        }
+    }
+    // 带 query 参数进入（搜索路由 /search?query=）→ 直接提交一次
+    LaunchedEffect(Unit) {
+        if (initialQuery.isNotBlank()) submit(initialQuery)
+    }
+
     Box(
         Modifier
             .fillMaxSize()
@@ -361,6 +376,7 @@ fun SearchPage(
             }
             when (state) {
                 "history" -> HistoryPanel(
+                    hotWords = hotWords,
                     onPick = { submit(it) },
                     onClearAsk = {
                         clearHistoryCount = HupuPrefs.loadSearchHistory().size
@@ -496,19 +512,47 @@ private fun HistoryPanel(
     onPick: (String) -> Unit,
     modifier: Modifier = Modifier,
     onClearAsk: () -> Unit,
+    /** 「大家都在搜」热词（板块页 SSR trending）；空则整段隐藏 */
+    hotWords: List<String> = emptyList(),
 ) {
     var historyTick by remember { mutableIntStateOf(0) }
     val history = remember(historyTick, HupuPrefs.searchHistoryVersion) { HupuPrefs.loadSearchHistory() }
     val dark = isAppDarkTheme()
     Column(modifier.padding(horizontal = 16.dp)) {
         Spacer(Modifier.height(4.dp))
+        if (hotWords.isNotEmpty()) {
+            Text("大家都在搜", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(Modifier.height(4.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                hotWords.forEach { w ->
+                    LiquidButton(
+                        onClick = { onPick(w) },
+                        modifier = Modifier.widthIn(max = 260.dp),
+                        shape = RoundedCornerShape(50),
+                        fill = buttonFill(dark),
+                        border = buttonBorder(dark),
+                        height = 36.dp,
+                        contentPadding = 14.dp,
+                        arrangement = Arrangement.Start,
+                    ) {
+                        Text(w, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                    }
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+        }
         if (history.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    "输入关键词，搜索虎扑全站帖子",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            if (hotWords.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        "输入关键词，搜索虎扑全站帖子",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically) {

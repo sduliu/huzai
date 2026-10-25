@@ -149,3 +149,11 @@ AGP 9 迁移要点：删 `kotlin-android` 插件（内置 Kotlin）、`sdkDirect
 - **赛程中心紧凑行**（四期）：`ScheduleList` 的每场大卡改为日卡内多行 `MatchRow`（左列开赛时间+赛事名、中列双队 18dp logo+队名+右对齐比分/胜方加粗、右列状态+`scoreCountText`评分人数），行间细分隔线；日期头/定位逻辑不变。大卡 `MatchCard` 保留未删（频道头部用的是另一组件 `BoardMatchCard`）。
 - **热榜评分榜**（四期）：`HotChannelPage` 顶部插「评分榜」LazyRow——`HupuRepository.commonSubjects()`（score-home SSR，与比赛 Tab 虎扑评分同源）主题卡（官方 bgColorDay 底色 + 大分数 scoreColorDay + N人评分）；点击导航 `score/common`——`ScoreNavRequest.game=="common"` 特判为打开虎扑评分频道（`commonOpen=true`），复用 `score/{game}` 二级路由。
 - **遗留**：评分榜卡片点击只落到评分频道首页而非具体主题详情（跨树导航代价大）；官方评分榜影视/游戏子榜切换未做；热榜话题榜以「大家都在搜」近似。
+
+## 搜索路由改接虎扑原生页（对比报告二期落地）
+
+对比报告（kudo-hupu-compare REPORT2）实测：`search` 路由挂的还是上游 Discourse `SearchScreen`（`ui/feed/`，依赖登录态），匿名用户点搜索即弹「请先登录 Linux.do」墙；而 `hupuui/pages/SearchPage`（bbs.hupu.com/search SSR，匿名 200、`searchRes.type=posts`）早已写好但只挂在未被路由的 hupuui `HomePage` 内部叠层里——纯死代码。
+
+- **改法**：`KudoApp` 的 `search?query=` 路由弃用 Discourse `SearchScreen`/`SearchViewModel`，改挂 `hupuui.pages.SearchPage`；`onOpenThread` 走 `HupuIds.topicId(tid)`→`topic/{id}`（与热榜版块热帖同源路径）。`SearchPage` 新增 `initialQuery` 参数承接 `search?query=`（热榜「大家都在搜」入口）；落地页 `HistoryPanel` 增加「大家都在搜」热词块（`repo.board("/all-gambia").trending`，与热榜频道同一数据源，失败静默隐藏）。
+- **未动**：`user-search/{username}` 路由仍走 Discourse `SearchViewModel`（用户帖内搜索，本就登录态功能）；`SearchScreen` 文件保留。
+- **未实现**（匿名端点只返 `type:"posts"` 帖子结果，bbs SSR 无其他类型字段）：官方结果页的综合/评分/赛程/用户/问AI 多类聚合、赛事大卡、球员评分卡均不可达——官方那些结果来自 app 私有接口，不摸。官方落地页的榜单切换（话题/影视/游戏等）未接，热词已接。

@@ -298,14 +298,12 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                     }
                     composable("search?query={query}", arguments = listOf(navArgument("query") { defaultValue = "" })) { entry ->
                         val q = entry.arguments?.getString("query").orEmpty()
-                        val vm = model("search") { SearchViewModel(app.repository, account.user?.id, q) }
-                        val state by vm.state.collectAsStateWithLifecycle()
-                        LaunchedEffect(vm, account.user?.id) { vm.useAccount(account.user?.id) }
-                        SearchScreen(state.forAccount(account.user?.id), vm::search, { nav.popBackStack() }, ::topic, ::user, ::login, listStyle = display.topicListStyle,
-                            openCategory = { nav.navigate("category/$it") }, openTag = ::openTag,
-                            changeKind = vm::changeKind, changeSort = vm::changeSort, clear = vm::clear, refreshHistory = vm::refreshHistory,
-                            loadMetadata = vm::loadMetadata, suggestTags = vm::suggestTags, applyFilters = vm::applyFilters, clearHistory = vm::clearHistory,
-                            initialScrollIndex = vm.scrollIndex, initialScrollOffset = vm.scrollOffset, saveScrollPosition = vm::saveScrollPosition)
+                        // 虎扑原生搜索页（bbs.hupu.com/search SSR，匿名可用）
+                        com.kudo.android.hupuui.pages.SearchPage(
+                            initialQuery = q,
+                            onOpenThread = { s -> topic(HupuIds.topicId(s.tid)) },
+                            onClose = { nav.popBackStack() },
+                        )
                     }
                     composable("personal/{destination}") { entry ->
                         val member = account.user
