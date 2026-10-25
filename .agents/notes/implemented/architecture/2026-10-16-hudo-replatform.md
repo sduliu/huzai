@@ -192,3 +192,13 @@ REPORT2 记录「赛程/积分榜快捷入口 dump 中 bounds=[0,0][0,0]」。�
 - **预约（展示占位，不可点）**：实测 `getScheduleListByTagForH5` 行内 `subscribeInfo`——NOTSTARTED 场 `showSubscribe=true`、完赛场 false。`HupuMatch.subscribe` 映射 `showSubscribe/didSubscribe/subScribeTitle/subScribeDesc`；`MatchRow` 右列在 `show=true` 时渲染主题色「预约」胶囊（纯展示）。订阅接口为登录态写操作，**未接**，不伪造已约态。
 - **评分人数**：赛程行 `scoreCountText`（"2.0万人评分"）此前已映射渲染，本批仅复核，无改动。
 - **单节比分**：`MatchScoreboard` 加 `quarterMatchId`（ScorePage 在 `businessType=="basketball"` 时传 matchId）；`ScoreboardBanner` 在已有比分（开赛）时 LaunchedEffect 拉 `repo.quarterStats`，直播态随比分变化重拉，渲染 `QuarterTable`（节次表头 1-4 + OT/OT2… + 总分列，胜方加粗）。接口空/非篮球比赛不显示。
+
+## 批B-3：赛程中心数据 tab（官方 getDataTabList 轨道）+ 积分榜升级
+
+- **tab 轨道**：`ScorePage` 频道条下新增 `LeagueDataTabBar`——`repo.leagueDataTabs(selectedGame)` 返回 >1 个 tab 才显示（nba 9 个：全球|赛程|球队榜|球员榜|选秀|伤病|对阵图|荣誉榜|历史榜；cba 7；lpl 3；epl 仅 1 不显示）。官方 tab 序原样，不编类别。
+- **落地分派**（`ScoreDataPages.kt`）：`linkType=schedule`→主视图（原 BoardContent/ScheduleList）；`oddsSchedule`→`GlobalScheduleView`（oddsScheduleList，code 从 tabUrl 解出 basketballLottery，复用 ScheduleList 紧凑行）；h5 且 url 命中 `300003/<league>/(team|player|draft|injury).html`→原生页（同一批 basketballapi 数据）；其余 h5→`EmbedWebPage` 盖入（选中态留赛程，关页即回）。nba 对阵图/荣誉榜/历史榜、cba 国内球员/新秀/日榜、lpl 两页均走 embed。
+- **积分榜（球队榜）`StandingsBoardView`**：左栏类别 = rankTypeListMap(东/西)+divRankTypeListMap(六分区)+「技术统计」(teamSeasonStatsAllRank 39 项各 top5，单项一个分组表)；顶部赛季 chip 条 = switchableRankSeasonList（rankType 枚举 `${league大写}_TEAM_RANK`，nba/cba 均实测）。**三处共用**：数据 tab 球队榜、`standings/{game}` 路由页（NBA 分支）、板块内积分榜盖入（`LeagueStandingsOverlay`，NBA 分支替换原 SSR 版——SSR nbaStandings 仅足球/回退路径仍用）。
+- **球员榜 `PlayerRankView`**：赛季条（`*_PLAYER_RANK`）+ 维度条（基础/进阶）+ 每统计项 top5 卡。
+- **选秀 `DraftView`**：年份条（draftYearConfig）+ 按轮分组顺位表（draftMap）。
+- **伤病 `InjuryView`**：按队分组列表（playerInjuryDTOList 平铺→groupBy teamName）。
+- **未接**：h5-only 榜单无匿名原生数据（对阵图/荣誉榜/历史榜/日榜/国内球员/新秀），按规则内嵌官方 H5；单维度全量球员榜（playerSeasonRank 只给 top5）未见可用端点。

@@ -219,11 +219,12 @@ internal class BoardUiState(
         }
     }
 
-    /** 「积分榜」chip：有原生实现开原生页，否则回落 standingsUrl 的 WebView */
+    /** 「积分榜」chip：有原生实现开原生页，否则回落 standingsUrl 的 WebView。
+     *  批B-3：NBA 走 LeagueStandingsOverlay（自拉 basketballapi），不再预载 SSR 榜。 */
     fun openStandings() {
         if (cfg.standing != HupuBoardStanding.NONE) {
             standingsOpen = true
-            if (standings == null && !standingsLoading) loadStandings()
+            if (cfg.standing != HupuBoardStanding.NBA && standings == null && !standingsLoading) loadStandings()
         } else if (cfg.standingsUrl.isNotEmpty()) {
             embedPage = HupuEmbed(type = "board", url = cfg.standingsUrl, matchId = "", label = "积分榜")
         }
@@ -652,15 +653,19 @@ internal fun BoardOverlays(state: BoardUiState) = with(state) {
                 EmbedWebPage(e) { embedPage = null }
             }
         }
-        // 积分榜原生页
+        // 积分榜原生页（批B-3：NBA 升级为 basketballapi 版——赛季选择器 + 多类别左栏）
         if (standingsOpen) {
-            BoardStandingsOverlay(
-                data = standings,
-                loading = standingsLoading,
-                failed = standingsFailed,
-                onBack = { standingsOpen = false },
-                onRetry = { loadStandings() },
-            )
+            if (cfg.standing == HupuBoardStanding.NBA) {
+                LeagueStandingsOverlay("nba", "NBA 积分榜") { standingsOpen = false }
+            } else {
+                BoardStandingsOverlay(
+                    data = standings,
+                    loading = standingsLoading,
+                    failed = standingsFailed,
+                    onBack = { standingsOpen = false },
+                    onRetry = { loadStandings() },
+                )
+            }
         }
 }
 
@@ -1126,11 +1131,19 @@ internal fun BoardMatchRow(m: HupuMatch, onOpen: () -> Unit) {
     }
 }
 
-/** 「积分榜」独立路由页（首页赛事频道快捷行入口）：与板块内 overlay 同一套 StandingList 渲染。 */
+/** 「积分榜」独立路由页（首页赛事频道快捷行入口）：与板块内 overlay 同一套 StandingList 渲染。
+ *  批B-3：NBA 升级为 basketballapi 版（赛季选择器 + 东/西/分区/技术统计左栏）。 */
 @Composable
 internal fun StandingsRoutePage(sportKey: String, back: () -> Unit) {
     val repo = remember { HupuRepository() }
     val cfg = HUPU_BOARDS[sportKey]
+    if (cfg?.standing == HupuBoardStanding.NBA) {
+        Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+            CenteredTopBar(title = "NBA 积分榜", onBack = back)
+            StandingsBoardView("nba")
+        }
+        return
+    }
     var data by remember { mutableStateOf<HupuStandings?>(null) }
     var loading by remember { mutableStateOf(true) }
     var failed by remember { mutableStateOf(false) }

@@ -340,6 +340,31 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
     // 1.192: 「虎扑评分」被隐藏时，默认直接落在第一个赛事上
     var commonOpen by remember { mutableStateOf(!HupuPrefs.isScoreCommonHidden()) }
     var commonSubjects by remember { mutableStateOf<List<HupuCommonSubject>>(emptyList()) }
+
+    // ---------- 批B-3：联赛数据 tab 轨道（matchallapi/getDataTabList） ----------
+    // 官方频道数据中心：全球|赛程|球队榜|球员榜|选秀|伤病|…；只渲染接口真实给出的 tab。
+    // >1 个 tab 才显示轨道；h5-only tab 点击直接盖 EmbedWebPage（不改选中）。
+    val leagueTabs = remember { mutableStateMapOf<String, List<com.kudo.android.hupu.HupuDataTab>>() }
+    var dataTabSel by remember { mutableStateOf("") }
+    var dataEmbed by remember { mutableStateOf<com.kudo.android.hupu.HupuEmbed?>(null) }
+    fun selectDataTab(t: com.kudo.android.hupu.HupuDataTab) {
+        when {
+            // 官方 H5 页且无原生实现 → 内嵌盖入（选中态不动，关闭后回到赛程）
+            t.linkType == "h5" && nativeDataTabKind(t.url) == null ->
+                dataEmbed = com.kudo.android.hupu.HupuEmbed(type = "board", url = t.url, matchId = "", label = t.name)
+            else -> dataTabSel = t.id
+        }
+    }
+    LaunchedEffect(selectedGame, commonOpen) {
+        if (commonOpen) return@LaunchedEffect
+        dataTabSel = ""
+        if (!leagueTabs.containsKey(selectedGame)) {
+            leagueTabs[selectedGame] = repo.leagueDataTabs(selectedGame)
+        }
+        val tabs = leagueTabs[selectedGame].orEmpty()
+        dataTabSel = tabs.firstOrNull { it.linkType == "schedule" }?.id
+            ?: tabs.firstOrNull()?.id.orEmpty()
+    }
     var commonLoading by remember { mutableStateOf(false) }
     var commonFailed by remember { mutableStateOf(false) }
     var commonScrollTick by remember { mutableIntStateOf(0) } // 1.179: 虎扑评分刷新完回顶信号
@@ -714,6 +739,8 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
         // 注意：切到「虎扑评分」（commonOpen）时 selectedGame 仍停留在上一个频道，
         // 所以要同时排除 commonOpen，否则评分 tab 上也会冒出筛选按钮。
         val isHotChannel = !commonOpen && selectedGame == HupuMatchApi.COMMON_HOT_SPORTS_ID
+        // 批B-3：当前频道的数据 tab（header 轨道与 content 分派共用）
+        val curTabs = leagueTabs[selectedGame].orEmpty()
         FrostedHeaderLayout(
             modifier = Modifier
                 .fillMaxSize()
@@ -799,6 +826,14 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
                 )
             }
         }
+        // 批B-3：联赛数据 tab 轨道（接口返回 >1 个 tab 才显示；官方 tab 序原样）
+        if (!commonOpen && curTabs.size > 1) {
+            LeagueDataTabBar(
+                tabs = curTabs,
+                selectedId = dataTabSel,
+                onSelect = { selectDataTab(it) },
+            )
+        }
             },
         ) { topInset ->
         // 1.191: 内容层挂记录层——弹窗画在根 Box 里本层之后的兄弟位置
@@ -838,6 +873,18 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
                     }
                 }
             }
+        } else {
+        // 批B-3：数据 tab 选中非「赛程」时，内容区整体换成该 tab 的页面
+        // （oddsSchedule→全球赛程；原生 h5→自建页；linkType=schedule/未选→原主视图）
+        val selTab = curTabs.firstOrNull { it.id == dataTabSel }
+        val onDataTab = selTab != null && selTab.linkType != "schedule" &&
+            (selTab.linkType == "oddsSchedule" || nativeDataTabKind(selTab.url) != null)
+        if (onDataTab) {
+            DataTabContent(
+                selTab,
+                topInset = topInset,
+                onOpenMatch = { openMatch(it) },
+            )
         } else {
         val days = schedules[selectedGame]
         // 1.199：只在「热门赛事」下按项目过滤；被排除项目的比赛整条不显示，
@@ -899,6 +946,7 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
             }
         }
         }
+        } // end else（批B-3：数据 tab 未选中/赛程态 → 原主视图）
         }
         }
         }
@@ -937,6 +985,13 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
 
         // 板块内部 overlay（帖子详情/嵌入页/积分榜）——挂根层，避免被浮空页头压住
         boardState?.let { BoardOverlays(it) }
+
+        // 批B-3：数据 tab 的 h5-only 页（对阵图/荣誉榜/历史榜等）→ 官方 H5 内嵌盖入
+        dataEmbed?.let { e ->
+            androidx.compose.runtime.key(e.url) {
+                EmbedWebPage(e) { dataEmbed = null }
+            }
+        }
 
         // ---------- 比赛详情二级页：盖入式转场 ----------
         val om = openedMatch
