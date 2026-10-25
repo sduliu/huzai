@@ -211,3 +211,42 @@ REPORT2 记录「赛程/积分榜快捷入口 dump 中 bounds=[0,0][0,0]」。�
 - **深链**：`score/{game}?dtab={kind}` 路由参数 → `ScoreNavRequest.dataTab` → `pendingDataTab` 由 leagueTabs 加载效应兑现——kind 命中 tab 则选中（h5-only 则直接开 EmbedWebPage），未命中回落默认赛程，不伪造入口。
 - **图标**：积分榜=BarChart / 球员榜=Leaderboard / 选秀=EmojiEvents / 伤病=Healing（material-icons-extended 现成）。
 - `CommunityRepository.leagueDataTabs` 透传（与 sportMatches/boardPage 同惯例）。
+
+## 批C-1：视频/图片/个人信息/排布 现状审计（先审后改）
+
+对照官方 8.2.66.10232（screenshots2/ dumps2/）与 PRODUCT_SCOPE.md，逐项审计结论：
+
+### 视频
+| 位置 | 现状 | 结论 |
+|---|---|---|
+| hupuui 详情主楼（`ThreadDetailPage`→`HupuVideoPlayer`） | ExoPlayer：播/暂停/进度条/倍速/全屏（自管旋转+沉浸）/黑边裁剪/抓帧探针/黑匣子 | ✅ 达标 |
+| feed/搜索路径详情（`topic/{id}`→`TopicScreen`→`RichContent`） | `HupuBridge.toTopicDetail` 把 `thread.video` 前置 `<video src poster>` → `parseArticle` 映射 `ArticleBlock.Embed` → `OneboxPreview` 卡 → `openLink` → WebView/外链 | ❌ 非内嵌播放：跳走即停、无暂停/进度、形态不对 |
+| 楼层/楼中楼视频 | 回复 contentHtml 含 `<video>` 时：feed 路径同上一张 Embed 卡；hupuui `HtmlContent` 只渲染文本+图片 → 静默丢弃 | ❌ feed 仅卡片；hupuui 丢弃 |
+| 信息流卡 | SSR res[] 无 video 字段 → 无播放标识 | ⚠️ 无数据可标，不编 |
+
+### 图片
+| 位置 | 现状 | 结论 |
+|---|---|---|
+| feed 正文图（`ArticleImage`） | 加载圈 + 「加载失败点击重试」+ 点击重试 + ImageGallery 缩放查看 | ✅ |
+| hupuui 正文图（`ThreadDetailHtml`） | SubcomposeAsyncImage + ImageErrorBox + 自动重试（`isRetryableImageError`）+ 全屏查看 | ✅ |
+| 头像/缩略图/队徽（64 处裸 `AsyncImage`） | 失败 = 透明空白洞，无可辨识空态 | ⚠️ 头像应给默认人形兜底；列表小图给灰底占位 |
+| 大图查看 | feed `ImageGallery` + hupuui 全屏查看均可进退 | ✅ |
+
+### 个人信息（「我的」页）
+| 现状 | 结论 |
+|---|---|
+| 未登录：登录入口卡 + 全部设置组（官方是整页登录墙——我方优势，保留） | ✅ |
+| 已登录：头像+昵称+「已登录」→ 点开 `UserProfilePage` 全量信息（Lv徽章/粉丝/关注/发帖回帖/等级进度） | ⚠️ 卡片本身不含 粉丝/关注/Lv（官方我的页有这些计数行）；需点开二层页 |
+
+### 排布（字体/样式/显示方式）
+| 页面 | 差距 |
+|---|---|
+| 首页推荐流卡 | 官方平卡：头像+昵称+日期行 → 标题 → **全宽大图/三图行** → 灰底神回复预览卡 → 版块徽标+👍💬↗；我方圆角卡：标题+右侧 100×76 缩略图 + ♥💬作者·时间 meta。**数据约束**：SSR res[] 无 author/header/神回复字段（只有 badge/label/lights/replies/source/tid/title/type/url）→ 作者行与神回复卡无法复刻不编；可复刻 = 平卡+标题(16sp/500)+大图或三图行+版块chip+👍💬 |
+| 详情页 | 标题/正文字号与官方接近（官方标题≈17sp bold、正文≈16sp 宽松行距）；作者行徽章/版块蓝链/属地已有 | 基本对齐，微调 |
+| 热榜/频道/专区/版块/赛程 | 批A/B 已对齐 | — |
+
+### 实施计划
+- C2：feed 路径 `<video>` → `ArticleBlock.Video` → 内嵌 `VideoPlayer`（复用 `hupuui/player`：VideoHost+PlayerStage，全屏走自包含 Dialog）
+- C3：头像兜底人形 + 列表小图灰底空态（热点调用点：楼层头像/详情作者/我的卡/版块标/搜索图）
+- C4：已登录账号卡补 关注/粉丝/Lv 行（`parseSpaceUserInfo` 同源接口）
+- C5：`FeedItem` 官方平卡复刻（单图全宽/三图行需 `HupuThread` 补 `covers`+`picType`，解析器保留 source[] 全量）
