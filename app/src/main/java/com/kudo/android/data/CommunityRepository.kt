@@ -39,17 +39,17 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
      * latest=官方移动站「综合」；hot=步行街热帖；top=NBA 区；其余（个人向的）→ 综合兜底。
      * categoryId 非空时走该板块的话题页，next 游标为 "p{N}"。
      */
-    suspend fun topics(filter: String = "latest", categoryId: Int? = null, next: String? = null): TopicPage {
+    suspend fun topics(filter: String = "latest", categoryId: Int? = null, next: String? = null, refresh: Boolean = false): TopicPage {
         if (categoryId != null) {
             val url = HupuIds.boardUrl(categoryId) ?: return TopicPage(emptyList(), null)
             val page = next?.removePrefix("p")?.toIntOrNull() ?: 1
             // 两类板块页：话题页（topicPage）/板块页（board）——解析失败自动回落
-            hupu.topicPage(url, page)?.let { p ->
+            hupu.topicPage(url, page, refresh)?.let { p ->
                 val cursor = if (p.totalPages > page) "p${page + 1}" else null
                 return TopicPage(p.threads.map { it.toTopic() }, cursor)
             }
             if (page > 1) return TopicPage(emptyList(), null)
-            val b = hupu.board(url) ?: return TopicPage(emptyList(), null)
+            val b = hupu.board(url, refresh) ?: return TopicPage(emptyList(), null)
             return TopicPage(b.threads.map { it.toTopic() }, null)
         }
         // board:<url> 板块频道 → 话题页分页；sport:<id> 赛事频道 → 官方 newsList/SSR/专区帖兜底
@@ -58,11 +58,11 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
             val page = next?.removePrefix("p")?.toIntOrNull() ?: 1
             // 两类板块页：专区话题页（topicPage，有分页）/板块页（board，无分页）——
             // parseTopicPage 对板块页结构返回 null，自动回落
-            hupu.topicPage(url, page)?.let { p ->
+            hupu.topicPage(url, page, refresh)?.let { p ->
                 val cursor = if (p.totalPages > page) "p${page + 1}" else null
                 return TopicPage(p.threads.map { it.toTopic() }, cursor)
             }
-            val b = hupu.board(url) ?: return TopicPage(emptyList(), null)
+            val b = hupu.board(url, refresh) ?: return TopicPage(emptyList(), null)
             return TopicPage(b.threads.map { it.toTopic() }, null)
         }
         if (filter.startsWith("sport:")) {
@@ -72,37 +72,43 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
             // board() 重发首页内容。
             if (cfg.boardUrl.isNotEmpty()) {
                 val page = next?.removePrefix("p")?.toIntOrNull() ?: 1
-                hupu.topicPage(cfg.boardUrl, page)?.let { p ->
+                hupu.topicPage(cfg.boardUrl, page, refresh)?.let { p ->
                     val cursor = if (p.totalPages > page) "p${page + 1}" else null
                     return TopicPage(p.threads.map { it.toTopic() }, cursor)
                 }
                 if (page > 1) return TopicPage(emptyList(), null)
-                hupu.board(cfg.boardUrl)?.let { b ->
+                hupu.board(cfg.boardUrl, refresh)?.let { b ->
                     return TopicPage(b.threads.map { it.toTopic() }, null)
                 }
                 // 板块拉空（网络失败等）→ 回退下方资讯流
             }
             if (cfg.soccerSsr) {
-                val items = hupu.soccerNews().filter { it.openableAsThread }
+                val items = hupu.soccerNews(refresh).filter { it.openableAsThread }
                 return TopicPage(items.map { it.toTopic() }, null)
             }
             cfg.tagCode?.let { tag ->
                 val (pre, anchor) = next?.removePrefix("n")?.split('|')?.let { it[0].toIntOrNull() to it.getOrNull(1).orEmpty() }
                     ?: (0 to "")
-                val p = hupu.boardNews(tag, pre ?: 0, anchor) ?: return TopicPage(emptyList(), null)
+                val p = hupu.boardNews(tag, pre ?: 0, anchor, refresh) ?: return TopicPage(emptyList(), null)
                 val items = p.items.filter { it.openableAsThread }
                 val cursor = if (p.nextPreCount > (pre ?: 0)) "n${p.nextPreCount}|${p.anchorNid}" else null
                 return TopicPage(items.map { it.toTopic() }, cursor)
             }
             val page = next?.removePrefix("p")?.toIntOrNull() ?: 1
-            val p = hupu.topicNews(cfg.newsTopic, page) ?: return TopicPage(emptyList(), null)
+            val p = hupu.topicNews(cfg.newsTopic, page, refresh) ?: return TopicPage(emptyList(), null)
             return TopicPage(p.items.filter { it.openableAsThread }.map { it.toTopic() },
                 if (p.items.isNotEmpty()) "p${page + 1}" else null)
         }
         val threads = when (filter) {
             // 热榜是榜单页（HotChannelPage 自取数），不走帖子流
             FeedFilter.HOT.value -> emptyList()
-            else -> hupu.mobileHome()?.let { filterLatestByFollowed(it) }.orEmpty()
+            // 批D-fix：首页空结果自愈——缓存命中脏 SSR（含 __NEXT_DATA__ 但 res 为空/变体）时
+            // 强网重拉一次再宣判空列，否则首拉坏缓存会把首页饿死到 TTL 到期
+            else -> {
+                val first = hupu.mobileHome(refresh)
+                (if (first.isEmpty() && !refresh) hupu.mobileHome(refresh = true) else first)
+                    .let { filterLatestByFollowed(it) }
+            }
         }
         return TopicPage(threads.map { it.toTopic() }, null)
     }

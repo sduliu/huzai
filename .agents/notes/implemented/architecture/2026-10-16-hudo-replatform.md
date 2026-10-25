@@ -301,3 +301,15 @@ Muse 真机验证缺定位手段（内嵌 <video> 帖子难找）。本次只加
 - **`VideoPlayer` 帧盒**（feed 路径与 hupuui 详情页共用）：`testTag("hupu-video-player")` + semantics `contentDescription="视频"`、`stateDescription=待播放/已起播`（读 `host.started` 可观测态）。播放/暂停/全屏钮原有 cd「播放」「暂停」「全屏/退出全屏」不变。
 - **`RichVideoBlock`**（feed 详情路径专属）：容器 `testTag("article-video")` 区分于详情页直接挂载。
 - **单测** `videoMountsOnlyWhenHttpSourceExists`：挂载条件= src（或 `<source>` 兜底）非空且 `webUrl` 解析为 http(s)——空 src/无 src/javascript: 不出 Video 块；`<source>` 兜底与 `<p>` 包裹同条件覆盖。外链视频（微博等文本链接）仍走链接，不冒充内嵌。
+
+## 批D-fix：首页推荐流空列根因修复（脏 m-home 缓存 + 下拉不透传 forceNetwork）
+
+真机 A/B：批D包首页推荐「暂时没有可显示话题」+ 下拉仍空，批C包同时段正常。逐链排查：EmptyState 仅在 `topics=[] && error==null` 时出现 → `topics()` 静默返回空页；批D 仅改 UI 与 Topic 末位字段，数据生产者零改动 → 指向**既有缺陷**而非批D回归：
+
+- **根因**：`fetchMobileHomeHtml` 把「含 `__NEXT_DATA__`」的响应直接写入 `HupuCache["m-home"]`（列表 TTL 10min、带磁盘持久化）。首拉若命中含 NEXT_DATA 但 `res` 为空/变体的页面（WAF 壳、A/B、跳转页），脏 HTML 缓存 10min；且 `FeedViewModel.refresh → repository.topics → hupu.mobileHome()` 链**从未下传 refresh**，下拉刷新永远读缓存——首页被脏缓存饿死。
+- **修复（三层）**：
+  1. `HupuApi.fetchMobileHomeHtml` 缓存门槛加 `"res"` 必须出现——空壳页不再入库；
+  2. `CommunityRepository.topics(..., refresh)` 末位参数下传到全部 hupu.* 调用；`FeedViewModel.refresh(manual=true)`（下拉）传 `refresh=manual` → forceNetwork 绕缓存，首拉/探针仍走缓存；
+  3. `topics()` 的 latest 分支自愈：`mobileHome` 空且非强网时 `forceNetwork` 重拉一次再判空。
+- 不伪造数据：重拉仍空则返回空（EmptyState 保留），不报假错误。
+- 未接：`HupuRepository` 是 final 具体类（构造可注入但不可 mock 子类），自愈路径无 JVM 单测；board/topicPage 等同样受益 refresh 下传，但各自的「空壳缓存」未做同类入库门槛（`res` 门槛只加在 m-home，其他端点结构不同不泛化）。

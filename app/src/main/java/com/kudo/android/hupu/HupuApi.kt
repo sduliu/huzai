@@ -288,7 +288,9 @@ object HupuApi {
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) return@use null
                     val html = response.body?.string() ?: return@use null
-                    if (!html.contains("__NEXT_DATA__")) return@use null
+                    // 批D-fix：含 __NEXT_DATA__ 但无 res 的响应（A/B 变体、空壳页）不入缓存——
+                    // 否则一次脏响应会把推荐流饿死到缓存 TTL 到期，且下拉无法绕过
+                    if (!html.contains("__NEXT_DATA__") || !html.contains("\"res\"")) return@use null
                     HupuCache.put(cacheKey, html)
                     html
                 }

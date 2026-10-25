@@ -233,7 +233,9 @@ class FeedViewModel(private val repository: CommunityRepository, private val cat
         _state.update { it.copy(loading = true, loadingMore = false, error = null, moreError = null, newCount = null) }
         job = viewModelScope.launch {
             try {
-                val page = withContext(Dispatchers.IO) { loadTopics(filter) }
+                // 批D-fix：手动下拉把 refresh 传到虎扑仓储（forceNetwork 绕过 HupuCache），
+                // 首拉/后台探针仍走缓存（快+不放大请求量）；空结果自愈在 topics() 里
+                val page = withContext(Dispatchers.IO) { loadTopics(filter, refresh = manual) }
                 if (token != generation) return@launch
                 val loadedNewCount = if (manual) {
                     baseline?.let { old -> page.topics.count { topic -> old[topic.id]?.let { topic.hasNewContentComparedTo(it) } ?: true } } ?: 0
@@ -278,9 +280,9 @@ class FeedViewModel(private val repository: CommunityRepository, private val cat
         }
     }
 
-    private suspend fun loadTopics(filter: String, next: String? = null): TopicPage =
+    private suspend fun loadTopics(filter: String, next: String? = null, refresh: Boolean = false): TopicPage =
         if (tagSlug != null) repository.tagTopics(tagSlug, tagId, filter, next)
-        else repository.topics(filter, categoryId, next)
+        else repository.topics(filter, categoryId, next, refresh)
 }
 
 private fun Topic.hasNewContentComparedTo(old: Topic): Boolean = bumpedAt != old.bumpedAt || replies != old.replies ||
