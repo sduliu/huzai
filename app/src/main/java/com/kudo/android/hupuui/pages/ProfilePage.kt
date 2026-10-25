@@ -58,6 +58,7 @@ import com.kudo.android.hupuui.components.HupuIcons
 import com.kudo.android.hupuui.components.LiquidIconButton
 import com.kudo.android.hupuui.components.HuzaiToast
 import com.kudo.android.hupuui.components.HupuAvatarImage
+import com.kudo.android.hupuui.components.formatCount
 
 /** 我的：设置入口（主页频道自定义等）+ 关于 */
 @Composable
@@ -169,9 +170,19 @@ fun ProfilePage(modifier: Modifier = Modifier) {
             ) {
                 // 1.198：顶栏浮空时首块内容从栏下开始（关闭该效果时为 0，布局与原来一致）
                 Spacer(Modifier.height(topInset))
-                // 账号卡片：未登录 → 点击登录；已登录 → 头像昵称（点击展开退出）
+                // 账号卡片：未登录 → 点击登录；已登录 → 头像昵称 + 全量资料行（关注/粉丝/Lv）
                 val sessionVer = remember(HupuAccount.sessionVersion) { HupuAccount.sessionVersion }
                 val prof = remember(sessionVer) { HupuAccount.profile }
+                // 批C-4：登录后拉本人全量资料（缓存先渲、静默失败不挡卡片）——
+                // 官方「我的」页本就有 关注/粉丝/Lv 行；点开卡片进 UserProfilePage 看全量
+                val profileRepo = remember { com.kudo.android.hupu.HupuRepository() }
+                var ownInfo by remember(prof?.euid) {
+                    mutableStateOf(prof?.euid?.let { profileRepo.cachedUserInfo(it) })
+                }
+                LaunchedEffect(prof?.euid) {
+                    val euid = prof?.euid ?: return@LaunchedEffect
+                    profileRepo.spaceUserInfo(euid)?.let { ownInfo = it }
+                }
                 Column(
                     Modifier
                         .fillMaxWidth()
@@ -199,8 +210,28 @@ fun ProfilePage(modifier: Modifier = Modifier) {
                             )
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(prof.name, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                                Text("已登录", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(prof.name, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                                    ownInfo?.levelDesc?.takeIf { it.isNotBlank() }?.let { lv ->
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            lv,
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
+                                                .padding(horizontal = 5.dp, vertical = 1.dp),
+                                        )
+                                    }
+                                }
+                                val stats = ownInfo?.let {
+                                    buildString {
+                                        append("关注 ${formatCount(it.following)} · 粉丝 ${formatCount(it.followers)}")
+                                        if (it.regTimeStr.isNotBlank()) append(" · ${it.regTimeStr}")
+                                    }
+                                } ?: "已登录"
+                                Text(stats, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         } else {
                             Icon(
