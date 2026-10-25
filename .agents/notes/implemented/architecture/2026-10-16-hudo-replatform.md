@@ -202,3 +202,12 @@ REPORT2 记录「赛程/积分榜快捷入口 dump 中 bounds=[0,0][0,0]」。�
 - **选秀 `DraftView`**：年份条（draftYearConfig）+ 按轮分组顺位表（draftMap）。
 - **伤病 `InjuryView`**：按队分组列表（playerInjuryDTOList 平铺→groupBy teamName）。
 - **未接**：h5-only 榜单无匿名原生数据（对阵图/荣誉榜/历史榜/日榜/国内球员/新秀），按规则内嵌官方 H5；单维度全量球员榜（playerSeasonRank 只给 top5）未见可用端点。
+
+## 批B-4：频道快捷行 2→5（数据 tab 深链）
+
+官方 NBA 频道快捷位 = 赛程/数据/主队/战术百科/2K手游（主队要登录、战术百科无匿名数据、2K手游是联运广告位——三者均不编）。虎Do 诚实 5 位 = **赛程/积分榜/球员榜/选秀/伤病**，全部由匿名原生接口支撑。
+
+- **入口规则**（`SportChannelHeader`）：`repository.leagueDataTabs(sportKey)` 解出频道实际拥有的原生 kind（nativeDataTabKind 命中 team/player/draft/injury），有则渲染对应 ShortcutIcon——官方没给该 tab 的项目自然不出现（如 cba 无「选秀」tab 时该行是 4 项，不硬凑 5）；无数据轨道的频道回退旧形态（赛程 + 有积分榜才加）。
+- **深链**：`score/{game}?dtab={kind}` 路由参数 → `ScoreNavRequest.dataTab` → `pendingDataTab` 由 leagueTabs 加载效应兑现——kind 命中 tab 则选中（h5-only 则直接开 EmbedWebPage），未命中回落默认赛程，不伪造入口。
+- **图标**：积分榜=BarChart / 球员榜=Leaderboard / 选秀=EmojiEvents / 伤病=Healing（material-icons-extended 现成）。
+- `CommunityRepository.leagueDataTabs` 透传（与 sportMatches/boardPage 同惯例）。

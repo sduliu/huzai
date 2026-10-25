@@ -120,7 +120,13 @@ import com.kudo.android.hupuui.components.HuzaiToast
  */
 /** 首页赛事频道跳转请求：定位到某赛事频道，可顺带直接打开某场比赛详情。
  *  nonce 区分连续请求；matchId 为 null 表示只切频道。 */
-data class ScoreNavRequest(val game: String, val matchId: String? = null, val nonce: Long = 0L)
+data class ScoreNavRequest(
+    val game: String,
+    val matchId: String? = null,
+    val nonce: Long = 0L,
+    /** 批B-4：预选数据 tab 的 kind（player/draft/injury/team/global），null=默认赛程 */
+    val dataTab: String? = null,
+)
 
 @Composable
 fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, onBack: (() -> Unit)? = null) {
@@ -355,6 +361,8 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
             else -> dataTabSel = t.id
         }
     }
+    /** 批B-4：外部请求预选的数据 tab kind（快捷行深链），应用后清空 */
+    var pendingDataTab by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(selectedGame, commonOpen) {
         if (commonOpen) return@LaunchedEffect
         dataTabSel = ""
@@ -362,6 +370,23 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
             leagueTabs[selectedGame] = repo.leagueDataTabs(selectedGame)
         }
         val tabs = leagueTabs[selectedGame].orEmpty()
+        val want = pendingDataTab
+        if (want != null) {
+            pendingDataTab = null
+            val hit = tabs.firstOrNull { t ->
+                when (want) {
+                    "global" -> t.linkType == "oddsSchedule"
+                    else -> nativeDataTabKind(t.url)?.second == want
+                }
+            }
+            if (hit != null) {
+                // 原生可渲染的 kind → 选中原生页；官方只有 h5 的 → 盖入 embed
+                if (hit.linkType == "h5" && nativeDataTabKind(hit.url) == null) selectDataTab(hit)
+                else dataTabSel = hit.id
+                return@LaunchedEffect
+            }
+            // 该频道没有目标 tab → 回落默认赛程（不伪造入口）
+        }
         dataTabSel = tabs.firstOrNull { it.linkType == "schedule" }?.id
             ?: tabs.firstOrNull()?.id.orEmpty()
     }
@@ -427,6 +452,8 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
         }
         commonOpen = false
         externalPinned = r.game
+        // 批B-4：快捷行深链预选数据 tab（leagueTabs 加载效应负责兑现）
+        pendingDataTab = r.dataTab
         if (selectedGame != r.game) {
             selectedGame = r.game
             if (!schedules.containsKey(r.game)) loadingGame = r.game

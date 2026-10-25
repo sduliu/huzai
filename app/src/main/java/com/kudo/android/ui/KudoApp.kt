@@ -221,6 +221,8 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                                                 onOpenSchedule = { g -> nav.navigate("score/$g") },
                                                 onOpenMatch = { m -> nav.navigate("score/$key?match=${m.matchId}") },
                                                 onOpenStandings = { g -> nav.navigate("standings/$g") },
+                                                // 批B-4：数据 tab 深链（积分榜/球员榜/选秀/伤病 → 赛程中心对应 tab）
+                                                onOpenDataTab = { g, kind -> nav.navigate("score/$g?dtab=$kind") },
                                                 latest = latest, onLatestChange = onLatestChange)
                                         },
                                         hotContent = {
@@ -278,16 +280,18 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                     }
                     // 赛事频道「查看全部赛程/比赛卡」→ 赛程中心二级页（预选该赛事，可返回）
                     composable(
-                        "score/{game}?match={match}",
+                        "score/{game}?match={match}&dtab={dtab}",
                         arguments = listOf(
                             navArgument("game") { defaultValue = "" },
                             navArgument("match") { nullable = true; defaultValue = null },
+                            navArgument("dtab") { nullable = true; defaultValue = null },
                         ),
                     ) { entry ->
                         val g = entry.arguments?.getString("game").orEmpty()
                         val m = entry.arguments?.getString("match")
+                        val d = entry.arguments?.getString("dtab")
                         com.kudo.android.hupuui.pages.ScorePage(
-                            request = com.kudo.android.hupuui.pages.ScoreNavRequest(g, m, System.nanoTime()),
+                            request = com.kudo.android.hupuui.pages.ScoreNavRequest(g, m, System.nanoTime(), dataTab = d),
                             onBack = { nav.popBackStack() },
                         )
                     }

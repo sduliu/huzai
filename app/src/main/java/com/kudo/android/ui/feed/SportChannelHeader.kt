@@ -17,6 +17,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.EmojiEvents
+import androidx.compose.material.icons.rounded.Healing
+import androidx.compose.material.icons.rounded.Leaderboard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -51,6 +54,8 @@ fun SportChannelHeader(
     onOpenSchedule: (String) -> Unit,
     onOpenMatch: (HupuMatch) -> Unit,
     onOpenStandings: (String) -> Unit = {},
+    /** 批B-4：数据 tab 深链（sportKey → kind：player/draft/injury/team/global） */
+    onOpenDataTab: (String, String) -> Unit = { _, _ -> },
     latest: Boolean = false,
     onLatestChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -120,11 +125,37 @@ fun SportChannelHeader(
             }
         }
         // 官方快捷图标行：圆形图标 + 下方文字（赛程必有；积分榜按频道配置出现）
+        // 批B-4：nba/cba 扩到 5 位（官方 5 位：赛程/数据/主队/战术百科/2K手游——
+        // 主队要登录、战术百科无数据、2K手游是广告位，全部不编；
+        // 以匿名原生可达的 积分榜/球员榜/选秀/伤病 补齐）。
+        // 该频道数据 tab 未给出的项目一律不渲染（如 cba 无「选秀」tab 时自然少一项）。
+        val dataShortcuts = remember(sportKey) {
+            buildList<Triple<String, String, @Composable () -> Unit>> {
+                // kind ∈ team/player/draft/injury → 标签 + 图标（命中官方 h5 url 才显示）
+                add(Triple("team", "积分榜") { Icon(Icons.Rounded.BarChart, null, Modifier.size(22.dp), MaterialTheme.colorScheme.primary) })
+                add(Triple("player", "球员榜") { Icon(Icons.Rounded.Leaderboard, null, Modifier.size(22.dp), MaterialTheme.colorScheme.primary) })
+                add(Triple("draft", "选秀") { Icon(Icons.Rounded.EmojiEvents, null, Modifier.size(22.dp), MaterialTheme.colorScheme.primary) })
+                add(Triple("injury", "伤病") { Icon(Icons.Rounded.Healing, null, Modifier.size(22.dp), MaterialTheme.colorScheme.primary) })
+            }
+        }
+        // 频道实际拥有的数据 tab kind（无 tab 轨道的频道为空表 → 快捷行回到赛程+积分榜）
+        val dataKinds by produceState<Set<String>>(emptySet(), sportKey) {
+            value = repository.leagueDataTabs(sportKey)
+                .mapNotNull { com.kudo.android.hupuui.pages.nativeDataTabKind(it.url)?.second }
+                .toSet()
+        }
         Row(Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 4.dp)) {
             ShortcutIcon("赛程", { Icon(Icons.Rounded.CalendarMonth, null, Modifier.size(22.dp), MaterialTheme.colorScheme.primary) }) {
                 onOpenSchedule(sportKey)
             }
-            if (hasStandings) {
+            if (dataKinds.isNotEmpty()) {
+                // 有数据轨道：积分榜与数据项全部深链进赛程中心对应 tab
+                dataShortcuts.forEach { (kind, label, icon) ->
+                    if (kind in dataKinds) {
+                        ShortcutIcon(label, icon) { onOpenDataTab(sportKey, kind) }
+                    }
+                }
+            } else if (hasStandings) {
                 ShortcutIcon("积分榜", { Icon(Icons.Rounded.BarChart, null, Modifier.size(22.dp), MaterialTheme.colorScheme.primary) }) {
                     onOpenStandings(sportKey)
                 }

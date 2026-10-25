@@ -116,6 +116,10 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
         return hupu.matchSchedule(cfg.scheduleId)
     }
 
+    /** 频道的数据 tab 轨道（matchallapi getDataTabList；快捷行按它决定数据入口）。 */
+    suspend fun leagueDataTabs(key: String): List<com.kudo.android.hupu.HupuDataTab> =
+        hupu.leagueDataTabs(key)
+
     /** 频道管理候选池：全部赛事频道 + 板块树（key→展示名）。
      *  热门赛事聚合频道排除——它是「比赛」Tab 的本体。 */
     suspend fun channelPool(): List<Pair<String, String>> {
