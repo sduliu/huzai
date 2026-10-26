@@ -1,6 +1,7 @@
 package com.kudo.android.ui.feed
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,6 +43,9 @@ import com.kudo.android.hupu.HupuMatch
 import com.kudo.android.hupu.HupuMatchDay
 import com.kudo.android.hupuui.pages.BoardMatchCard
 import java.time.LocalDate
+
+/** 官方「JRs评分」蓝（与批S titleFont 官方蓝/批T-4 比分卡蓝同值）。 */
+private val JrsBlue = androidx.compose.ui.graphics.Color(0xFF3B82F6)
 
 /** 首页赛事频道头部（对齐官方频道页结构）：
  *  近期比赛大卡 → 「查看近期N场热门比赛 ›」→ 圆形快捷图标行（赛程/积分榜）
@@ -173,15 +177,20 @@ fun SportChannelHeader(
                 modifier = Modifier.padding(horizontal = 4.dp),
             )
             Spacer(Modifier.weight(1f))
+            // 批U-0b：官方分段胶囊——浅蓝底+蓝边框+选中蓝字（非金色无边框）
             Row(
-                Modifier.clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                Modifier.clip(RoundedCornerShape(16.dp))
+                    .background(JrsBlue.copy(alpha = 0.10f))
                     .padding(2.dp),
             ) {
                 listOf(false to "推荐", true to "最新").forEach { (v, label) ->
                     Box(
-                        Modifier.clip(RoundedCornerShape(6.dp))
-                            .background(if (latest == v) MaterialTheme.colorScheme.surface else androidx.compose.ui.graphics.Color.Transparent)
+                        Modifier.clip(RoundedCornerShape(13.dp))
+                            .then(
+                                if (latest == v) Modifier.background(JrsBlue.copy(alpha = 0.16f))
+                                    .border(1.dp, JrsBlue, RoundedCornerShape(13.dp))
+                                else Modifier
+                            )
                             .clickable(role = Role.Tab) { onLatestChange(v) }
                             .semantics(mergeDescendants = true) { contentDescription = "资讯排序：$label" }
                             .testTag("feed-sort-$label")
@@ -190,7 +199,7 @@ fun SportChannelHeader(
                         Text(
                             label, fontSize = 12.sp,
                             fontWeight = if (latest == v) androidx.compose.ui.text.font.FontWeight.Medium else androidx.compose.ui.text.font.FontWeight.Normal,
-                            color = if (latest == v) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = if (latest == v) JrsBlue else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -228,9 +237,14 @@ internal fun SportNewsRow(topic: com.kudo.android.data.Topic, onClick: () -> Uni
                 )
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("🔥", fontSize = 11.sp)
+                    // 批U-0c：🔥 只在亮回复满 50（官方「50亮回复」封顶值=热帖口径）时出现；
+                    // newsList 无显式 hot 字段——官方带🔥行共同点=亮回复 50，低亮行不带
+                    if (topic.likes >= 50) {
+                        Text("🔥", fontSize = 11.sp)
+                        Spacer(Modifier.width(2.dp))
+                    }
                     Text(
-                        " ${topic.replies}回复",
+                        "${topic.replies}回复",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
