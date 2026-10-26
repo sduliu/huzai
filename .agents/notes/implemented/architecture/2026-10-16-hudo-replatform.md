@@ -532,3 +532,13 @@ Muse 要求核查「层级稀疏 + 快捷行项数」——先查代码与接口
 - **版块链接**：`HupuUiSignals.zoneBoardRequest` 信号总线——详情页置 `HupuTopicInfo` → KudoApp `LaunchedEffect` 切底栏 Tab 1 → ZonePage 消费并 `openTopic`（复用既有盖入版块流，零新页面）。版块 url 缺失时回落 `/{topicId}` 数字路径。
 - **正文**：`HtmlContent` 加 `bodyFontSp/bodyLineHeightSp` 参数（默认 15/24 保回复语境），主楼传 17/28（官方 17-18sp 宽松行距）。
 - **话题词/链接**：span.link 从「主题色不可点」改为 `addLink(LinkAnnotation.Url)` + 固定蓝 `HUPU_LINK_BLUE=0xFF3B82F6`（官方蓝链色，与主题色解耦）——点击经 LocalUriHandler 开系统浏览器（v1；官方为应用内打开，内嵌路由留待后续）。bold+link 共存时 bold 样式叠加。
+
+## 批N-3：详情底栏——悬浮药丸改官方通栏固定底栏
+
+Muse 实测悬浮毛玻璃药丸滚动中途盖正文（批L-3 只修了末尾留白）。按任务默认对齐官方：悬浮药丸 → **满宽不透明通栏**（surface 底 + 0.5dp 顶分隔线），上层仍负责药丸/navBars 避让 padding 与出入场动画（回复框/楼中楼/全屏时整条移出，逻辑零改动）。
+
+- 内容对齐官方「页码 | 我来评论 | 点赞 | 评论 | 转发」：页码=`replyPage/replyTotalPages`；「我来评论」=灰底圆角框点击开回复框（替代原「写评论」液态按钮）；点赞/评论计数保留点击语义（推荐、跳评论区）。
+- **转发数**：`repo.threadShareNum(tid)`（bbs-thread）进入详情即惰性补，进程内按 tid 缓存；未到只显图标。底栏分享动作仍是系统分享（不变）。
+- **收藏保留**：官方底栏无收藏项，但本端收藏仅此入口可达——转发右侧保留，如实记差。
+- 悬浮条时期的 drawBackdrop/圆角药丸/LiquidButton/InteractiveHighlight 全部移除；`backdrop` 参数删除，调用方 actionBackdrop 仍服务楼层 sheet 等其他悬浮层。
+- 遮挡结论：通栏不透明且常驻，正文滚动在栏顶硬切——等同官方视觉；滚动中途不再有半透明药丸浮在正文上。

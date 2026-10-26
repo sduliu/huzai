@@ -2,7 +2,6 @@ package com.kudo.android.hupuui.pages
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,8 +16,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,38 +26,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kudo.android.hupuui.components.HupuIcons
 import com.kudo.android.hupuui.components.formatCount
-import com.kudo.android.hupuui.glass.InteractiveHighlight
-import com.kudo.android.hupuui.glass.LiquidButton
-import com.kudo.android.hupuui.theme.isAppDarkTheme
-import com.kyant.backdrop.Backdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.vibrancy
 
 /**
- * 1.189: 帖子详情「常驻操作条」。
+ * 批N-3：帖子详情底部**通栏固定底栏**（官方形态，替代 1.189 的悬浮毛玻璃药丸）。
  *
- * 此前「推荐 / 收藏 / 分享」分别藏在主楼卡片底部与顶栏里，而**两者都是 LazyColumn 的 item**
- * ——往下滚到评论区后就全部不可达。本组件把它们收成一条贴底悬浮条，随时可用：
+ * 官方底栏内容：「页码 | 我来评论 | 👍点赞数 | 💬评论数 | ↗转发」。
+ * 本端差异（如实）：
+ * - 转发计数走 `api/v2/bbs-thread/{tid}` 惰性补齐（shareCount<0 时只显图标不显数）；
+ * - 「收藏」官方不在底栏，但本端收藏仅此一处可达 → 保留为转发右侧一项（功能不丢）。
  *
- *   ✏️ 写评论            💬 67     👍 24     ☆     ⤴️ 分享
- *
- * - 左侧「写评论」占满剩余宽度，点击聚焦底部回复框（未登录由调用方拦截并提示）；
- * - 右侧四个图标项等宽：评论数（点击跳转评论区）/ 推荐数 / 收藏 / 分享；
- * - **收藏不显示计数**——虎扑不返回收藏数（`HupuThread` 只有 lights/replies/read），
- *   改为星形下方显示「收藏 / 已收藏」文字（1.190），按钮固定 46dp 宽，两态不跳动；
- * - 选中态（推荐 / 收藏）统一用**主题色**，跟随「色彩主题」设置（1.190）；
- * - 底为**真毛玻璃**（kyant backdrop：vibrancy + blur），面层透明度压得很低（0.38），
- *   与悬浮 Tab 栏同一套引擎与语言。
- *
- * 布局与层级的注意事项见 `ThreadDetailPage`：zIndex 必须低于表情面板(998)/输入行(1000)，
- * 且在回复框打开时整条移出屏幕。
+ * 视觉：满宽不悬浮、不透明 surface + 顶部 0.5dp 细分隔线，贴底（上层调用方负责
+ * navBars/药丸避让 padding 与出入场动画，均沿用原悬浮条同一套）。
  */
 @Composable
 internal fun ThreadActionBar(
-    backdrop: Backdrop,
+    /** 「1/2430」页码（replyPage/replyTotalPages 由调用方格式化传入） */
+    pageText: String = "",
     replyCount: Int,
     recommendCount: Int,
+    /** 批N-3：转发数（bbs-thread 补齐；-1=未取到，只显图标） */
+    shareCount: Int = -1,
     isRecommended: Boolean,
     isCollected: Boolean,
     onWrite: () -> Unit,
@@ -70,126 +55,100 @@ internal fun ThreadActionBar(
     onShare: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val isLight = !isAppDarkTheme()
-    // 面层颜色：透明度刻意压很低（截图同款观感），模糊由 backdrop 引擎负责
-    val glassColor =
-        if (isLight) Color(0xFFFAFAFA).copy(alpha = 0.38f) else Color(0xFF121212).copy(alpha = 0.38f)
-    // 1.192i: 与同栏透明度对齐（功能栏 = 0.38）——此前浅色 0.78 / 深色实体色都太实，
-    // 贴在这条毛玻璃上像一块实心板
-    val writePillColor =
-        if (isLight) Color.White.copy(alpha = 0.62f) else Color.White.copy(alpha = 0.38f)
-    val onSurface = MaterialTheme.colorScheme.onSurface
-    // 1.190: 选中态统一用主题色（推荐 / 收藏）——跟随「色彩主题」设置，不再固定红/金
     val activeColor = MaterialTheme.colorScheme.primary
-
-    Row(
-        modifier
-            .fillMaxWidth()
-            .height(54.dp)
-            .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedCornerShape(27.dp) },
-                effects = {
-                    vibrancy()
-                    blur(10f.dp.toPx())
-                },
-                onDrawSurface = { drawRect(glassColor) },
-            )
-            .padding(horizontal = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // 写评论：占满剩余宽度
-        // 1.192e: 「写评论」→ 液态玻璃按钮（内容保持左对齐）
-        LiquidButton(
-            onClick = onWrite,
-            fill = writePillColor,
-            modifier = Modifier.weight(1f),
-            height = 40.dp,
-            contentPadding = 14.dp,
-            // 1.192f: 内容本身已带 8dp Spacer，这里再用 spacedBy 会多出 8dp → 文字偏右
-            arrangement = Arrangement.Start,
-        ) {
-            Icon(
-                HupuIcons.Edit,
-                contentDescription = null,
-                tint = onSurface,
-                modifier = Modifier.size(17.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            Text("写评论", fontSize = 15.sp, color = onSurface)
-        }
-        Spacer(Modifier.width(2.dp))
-        // 1.190: 图标尺寸按「视觉面积」归一化，而不是统一 dp——
-        // 各图标在 24dp 画布里的实际内容盒差别很大（实测内容盒 / 占比 / 等面积所需尺寸）：
-        //   评论气泡 20x20 (0.69) → 19dp ｜拇指 22x20 (0.76) → 18dp
-        //   星形     13.8x16.1 (0.39) → 25dp ｜分享箭头 17x14 (0.41) → 25dp
-        // 实心块铺满画布、线性图标留白多，同一 dp 下线性图标会明显显小（真机两轮反馈确认）。
-        ActionItem(HupuIcons.Comment, formatCount(replyCount), false, Color.Unspecified, onJumpComments, iconSize = 19.dp)
-        ActionItem(HupuIcons.Light, formatCount(recommendCount), isRecommended, activeColor, onRecommend, iconSize = 18.dp)
-        // 收藏：官方不返回收藏数 → 不显示计数，改用「收藏 / 已收藏」文字表意；
-        // ActionItem 固定 46dp 宽 + 图标/文字居中，两种文案下按钮尺寸完全一致（不跳动）
-        ActionItem(
-            HupuIcons.StarRate,
-            if (isCollected) "已收藏" else "收藏",
-            isCollected,
-            activeColor,
-            onCollect,
-            iconSize = 25.dp,
+    Column(modifier.fillMaxWidth()) {
+        // 顶部分隔线（官方通栏与内容的分界）
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(0.5.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
         )
-        ActionItem(HupuIcons.IosShare, "分享", false, Color.Unspecified, onShare, iconSize = 25.dp)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // 页码（官方底栏左端「1/2430」）
+            if (pageText.isNotEmpty()) {
+                Text(
+                    pageText,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+                Spacer(Modifier.width(10.dp))
+            }
+            // 「我来评论」输入框样式入口（官方通栏中段灰底圆角框）
+            Row(
+                Modifier
+                    .weight(1f)
+                    .height(36.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f))
+                    .clickable { onWrite() }
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    HupuIcons.Edit,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(15.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "我来评论",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            BarCount(HupuIcons.Light, formatCount(recommendCount), isRecommended, activeColor, onRecommend)
+            BarCount(HupuIcons.Comment, formatCount(replyCount), false, Color.Unspecified, onJumpComments)
+            // 转发：bbs-thread 补齐计数；未取到只显图标
+            BarCount(
+                HupuIcons.IosShare,
+                if (shareCount >= 0) formatCount(shareCount) else "",
+                false, Color.Unspecified, onShare,
+            )
+            // 收藏保留（本端唯一可达入口；官方底栏无此项，见头注释）
+            BarCount(
+                HupuIcons.StarRate,
+                "",
+                isCollected,
+                activeColor,
+                onCollect,
+            )
+        }
     }
 }
 
-/** 单个图标项：图标 + 可选小字（计数或「收藏 / 分享」），四等宽 */
+/** 底栏单个图标项：图标 + 可选计数（下方小字，空串则不显示） */
 @Composable
-private fun ActionItem(
+private fun BarCount(
     icon: ImageVector,
-    caption: String?,
+    caption: String,
     active: Boolean,
     activeColor: Color,
     onClick: () -> Unit,
-    /** 图标绘制尺寸：按各图标在 24dp 画布里的实际留白分档，保证四个图标视觉大小一致 */
     iconSize: Dp = 20.dp,
 ) {
     val normal = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
     val tint = if (active) activeColor else normal
-    // 1.192e: 按压反馈改用 kyant 的流体高光（与 LiquidButton / 底部 Tab 栏同一套
-    // InteractiveHighlight）——静止时零视觉负担，按下时高光跟随手指
-    val scope = rememberCoroutineScope()
-    val highlight = remember(scope) { InteractiveHighlight(animationScope = scope) }
     Column(
         Modifier
-            .width(46.dp)
-            .height(46.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .then(highlight.modifier)
-            .clickable(
-                interactionSource = null,
-                indication = null,
-                onClick = onClick,
-            )
-            .then(highlight.gestureModifier),
+            .width(44.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
     ) {
-        // 1.190: 图标统一放进定高「槽」里居中——四个图标尺寸按视觉面积归一化后各不相同
-        // （18~25dp），若直接堆叠，图标高度差会把下方文字顶成不同基线（真机看到「名称不齐」）。
-        // 槽高取最大图标尺寸，因此「图标 + 名称」整组在 46dp 按钮里也是水平垂直居中的。
-        Box(
-            Modifier.size(ICON_SLOT),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = tint,
-                modifier = Modifier.size(iconSize),
-            )
-        }
-        if (caption != null) {
-            Spacer(Modifier.height(1.dp))
-            // maxLines=1 + softWrap=false：无论「收藏」还是「已收藏」，都只裁剪不换行，
-            // 保证按钮高度恒定（46dp 宽下三字 9sp 实测约 27dp，正常不触发裁剪）
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(iconSize))
+        if (caption.isNotEmpty()) {
             Text(
                 caption,
                 fontSize = 9.sp,
@@ -201,6 +160,3 @@ private fun ActionItem(
         }
     }
 }
-
-/** 图标槽高：四个按钮共用，取最大图标尺寸，保证「图标 + 名称」的基线在所有按钮间一致 */
-private val ICON_SLOT = 25.dp

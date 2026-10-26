@@ -254,6 +254,14 @@ fun ThreadDetailOverlay(
         drawRect(actionBarBg)
         drawContent()
     }
+    // 批N-3：底栏转发数——bbs-thread/{tid} 惰性补齐（<0 时只显图标）
+    val shareCounts = remember { androidx.compose.runtime.mutableStateMapOf<String, Int>() }
+    val shareRepo = remember { HupuRepository() }
+    LaunchedEffect(detail?.thread?.tid) {
+        val t = detail?.thread?.tid ?: return@LaunchedEffect
+        if (shareCounts.containsKey(t)) return@LaunchedEffect
+        shareRepo.threadShareNum(t)?.let { shareCounts[t] = it }
+    }
     // 1.220：「只看楼主」已由开关改为分段控件，不再需要它专用的画布背景折射源。
     // 翻页哨兵：注意依赖 detail（canLoadMore 不能被 remember 的闭包 stale 捕获）
     // 1.185: 排序三态 0=默认(正序) 1=最新(倒序) 2=最热(本地按点亮降序)；点击循环（声明上提：可加载性依赖它）
@@ -1336,15 +1344,14 @@ item(key = "r-count") {
                         translationY = (size.height + 30.dp.toPx()) * barProgress
                         alpha = 1f - barProgress
                     }
-                    .padding(bottom = with(density) { actionBarBottomPadPx.toDp() })
-                    // 1.190: 不再额外加 vertical padding——底边距必须与悬浮 Tab 栏**逐 dp 一致**
-                    // （此前多留 8dp，真机看到「详情页底栏比主页 Tab 栏略高」）
-                    .padding(horizontal = 12.dp),
+                    .padding(bottom = with(density) { actionBarBottomPadPx.toDp() }),
+                    // 批N-3：通栏固定底栏——满宽、不再 horizontal padding/圆角悬浮
             ) {
                 ThreadActionBar(
-                    backdrop = actionBackdrop,
+                    pageText = "${barD.replyPage}/${barD.replyTotalPages}",
                     replyCount = barD.replyCount,
                     recommendCount = barD.thread.lights + recommendDelta,
+                    shareCount = shareCounts[barD.thread.tid] ?: -1,
                     isRecommended = mainRecommended,
                     isCollected = collected,
                     onWrite = {
