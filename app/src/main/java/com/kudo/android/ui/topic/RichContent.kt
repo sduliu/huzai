@@ -506,7 +506,8 @@ internal fun parseInlineArticle(html: String, linkColor: Color, onFootnote: ((St
                             withLink(LinkAnnotation.Url(hupuDest.url, TextLinkStyles(SpanStyle(color = HUPU_LINK_BLUE))), children)
                         }
                         else if (url != null) withStyle(SpanStyle(color = color)) {
-                            withLink(LinkAnnotation.Url(url, TextLinkStyles(SpanStyle(textDecoration = TextDecoration.Underline))), children)
+                            // 官方正文链接亦为蓝色；保留下划线与站内话题词（无下划线）区分
+                            withLink(LinkAnnotation.Url(url, TextLinkStyles(SpanStyle(color = HUPU_LINK_BLUE, textDecoration = TextDecoration.Underline))), children)
                         }
                         else children()
                     }

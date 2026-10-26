@@ -647,3 +647,15 @@ Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage
 **tagpage 信息流通道**：`tag/{slug}?id={id}` 路由的 `FeedViewModel(tagId)` → `tagTopics → topics(filter, categoryId=id)` 原本只认 `board:` 键；`topics()` categoryId 分支首查 `HupuIds.key(id)` 的 `tagpage:` 前缀 → `hupu.tagThreads(tagId, page)`（批F-4 已验匿名接口，`code=200` 实测）→ `HupuTagThread.toTopic()` 新桥接（userName/header 有、euid 无 → Member.username 置空防误跳用户页）→ cursor `p{N}` 走 nextPage。tagThreads 无 filter 语义——TagFeedScreen 各 Tab 同源（如实记差）。
 
 **话题区标签位**：`thread.topic`（SSR 字段：topicId/name/url，实测 `184/足球话题区//topic`、`60/影视区//ent`）→ `toTopicDetail().tags`：`TopicTag(name, slug=name, id=HupuIds.id("tagpage:$topicId"))` → 详情头部既有 FlowRow 上屏；`TopicTagChip` 加 `accent` 参数（详情页传 `HUPU_LINK_BLUE`：蓝字+10% 蓝底——官方话题词为蓝字可点，chip 化是本端标签行既有形态）；topicId 空则不产出（不可路由不显示）。官方深链 `huputiyu://bbs/subject/{topicId}` 与 `m.hupu.com/tag/{id}` 同目的地，分类器已并案。
+
+## 批P-3：同渲染器元素核对（@用户/普通链接/图片/视频占位）
+
+匿名样本实测（桌面 SSR `detail.thread.content` + `replies[].content`，9 帖/≈60 楼）：
+
+| 元素 | 实测标记 | 本端现状 | 官方对照 | 处置 |
+|---|---|---|---|---|
+| @用户 | `<a class="u" href="https://my.hupu.com/{euid}" uid=...>@名</a>`（实见于回复） | 原先主题色+下划线→系统浏览器 | 官方蓝色、应用内开用户页 | **已随批P-1/2 生效**：my.hupu.com → User 目的地 → 蓝链无下划线 → `user/{euid}` 应用内 |
+| 普通外链 | 样本 0 例（正文几乎无 `<a>`） | 主题色+下划线→openLink→应用内 WebView | 官方正文链接蓝色、应用内浏览 | **确认差异已改**：链接色统一 `HUPU_LINK_BLUE`，保留下划线作与站内话题词的视觉区分；分流不变（应用内 WebView） |
+| 图片 | `<img>` → `ArticleBlock.Image`+画廊 | 全屏画廊查看器 | 官方全屏查看 | 无差异，未动 |
+| 视频占位 | `thread.video`/`iframe` → `ArticleBlock.Video`→`RichVideoBlock` | 内嵌可点播放卡 | 官方内嵌播放 | 无差异，未动 |
+| `#xxx#` 纯文本话题词 | 样本 0 例 | — | — | 无匿名样本证实标记形态，不做文本扫描，如实记差 |
