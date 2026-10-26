@@ -256,6 +256,33 @@ data class HupuTopicPage(
     val page: Int,
     val totalPages: Int,
     val sortTabs: List<SortTab>,
+    /** 批L-2：SSR $$data.admins 的「专区信息」（版主团队 + 招募标记），无则空 */
+    val boardInfo: HupuBoardInfo = HupuBoardInfo(),
+)
+
+/** 批L-2：版块 SSR $$data.admins 附带的专区信息（版主团队 + 招募版主标记） */
+data class HupuBoardInfo(
+    val title: String = "",
+    /** 1=正在招募版主（官方「招募版主」入口的匿名可读标记） */
+    val adminApplicable: Int = 0,
+    val admins: List<HupuBoardAdmin> = emptyList(),
+)
+
+/** 批L-2：版主条目（SSR admins.adminList） */
+data class HupuBoardAdmin(
+    val roleName: String,
+    val userName: String,
+    val header: String,
+    val url: String,
+)
+
+/** 批L-2：m站 zone 页 zoneData（JRs 成员数等，_next/data JSON） */
+data class HupuZoneInfo(
+    /** followedUserNum，如 "277.5万" */
+    val memberText: String = "",
+    val allThreadNum: String = "",
+    val bgColor: String = "",
+    val desc: String = "",
 )
 
 data class SortTab(val id: Int, val title: String, val url: String)

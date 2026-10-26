@@ -102,6 +102,10 @@ internal data class TopicFeedState(
     val loadingMore: Boolean = false,
     /** 话题页 SSR 下发的板块档案（name/desc/countText/logo），供版块页头部展示 */
     val topicInfo: com.kudo.android.hupu.HupuTopicInfo? = null,
+    /** 批L-2：话题页 SSR $$data.admins 的「专区信息」（版主团队 + 招募标记） */
+    val boardInfo: com.kudo.android.hupu.HupuBoardInfo = com.kudo.android.hupu.HupuBoardInfo(),
+    /** 批L-2：zoneData.followedUserNum（JRs 成员数），由 zoneInfo 补充接口异步填充 */
+    val memberText: String = "",
 )
 
 /**

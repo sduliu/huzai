@@ -198,6 +198,26 @@ object HupuParser {
             }
         }
 
+        // 批L-2：$$data.admins —— 专区信息（版主团队 + 招募标记），与 topic 平级的顶层节点
+        val admins = mutableListOf<HupuBoardAdmin>()
+        val adm = root.optJSONObject("admins")
+        adm?.optJSONArray("adminList")?.let { arr ->
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                admins += HupuBoardAdmin(
+                    roleName = o.optString("roleName"),
+                    userName = o.optString("userName"),
+                    header = o.optString("header"),
+                    url = o.optString("url"),
+                )
+            }
+        }
+        val boardInfo = HupuBoardInfo(
+            title = adm?.optString("title") ?: "",
+            adminApplicable = adm?.optInt("adminApplicable", 0) ?: 0,
+            admins = admins,
+        )
+
         return HupuTopicPage(
             topic = HupuTopicInfo(
                 topicId = topicJson.optString("topicId"),
@@ -211,6 +231,19 @@ object HupuParser {
             page = t.optInt("page", 1),
             totalPages = tl.optInt("total", 1),
             sortTabs = tabs,
+            boardInfo = boardInfo,
+        )
+    }
+
+    /** 批L-2：m站 zone 页 _next/data JSON → JRs 成员数等（pageProps.zoneData） */
+    fun parseZoneInfo(json: String): HupuZoneInfo? {
+        val root = try { JSONObject(json) } catch (e: Exception) { return null }
+        val z = root.optJSONObject("pageProps")?.optJSONObject("zoneData") ?: return null
+        return HupuZoneInfo(
+            memberText = z.optString("followedUserNum"),
+            allThreadNum = z.optString("allThreadNum"),
+            bgColor = z.optString("bgColor"),
+            desc = z.optString("desc"),
         )
     }
 

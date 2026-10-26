@@ -121,6 +121,8 @@ fun ZonePage(modifier: Modifier = Modifier) {
     var topicEntered by remember { mutableStateOf(false) }
     var overlayClosing by remember { mutableStateOf(false) }
     val feedStates = remember { mutableStateMapOf<String, TopicFeedState>() }
+    // 批L-2: 各版块 JRs 成员数（zoneData.followedUserNum，按 topicId 惰性拉取）
+    val zoneMemberTexts = remember { mutableStateMapOf<String, String>() }
     // 各专区的排序 tabs（服务器返回）；1.2xx：用跨会话缓存预热，避免排序条"晚一拍"出现
     val topicSorts = remember {
         mutableStateMapOf<String, List<SortTab>>().apply {
@@ -433,6 +435,18 @@ fun ZonePage(modifier: Modifier = Modifier) {
                 refreshVersion = refreshVersion,
                 selectedSort = selectedSort,
                 onSelectSort = { selectedSort = it },
+                // 批L-2: JRs 成员数（zoneData 惰性补充，拉过一次不重拉）
+                memberText = zoneMemberTexts[opened.topicId].orEmpty(),
+                onLoadZoneInfo = { id ->
+                    if (!zoneMemberTexts.containsKey(id)) {
+                        scope.launch {
+                            val z = repo.zoneInfo(id)
+                            if (z != null && z.memberText.isNotBlank()) {
+                                zoneMemberTexts[id] = z.memberText
+                            }
+                        }
+                    }
+                },
                 onBack = { closeTopic() },
                 onExitStart = { if (topicEntered) { topicEntered = false; SecondaryPage.exit() } },
                 onClosed = {
@@ -467,6 +481,7 @@ fun ZonePage(modifier: Modifier = Modifier) {
                                 page = p.page,
                                 totalPages = p.totalPages,
                                 topicInfo = p.topic,
+                                boardInfo = p.boardInfo,
                             )
                             topicSorts[url] = p.sortTabs
                             HupuPrefs.saveTopicSortTabs(url, p.sortTabs)
@@ -489,6 +504,7 @@ fun ZonePage(modifier: Modifier = Modifier) {
                                 page = p.page,
                                 totalPages = p.totalPages,
                                 topicInfo = p.topic,
+                                boardInfo = p.boardInfo,
                             )
                             topicSorts[url] = p.sortTabs
                             refreshVersion++
@@ -628,6 +644,10 @@ private fun TopicFeedOverlay(
     refreshVersion: Int,
     selectedSort: String?,
     onSelectSort: (String) -> Unit,
+    /** 批L-2：JRs 成员数（zoneData.followedUserNum）；空串=未取到/无数据不显示 */
+    memberText: String = "",
+    /** 批L-2：按 topicId 惰性补充成员数（父级缓存，拉过不重拉） */
+    onLoadZoneInfo: (String) -> Unit = {},
     onBack: () -> Unit,
     /** 1.183: 退场动画开始即回调——父级据此同步减二级页计数，使 Tab 栏与页面同步 Q 弹回归（与「我的」页二级页同款手感） */
     onExitStart: () -> Unit = {},
@@ -769,6 +789,8 @@ private fun TopicFeedOverlay(
                                     topic = selState.topicInfo ?: topic,
                                     isFavorite = isFavorite,
                                     onToggleFavorite = onToggleFavorite,
+                                    memberText = memberText,
+                                    boardInfo = selState.boardInfo,
                                 )
                             },
                             canLoadMore = selState.page < selState.totalPages,
@@ -807,6 +829,10 @@ private fun TopicFeedOverlay(
         val key = "${topic.url}#${selectedSort ?: topic.url}"
         if (!feedStates.containsKey(key)) onFirstLoad(topic.url, selectedSort)
     }
+    // 批L-2：进入即惰性补充 JRs 成员数（zoneData 独立接口；topicId 为空串时跳过）
+    LaunchedEffect(topic.topicId) {
+        if (topic.topicId.isNotBlank() && memberText.isBlank()) onLoadZoneInfo(topic.topicId)
+    }
 }
 
 /** 官方版块页档案头：logo + 名称 + 「N 帖子」+ 简介 + 红色关注胶囊钮。数据取自话题页 SSR（topicInfo）。 */
@@ -815,40 +841,90 @@ private fun BoardProfileHeader(
     topic: HupuTopicInfo,
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
+    /** 批L-2：JRs 成员数（zoneData.followedUserNum），空串不显示 */
+    memberText: String = "",
+    /** 批L-2：SSR 专区信息（版主团队 + 招募标记），空对象不显示 */
+    boardInfo: com.kudo.android.hupu.HupuBoardInfo = com.kudo.android.hupu.HupuBoardInfo(),
 ) {
-    Row(
-        Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        HupuIconImage(
-            model = normalizeCover(topic.logo),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.size(52.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
-        )
-        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-            Text(topic.name, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(3.dp))
-            val meta = buildList {
-                if (topic.hotText.isNotBlank()) add("${topic.hotText} 帖子")
-                if (topic.desc.isNotBlank()) add(topic.desc)
-            }.joinToString(" · ")
-            if (meta.isNotBlank()) {
-                Text(meta, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            HupuIconImage(
+                model = normalizeCover(topic.logo),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(52.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
+            )
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                Text(topic.name, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(3.dp))
+                val meta = buildList {
+                    if (topic.hotText.isNotBlank()) add("${topic.hotText} 帖子")
+                    if (memberText.isNotBlank()) add("$memberText JRs")
+                    if (topic.desc.isNotBlank()) add(topic.desc)
+                }.joinToString(" · ")
+                if (meta.isNotBlank()) {
+                    Text(meta, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(if (isFavorite) MaterialTheme.colorScheme.surfaceVariant else Color(0xFFE60023))
+                    .clickable { onToggleFavorite() }
+                    .padding(horizontal = 14.dp, vertical = 7.dp),
+            ) {
+                Text(
+                    if (isFavorite) "已关注" else "关注",
+                    color = if (isFavorite) MaterialTheme.colorScheme.onSurfaceVariant else Color.White,
+                    fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                )
             }
         }
-        Box(
-            Modifier
-                .clip(RoundedCornerShape(50))
-                .background(if (isFavorite) MaterialTheme.colorScheme.surfaceVariant else Color(0xFFE60023))
-                .clickable { onToggleFavorite() }
-                .padding(horizontal = 14.dp, vertical = 7.dp),
-        ) {
-            Text(
-                if (isFavorite) "已关注" else "关注",
-                color = if (isFavorite) MaterialTheme.colorScheme.onSurfaceVariant else Color.White,
-                fontSize = 13.sp, fontWeight = FontWeight.Bold,
-            )
+        // 批L-2: 官方「专区信息」行——版主头像组 + 招募版主标记（SSR admins 节点，匿名可读）
+        if (boardInfo.admins.isNotEmpty() || boardInfo.adminApplicable == 1) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                boardInfo.admins.take(6).forEach { a ->
+                    HupuIconImage(
+                        model = normalizeCover(a.header),
+                        contentDescription = "${a.roleName} ${a.userName}",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .padding(end = 6.dp)
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                    )
+                }
+                Text(
+                    boardInfo.admins.joinToString("、") { it.userName }.let {
+                        if (boardInfo.admins.isNotEmpty()) "版主：$it" else ""
+                    },
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                if (boardInfo.adminApplicable == 1) {
+                    Text(
+                        "招募版主",
+                        fontSize = 11.sp,
+                        color = Color(0xFFE60023),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFFE60023).copy(alpha = 0.08f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+            }
         }
     }
 }

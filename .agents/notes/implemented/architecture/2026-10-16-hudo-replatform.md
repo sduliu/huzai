@@ -473,3 +473,12 @@ Muse 验收发现 `assembleDebugAndroidTest` 全量编译被陈旧测试阻断�
 - **版块搜索**：顶栏右侧 `SearchOutlined` → `ZoneSearchOverlay` 盖入页（zIndex 3，盖过话题流/详情盖入页）。数据走 `m.hupu.com/api/v2/search2?type=topic`（实测匿名可读）：`id`→topicId、`title` 剥 `<font>` 高亮、`content`→desc、`img`→logo；无 url 字段，用 `/{topicId}` 数字路径兜底（实测 /127 → 湖人专区 SSR）。400ms 防抖实时搜；结果点击优先按 topicId 映射本地类目 url。
 - 新接口通道：`HupuApi.fetchMobileJson`（m.hupu.com/api/v2/ 家族只读 GET，桌面 UA + 全局节流 + 登录 cookie 透传）。
 - **嵌套注释坑**：KDoc 里写 `api/v2/*` 的 `/*` 会开嵌套注释、吞掉后续函数到下一个 `*/`（恰在字符串 `"*/*"` 里闭合）——语法报错全是指向函数体的 "Expecting member declaration"。教训：注释内避免 `/*`/`*/` 字符序列。
+
+## 批L-2：版块页档案补齐——JRs 成员数 + 版主团队/招募标记
+
+官方版块页档案头的匿名可达部分（Muse 实测缺口中的可兑现集）：
+
+- **JRs 成员数**：`m.hupu.com/zone/{topicId}` 的 `pageProps.zoneData.followedUserNum`（如 "277.5万"）。取数路径：`fetchMobileHtml("/zone/{id}")` 提取 `"buildId"` → `getMobileJson("/_next/data/{bid}/zone/{id}.json?id={id}")`。buildId 缓存于 `HupuRepository.cachedZoneBuildId`，JSON 404 时清空重取一次（部署滚动）。
+- **版主团队 + 招募标记**：话题页 SSR `$$data.admins`（与 topic 平级的顶层节点）——`adminApplicable=1`=招募版主、`adminList`=版主（roleName/userName/header/url）。解析进 `HupuTopicPage.boardInfo` → `TopicFeedState.boardInfo` → `BoardProfileHeader` 下新增「专区信息」行（前 6 个版主头像 + 名单 + 红底招募标记，纯展示不可点）。
+- 成员数惰性拉取：`TopicFeedOverlay` 挂 `LaunchedEffect(topic.topicId)` → 父级 `zoneMemberTexts` map 按 topicId 缓存，失败不写入（下次进入自动重试）。
+- `fetchMobileJson`（批L-1 误加的封装）已删除——与既有 `getMobileJson`（批F-4）重复，统一用后者。

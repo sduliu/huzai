@@ -62,10 +62,35 @@ class HupuRepository {
         return withContext(Dispatchers.Default) { HupuParser.parseCategories(html) }
     }
 
+    /**
+     * 批L-2：版块档案补充信息（JRs 成员数等）。
+     * 数据在 m站 zone 页 pageProps.zoneData；走 Next.js _next/data JSON 端点，
+     * buildId 随部署变化——先取 /zone/{id} 页提取 buildId 缓存复用，404 时重取一次。
+     */
+    suspend fun zoneInfo(topicId: String): HupuZoneInfo? {
+        suspend fun buildId(): String? {
+            cachedZoneBuildId?.let { return it }
+            val html = HupuApi.fetchMobileHtml("/zone/$topicId") ?: return null
+            return ZONE_BUILD_ID_RE.find(html)?.groupValues?.get(1)
+                ?.also { cachedZoneBuildId = it }
+        }
+        suspend fun fetch(bid: String) = HupuApi.getMobileJson(
+            "/_next/data/$bid/zone/$topicId.json?id=$topicId",
+        )
+        val bid = buildId() ?: return null
+        var json = fetch(bid)
+        if (json == null) {
+            // buildId 过期（站点重新部署）——清缓存重取一次
+            cachedZoneBuildId = null
+            json = buildId()?.let { fetch(it) }
+        }
+        return json?.let { withContext(Dispatchers.Default) { HupuParser.parseZoneInfo(it) } }
+    }
+
     /** 批L-1：专区版块搜索（m.hupu.com/api/v2/search2 type=topic，匿名可读） */
     suspend fun searchTopics(query: String): List<HupuTopicInfo> {
         val q = java.net.URLEncoder.encode(query, "UTF-8")
-        val json = HupuApi.fetchMobileJson(
+        val json = HupuApi.getMobileJson(
             "/api/v2/search2?keyword=$q&puid=0&type=topic&topicId=0&page=1",
         ) ?: return emptyList()
         return withContext(Dispatchers.Default) { HupuParser.parseTopicSearch(json) }
@@ -90,6 +115,10 @@ class HupuRepository {
         )
         val inflightThreads =
             java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Deferred<HupuThreadDetail?>>()
+
+        /** 批L-2：m站 Next.js buildId（zoneInfo 端点路径用；部署变化时自动重取） */
+        @Volatile var cachedZoneBuildId: String? = null
+        val ZONE_BUILD_ID_RE = Regex("\"buildId\":\"([^\"]+)\"")
     }
 
     /** 帖子详情（第 1 页回复） */
