@@ -171,6 +171,21 @@ class HupuDataParserTest {
         assertTrue(blocks.any { it is ArticleBlock.TextBlock })
     }
 
+    @Test fun topicChipBridgesToBoardKey_notTagIdNamespace() {
+        // 批R-1：thread.topic.topicId=502（话题区页 id）必须映射 board:{url} 键 → topicPage 通道；
+        // 误接 tagThreads 的 tagId 命名空间（批R-0 实测 tagId=502 返回空列表）
+        val html = """<html><script id="__NEXT_DATA__" type="application/json">
+            {"props":{"pageProps":{"detail":{"detailErrorInfo":{"code":200},
+             "thread":{"tid":"643295837","title":"t","content":"<p>x</p>","url":"/643295837.html",
+               "topic":{"topicId":"502","name":"篮球资讯","url":"/502"}},
+             "replies":{"list":[],"count":0,"current":1}}}}}
+        </script></html>"""
+        val detail = com.kudo.android.hupu.HupuParser.parseThreadDetail(html)!!.toTopicDetail()
+        assertEquals("篮球资讯", detail.tags[0].name)
+        assertEquals("board:/502", com.kudo.android.data.HupuIds.key(detail.tags[0].id!!))
+        assertEquals("/502", com.kudo.android.data.HupuIds.boardUrl(detail.tags[0].id!!))
+    }
+
     @Test fun playerRankPage_parsesSingleDimensionPageAndEmptyPageMeansListEnd() {
         // 批F-1：playerSingleDimensionSeasonRank 真实结构（2026-10-26 匿名实测 pageNo=1/20）
         val json = """{"errorCode":"","errorMsg":"","success":true,"result":{

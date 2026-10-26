@@ -230,10 +230,11 @@ fun HupuThreadDetail.toTopicDetail(): TopicDetail {
         closed = isLocked,
         location = thread.location,
         readCount = thread.read,
-        // 批P-2：官方「话题区」蓝字位（SSR thread.topic）→ 标签行；tagpage: 键经
-        // CommunityRepository.topics 走 tagThreads 聚合页；无 topicId 不上屏
+        // 批R-1：官方「话题区」蓝字位（SSR thread.topic）→ 标签行；board: 键经
+        // CommunityRepository.topics 走 topicPage 专区话题页（topicId 与 tagThreads 的
+        // tagId 不同命名空间，实测 tagId=502 返回空——批R-0）。url 空时回落 /{topicId}。
         tags = thread.topic?.takeIf { it.topicId.isNotBlank() && it.name.isNotBlank() }?.let {
-            listOf(TopicTag(name = it.name, slug = it.name, id = HupuIds.id("tagpage:${it.topicId}")))
+            listOf(TopicTag(name = it.name, slug = it.name, id = HupuIds.boardId(it.url.ifBlank { "/${it.topicId}" })))
         } ?: emptyList(),
     )
 }
