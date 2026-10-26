@@ -82,7 +82,11 @@ android {
             // 卡帧优化：nightly 以 debug 签名分发但走 R8 全量优化
             // （debuggable 开销保留，字节码/资源已收缩，接近 release 流畅度）
             isMinifyEnabled = true
-            isShrinkResources = true
+            // 批O：R8 集成资源收缩会用「未注入版本号的源清单」重写 manifest——
+            // packaged_manifests 带 -PversionCode/-PversionName，但 shrunk .ap_
+            // 里的清单掉回 1/0.1.0（全量重打后暴露）。关掉资源收缩让版本生效；
+            // 字节码仍走 R8，只有未引用资源不再剥离（APK 体积略增）。
+            isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-debug.pro")
             testProguardFiles("proguard-androidTest.pro")
         }
