@@ -134,6 +134,32 @@ class HupuDataParserTest {
         assertEquals(emptyList<Any>(), HupuDataParser.parseAwards("""{"result":{}}"""))
     }
 
+    @Test fun careerRank_parsesStageDimensionAndFiltersFootballLeftovers() {
+        // 批Y：playerAllDimensionCareerRank 真实结构（2026-10-27 匿名实测 REGULAR+pergame）——
+        // dataDimensionMap[stage] 单元素维度组，itemList 同 playerSeasonRank 结构。
+        val json = """{"success":true,"result":{
+            "competitionType":{"leagueTypeName":"NBA","competitionTypeName":"NBA"},
+            "dataDimensionMap":{"REGULAR":[{"name":"avg","itemList":[
+                {"engName":"basic.minAvg","chineseName":"场均出场时间","rankInfoList":[
+                    {"rank":1,"playerId":"p1","playerName":"张伯伦","photo":"ph","value":"45.8","pts":"30.1","reb":"22.9","ast":"4.4"}
+                ]},
+                {"engName":"xx","chineseName":"场均进球数","rankInfoList":[{"rank":1,"playerName":"x","value":"1"}]},
+                {"engName":"basic.ptsAvg","chineseName":"场均得分","rankInfoList":[
+                    {"rank":1,"playerId":"p2","playerName":"乔丹","photo":"","teamName":"公牛","value":"30.1"}
+                ]}
+            ]}]}}}"""
+        val b = HupuDataParser.parseCareerRank(json, "REGULAR", "pergame")!!
+        assertEquals("常规赛", b.stageName)
+        assertEquals("pergame", b.grain)
+        assertEquals(1, b.dimensions.size)
+        // 「场均进球数」按官方同款过滤剔除
+        assertEquals(listOf("场均出场时间", "场均得分"), b.dimensions[0].items.map { it.name })
+        assertEquals("张伯伦", b.dimensions[0].items[0].leaders[0].name)
+        assertEquals("45.8", b.dimensions[0].items[0].leaders[0].value)
+        assertNull(HupuDataParser.parseCareerRank(json, "PLAYOFF", "pergame")) // 无该 stage 键→null
+        assertNull(HupuDataParser.parseCareerRank("""{"success":false}""", "REGULAR", "pergame"))
+    }
+
     @Test fun quarterStats_homeAwayArrays() {
         val json = """{"success":true,"result":{"homeQuarterScore":["35","26","37","25"],"awayQuarterScore":["32","49","29","22"]}}"""
         val q = HupuDataParser.parseQuarterStats(json)!!

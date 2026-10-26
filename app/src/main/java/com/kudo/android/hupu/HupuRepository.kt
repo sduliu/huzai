@@ -630,6 +630,18 @@ class HupuRepository {
         return withContext(Dispatchers.Default) { HupuDataParser.parseAwards(json) }
     }
 
+    /** 批Y：历史榜整版（playerAllDimensionCareerRank，stage/grain 由页内开关选择）。 */
+    suspend fun careerRankBoard(
+        leagueType: String,
+        stage: String,
+        grain: String,
+        refresh: Boolean = false,
+    ): HupuCareerRankBoard? {
+        val json = HupuDataApi.fetchCareerRank(leagueType, stage, grain, forceNetwork = refresh)
+            ?: return null
+        return withContext(Dispatchers.Default) { HupuDataParser.parseCareerRank(json, stage, grain) }
+    }
+
     /** 单节比分（仅 businessType=basketball 的比赛有效；失败返回 null）。 */
     suspend fun quarterStats(matchId: String, refresh: Boolean = false): HupuQuarterScore? {
         val json = HupuDataApi.fetchQuarterStats(matchId, forceNetwork = refresh) ?: return null

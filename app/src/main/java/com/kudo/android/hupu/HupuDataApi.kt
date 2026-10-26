@@ -186,6 +186,24 @@ object HupuDataApi {
         )
 
     /**
+     * 批Y：历史榜（playerAllDimensionCareerRank）——官方 history.html 同源实参：
+     * leagueType/competitionType 大写、competitionStage∈{REGULAR,PLAYOFF}、grain∈{pergame,totals}。
+     * result.dataDimensionMap[stage][0].itemList 与 playerSeasonRank 同构。
+     */
+    suspend fun fetchCareerRank(
+        leagueType: String,
+        stage: String,
+        grain: String,
+        forceNetwork: Boolean = false,
+    ): String? =
+        get(
+            "$GAMES_BASE/basketballapi/playerAllDimensionCareerRank" +
+                "?leagueType=${leagueType.uppercase()}&competitionType=${leagueType.uppercase()}" +
+                "&competitionStage=$stage&grain=$grain",
+            "career-rank-$leagueType-$stage-$grain", forceNetwork, "https://m.hupu.com/",
+        )
+
+    /**
      * 单节比分（teamMatchQuarterStats）：home/awayQuarterScore 数组（Q1..Q4+OT）。
      * 仅 businessType=basketball 的 matchId 有效。
      */

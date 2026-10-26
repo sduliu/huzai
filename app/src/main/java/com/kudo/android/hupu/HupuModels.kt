@@ -872,6 +872,15 @@ data class HupuAward(
     val winners: List<HupuAwardWinner>,
 )
 
+/** 批Y：历史榜整版（playerAllDimensionCareerRank）——生涯累计榜，
+ *  维度结构与球员季榜同构（基础/进阶/关键时刻/拼抢），无赛季选择。 */
+data class HupuCareerRankBoard(
+    val stage: String,       // REGULAR / PLAYOFF
+    val stageName: String,   // 常规赛 / 季后赛
+    val grain: String,       // pergame / totals
+    val dimensions: List<HupuRankDimension>,
+)
+
 /**
  * 批U-1：篮球比赛详情头（basketballapi/matchInfo?matchId= 的 result 子集）。
  *

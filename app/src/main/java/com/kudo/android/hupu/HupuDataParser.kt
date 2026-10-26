@@ -379,6 +379,65 @@ object HupuDataParser {
         }
     }
 
+    /**
+     * 批Y：playerAllDimensionCareerRank → 生涯榜整版。
+     * dataDimensionMap[stage] 是单元素维度组数组（pergame→avg / totals→all），
+     * itemList 与 playerSeasonRank 同构；官方页过滤三个足球残留项，此处同款。
+     */
+    private val careerRankItemFilter = setOf("场均进球数", "场均命中率", "场均罚球命中数")
+
+    fun parseCareerRank(json: String, stage: String, grain: String): HupuCareerRankBoard? {
+        return try {
+            val root = JSONObject(json)
+            if (!root.optBoolean("success", false)) return null
+            val r = root.optJSONObject("result") ?: return null
+            val stageArr = r.optJSONObject("dataDimensionMap")
+                ?.optJSONArray(stage) ?: return null
+            val dims = mutableListOf<HupuRankDimension>()
+            for (i in 0 until stageArr.length()) {
+                val d = stageArr.optJSONObject(i) ?: continue
+                val items = mutableListOf<HupuRankItem>()
+                d.optJSONArray("itemList")?.let { il ->
+                    for (j in 0 until il.length()) {
+                        val it = il.optJSONObject(j) ?: continue
+                        val cn = it.optString("chineseName")
+                        if (cn in careerRankItemFilter) continue
+                        val leaders = mutableListOf<HupuRankEntry>()
+                        it.optJSONArray("rankInfoList")?.let { rl ->
+                            for (k in 0 until rl.length()) {
+                                rl.optJSONObject(k)?.let { e -> leaders += rankEntry(e) }
+                            }
+                        }
+                        if (leaders.isNotEmpty()) {
+                            items += HupuRankItem(
+                                key = it.optString("engName"),
+                                name = cn,
+                                leaders = leaders,
+                                hasMore = it.optBoolean("hasMore"),
+                            )
+                        }
+                    }
+                }
+                if (items.isNotEmpty()) {
+                    dims += HupuRankDimension(
+                        key = d.optString("name"),
+                        name = d.optString("chineseName"),
+                        items = items,
+                    )
+                }
+            }
+            if (dims.isEmpty()) return null
+            HupuCareerRankBoard(
+                stage = stage,
+                stageName = if (stage == "PLAYOFF") "季后赛" else "常规赛",
+                grain = grain,
+                dimensions = dims,
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     /** teamMatchQuarterStats → 单节比分（Q1..Qn 原样数组；OT 节由数组长度>4 表达）。 */
     fun parseQuarterStats(json: String): HupuQuarterScore? {
         return try {

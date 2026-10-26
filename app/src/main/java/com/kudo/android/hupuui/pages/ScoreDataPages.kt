@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
 import com.kudo.android.hupu.HupuAward
+import com.kudo.android.hupu.HupuCareerRankBoard
 import com.kudo.android.hupu.HupuDataTab
 import com.kudo.android.hupu.HupuDraftBoard
 import com.kudo.android.hupu.HupuInjury
@@ -90,9 +91,9 @@ import kotlin.coroutines.cancellation.CancellationException
  *   · 其余 h5 → 交回宿主开 EmbedWebPage（官方 H5 原页内嵌）
  */
 
-/** tabUrl 命中官方数据 H5 → (leagueType, kind)；kind ∈ team|player|draft|injury|honor */
+/** tabUrl 命中官方数据 H5 → (leagueType, kind)；kind ∈ team|player|draft|injury|honor|history */
 internal fun nativeDataTabKind(url: String): Pair<String, String>? {
-    val m = Regex("/300003/([a-zA-Z]+)/(team|player|draft|injury|honor)\\.html").find(url)
+    val m = Regex("/300003/([a-zA-Z]+)/(team|player|draft|injury|honor|history)\\.html").find(url)
         ?: return null
     return m.groupValues[1].lowercase() to m.groupValues[2]
 }
@@ -138,6 +139,7 @@ internal fun DataTabContent(
                 "draft" -> DraftView(kind.first)
                 "injury" -> InjuryView(kind.first)
                 "honor" -> AwardView(kind.first)
+                "history" -> CareerRankView(kind.first)
                 else -> Box(Modifier.fillMaxSize()) // 不应到达：h5 在宿主层已开 embed
             }
         }
@@ -971,6 +973,113 @@ internal fun AwardView(league: String) {
                                         color = MaterialTheme.colorScheme.primary,
                                         maxLines = 1,
                                     )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==================== 历史榜（playerAllDimensionCareerRank，stage×grain 开关 + 统计项卡） ====================
+
+/** 批Y：官方 history.html 同源——常规赛/季后赛 × 场均/总数 开关 + 生涯榜统计项卡（各项 top5）。 */
+@Composable
+internal fun CareerRankView(league: String) {
+    val repo = remember { HupuRepository() }
+    var stage by remember { mutableStateOf("REGULAR") }
+    var grain by remember { mutableStateOf("pergame") }
+    var board by remember { mutableStateOf<HupuCareerRankBoard?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var failed by remember { mutableStateOf(false) }
+    var tick by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(league, stage, grain, tick) {
+        loading = true
+        failed = false
+        val b = repo.careerRankBoard(league, stage, grain, refresh = tick > 0)
+        if (b != null) board = b else failed = true
+        loading = false
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        // 官方开关：常规赛|季后赛、场均|总数（各自一行 chip）
+        Row(
+            Modifier.fillMaxWidth().chipBarClip().padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            listOf("REGULAR" to "常规赛", "PLAYOFF" to "季后赛").forEach { (k, n) ->
+                Chip(text = n, selected = k == stage) { if (k != stage) stage = k }
+            }
+            Spacer(Modifier.width(8.dp))
+            listOf("pergame" to "场均", "totals" to "总数").forEach { (k, n) ->
+                Chip(text = n, selected = k == grain) { if (k != grain) grain = k }
+            }
+        }
+        val b = board
+        when {
+            b == null && loading -> SkeletonHome()
+            b == null && failed -> ErrorRetry { tick++ }
+            b == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("暂无历史榜数据", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+            }
+            else -> LazyColumn(
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 100.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                b.dimensions.forEach { dim ->
+                    dim.items.forEach { item ->
+                        item(key = "cr-${dim.key}-${item.key}") {
+                            Column(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                            ) {
+                                Text(
+                                    item.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(vertical = 4.dp),
+                                )
+                                item.leaders.forEach { e ->
+                                    Row(
+                                        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            "${e.rank}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.width(24.dp),
+                                        )
+                                        AsyncImage(
+                                            model = normalizeCover(e.photo), contentDescription = null,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.size(26.dp).clip(CircleShape),
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Column(Modifier.weight(1f)) {
+                                            Text(
+                                                e.name, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                            )
+                                            if (e.teamName.isNotEmpty()) {
+                                                Text(
+                                                    e.teamName, fontSize = 10.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            e.value, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
                                 }
                             }
                         }
