@@ -831,3 +831,11 @@ Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage
 - **旧实现缺陷**：`ds.drop(start)` 取锚定日起全部未来日 → NBA 计数虚高至 53、卡列混入远日场次。
 - **行样式**：火焰 emoji + 左文右灰箭头（官方形态），文案 `查看近期N场热门比赛` 与官方逐字一致；点按仍复用 `onOpenSchedule`（赛程中心）。
 - 新增 `hupuScoreCount`/`hupuJrsScoreText` 顶级辅助（T-4 卡文案复用）；单测 `jrsScoreText_normalizesWanAndRenSuffix`/`scoreCount_parsesWanAndPlainNumbers` 入 HupuDataParserTest。
+
+### 批T-2：快捷图标行——官方位序 + 主队登录位 + 排除类不渲染
+
+- **位序**（官方实测）：NBA=`赛程/数据/主队/AI工坊/NBA游戏`，足球=`赛程/积分榜/主队/冠军经理/足球游戏`。
+- **第二位规则**：`leagueDataTabs` 返回原生 h5 tab（nba 实测 {team,player,draft,injury}）→ 渲染「数据」深链 `score/{key}?dtab=player`（player 缺失时按 team/draft/injury 顺位）；无数据轨道（soccer 实测接口 FETCH_SOURCE_ERROR 返回空）回落「积分榜」→ `standings/{key}`。
+- **主队**：官方为登录态聚合页，匿名源不可得——本批仅入口位（Shield 图标）+ Toast：未登录「登录后可用：主队是登录态功能」，已登录「主队功能将在登录批次补齐」（`onMyTeam` 回调 KudoApp 注入）。登录批次欠账。
+- **排除类空位处理**：AI工坊/NBA游戏/冠军经理/足球游戏（推广/游戏类）**不渲染占位**——幽灵灰位会被误读为故障，官方语义即广告位。回退：revert 本 commit 恢复条件渲染版。
+- 旧实现按 dataKind 逐项渲染（积分榜/球员榜/选秀/伤病各占一位，cba 可达 6 项）与官方 5 位语义不符，已弃。

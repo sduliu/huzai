@@ -238,6 +238,8 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                                                 onOpenStandings = { g -> nav.navigate("standings/$g") },
                                                 // 批B-4：数据 tab 深链（积分榜/球员榜/选秀/伤病 → 赛程中心对应 tab）
                                                 onOpenDataTab = { g, kind -> nav.navigate("score/$g?dtab=$kind") },
+                                                // 批T-2：主队=登录态聚合页（登录批次欠账）；未登录/已登录都给明确提示
+                                                onMyTeam = { showMessage(if (account.user == null) "登录后可用：主队是登录态功能" else "主队功能将在登录批次补齐") },
                                                 latest = latest, onLatestChange = onLatestChange)
                                         },
                                         hotContent = {

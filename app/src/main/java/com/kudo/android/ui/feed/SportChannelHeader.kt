@@ -17,9 +17,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.CalendarMonth
-import androidx.compose.material.icons.rounded.EmojiEvents
-import androidx.compose.material.icons.rounded.Healing
 import androidx.compose.material.icons.rounded.Leaderboard
+import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -56,6 +55,8 @@ fun SportChannelHeader(
     onOpenStandings: (String) -> Unit = {},
     /** 批B-4：数据 tab 深链（sportKey → kind：player/draft/injury/team/global） */
     onOpenDataTab: (String, String) -> Unit = { _, _ -> },
+    /** 批T-2：主队入口（登录态功能；本批仅提示，登录批次实现） */
+    onMyTeam: () -> Unit = {},
     latest: Boolean = false,
     onLatestChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -133,21 +134,12 @@ fun SportChannelHeader(
                 )
             }
         }
-        // 官方快捷图标行：圆形图标 + 下方文字（赛程必有；积分榜按频道配置出现）
-        // 批B-4：nba/cba 扩到 5 位（官方 5 位：赛程/数据/主队/战术百科/2K手游——
-        // 主队要登录、战术百科无数据、2K手游是广告位，全部不编；
-        // 以匿名原生可达的 积分榜/球员榜/选秀/伤病 补齐）。
-        // 该频道数据 tab 未给出的项目一律不渲染（如 cba 无「选秀」tab 时自然少一项）。
-        val dataShortcuts = remember(sportKey) {
-            buildList<Triple<String, String, @Composable () -> Unit>> {
-                // kind ∈ team/player/draft/injury → 标签 + 图标（命中官方 h5 url 才显示）
-                add(Triple("team", "积分榜") { Icon(Icons.Rounded.BarChart, null, Modifier.size(22.dp), MaterialTheme.colorScheme.primary) })
-                add(Triple("player", "球员榜") { Icon(Icons.Rounded.Leaderboard, null, Modifier.size(22.dp), MaterialTheme.colorScheme.primary) })
-                add(Triple("draft", "选秀") { Icon(Icons.Rounded.EmojiEvents, null, Modifier.size(22.dp), MaterialTheme.colorScheme.primary) })
-                add(Triple("injury", "伤病") { Icon(Icons.Rounded.Healing, null, Modifier.size(22.dp), MaterialTheme.colorScheme.primary) })
-            }
-        }
-        // 频道实际拥有的数据 tab kind（无 tab 轨道的频道为空表 → 快捷行回到赛程+积分榜）
+        // 官方快捷图标行（批T-2 对齐官方位序）：
+        //   NBA/篮球系：赛程 / 数据 / 主队 / AI工坊* / NBA游戏*（*排除类不渲染）
+        //   足球系：    赛程 / 积分榜 / 主队 / 冠军经理* / 足球游戏*
+        // 第二位规则：有原生数据 tab 轨道的频道给「数据」（默认落球员榜 tab）；
+        // 无数据轨道（soccer getDataTabList 服务端报错为空）回落「积分榜」。
+        // 主队 = 登录态聚合页，本批只留入口位 + 提示（登录批次欠账）。
         val dataKinds by produceState<Set<String>>(emptySet(), sportKey) {
             value = repository.leagueDataTabs(sportKey)
                 .mapNotNull { com.kudo.android.hupuui.pages.nativeDataTabKind(it.url)?.second }
@@ -158,16 +150,17 @@ fun SportChannelHeader(
                 onOpenSchedule(sportKey)
             }
             if (dataKinds.isNotEmpty()) {
-                // 有数据轨道：积分榜与数据项全部深链进赛程中心对应 tab
-                dataShortcuts.forEach { (kind, label, icon) ->
-                    if (kind in dataKinds) {
-                        ShortcutIcon(label, icon) { onOpenDataTab(sportKey, kind) }
-                    }
+                val kind = listOf("player", "team", "draft", "injury").first { it in dataKinds }
+                ShortcutIcon("数据", { Icon(Icons.Rounded.Leaderboard, null, Modifier.size(22.dp), MaterialTheme.colorScheme.primary) }) {
+                    onOpenDataTab(sportKey, kind)
                 }
             } else if (hasStandings) {
                 ShortcutIcon("积分榜", { Icon(Icons.Rounded.BarChart, null, Modifier.size(22.dp), MaterialTheme.colorScheme.primary) }) {
                     onOpenStandings(sportKey)
                 }
+            }
+            ShortcutIcon("主队", { Icon(Icons.Rounded.Shield, null, Modifier.size(22.dp), MaterialTheme.colorScheme.primary) }) {
+                onMyTeam()
             }
         }
         // 「资讯」+ 推荐/最新切换（对齐官方频道资讯区）
