@@ -603,3 +603,17 @@ Muse 2026-10-26 真机验收：批N 的 N1/N4 改进了**无挂载点的死组�
 - **决定：回退**（`git checkout 94218d5^ -- HomePage.kt`，文件回到批N 前状态）。理由：死组件上留完整实现会误导后续批次以为首页管道走这里（批N 返工正是这么发生的）；若将来重新接线，批Nfix 已在真实组件上给出可对照实现。
 - **不回退的部分**：`FeedItem` 的 shareNum 显示位（`FeedUi.kt`——经 `FeedList` 在 `BoardPage`/`UserProfilePage` 活着，shareNum=-1 时不渲染，数据一旦补齐即自然生效）；`HupuThread.shareNum`/`threadCardHead`/`threadShareNum`（现由 `CommunityRepository.enrichTopics`/`detail()` 真实调用）；`HupuPrefs` 作者缓存格式（真实路径复用同一 store）。
 - 连带损失如实说明：HomePage 内 1.222 黑名单补作者逻辑同被回退——该页本就不可达，无运行时影响。
+
+## 批O-0：首页信息流卡「无作者行/转发数」诊断（先核查再修——批O 前置）
+
+Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage→TopicCard）25s+ 滚动后仍无作者行、无转发数。`TopicCard` 的渲染门槛是 `author != null` / `shareNum >= 0`——「没显示」=「补齐结果没合回来」，渲染层无缺。
+
+**诊断结论 1（构造路径）**：推荐流 `Topic` 的构造链是 `FeedViewModel.refresh → loadTopics("latest") → CommunityRepository.topics → hupu.mobileHome → parseMobileHome → HupuThread.toTopic()`，全程无第二个拷贝点。Resin 实测 `m.hupu.com/` SSR `res[]` 键集 = `{badge, isNews, label, lights, replies, source, tid, title, type, url}`——**列表源根本没有 author/createdAt/share**，`toTopic` 产出 `author=null / bumpedAt="" / shareNum=-1` 是如实映射而非途中丢字段；作者/日期/转发的唯一来源就是 `enrichTopics`（批Nfix-1 设计无误）。
+
+**诊断结论 2（enrich 跑了但合不回来——交付时序缺陷）**：`enrichFeed("latest")` 确被 `refresh()` 调用（`_state.update` 之后，source=首屏 30 条）；两个匿名接口本身可用（Resin 实测：`threads?tid=` → `author.header`/`createdAtFormat`/`createdAt`(ms)；`bbs-thread` → `t_detail.share`）。真正缺陷：
+- `threadShareNum` 走 `getMobileJson` → **全局 `RequestThrottle(1000ms)`**（CAS 时间片，全应用共享）：30 条 share 请求被串行成 ≥30s；
+- `enrichTopics` 是**全量交付**——`coroutineScope` 跑完所有批才返回新列表，`enrichFeed` 才 merge：快的作者/日期（`fetchThreadAuthorJson` 刻意不走全局节流，4并发/批 ≈ 2-4s）被 share 拖住，**25s 观察窗内屏幕上零变化**；
+- `more()`/手动 `refresh()`/`invalidateLatest` 先 `enrichJobs[filter]?.cancel()` 再重跑 → 翻页/下拉把已跑进度清零；用户其他导航（详情/专区）抢占同一全局节流位进一步后延 share；
+- 次级缺陷：作者缓存命中分支跳过 `threadCardHead` → `createdAtFormat` 永不再取 → **缓存命中后日期永远不显示**（`puid|euid|name|avatar` 四段值没有日期位）。
+
+修复方向（批O-1）：(a) `enrichTopics` 改**渐进交付**——每批完成即 `onBatch` 回调，ViewModel 逐批 merge 上屏（作者行 2-4s 可见，share 按节流节奏每批 4 条渐入，不再全量等待）；(b) 作者缓存扩第 5 段 `createdAtMs`（epoch ms，转 ISO 走 `relativeTime`，不会变陈旧的相对文本），旧 4 段值视为「作者命中、日期缺」→ 仅为日期补一次 `threadCardHead`；(c) share 仍走节流通道（防频控不动），靠渐进回调与作者行解耦。
