@@ -26,7 +26,7 @@ class NotificationUiTest {
     @Test fun badgeUsesYellowAndInkHidesZeroAndCapsAt99WithoutDuplicateSamplingNodes() {
         var count by mutableIntStateOf(0)
         compose.setContent { KudoTheme(DisplaySettings()) {
-            GlassNavigation(0, {}, {}, rememberLayerBackdrop(), GlassMode.LIQUID, Modifier.fillMaxWidth(), unreadCount = count)
+            GlassNavigation(0, {}, rememberLayerBackdrop(), GlassMode.LIQUID, Modifier.fillMaxWidth(), unreadCount = count)
         } }
         compose.onNodeWithTag("message-count-badge", useUnmergedTree = true).assertDoesNotExist()
         compose.runOnIdle { count = 126 }

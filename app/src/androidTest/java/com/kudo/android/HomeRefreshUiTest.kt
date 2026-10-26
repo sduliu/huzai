@@ -110,7 +110,7 @@ class HomeRefreshUiTest {
                             refreshes++
                             state = state.copy(scrollToTopRequest = state.scrollToTopRequest + 1)
                         }
-                    }, {}, backdrop, GlassMode.LIQUID, Modifier.align(Alignment.BottomCenter).padding(20.dp).fillMaxWidth(), state.hasUpdates)
+                    }, backdrop, GlassMode.LIQUID, Modifier.align(Alignment.BottomCenter).padding(20.dp).fillMaxWidth(), state.hasUpdates)
                 }
             }
         }
@@ -135,7 +135,7 @@ class HomeRefreshUiTest {
     }
 
     @Test fun refreshEntryRemainsUniqueYellowAndClickableFromAnotherTabInAllMaterials() {
-        var selected by mutableIntStateOf(4)
+        var selected by mutableIntStateOf(2)
         var mode by mutableStateOf(GlassMode.LIQUID)
         var clicks = 0
         compose.setContent {
@@ -143,13 +143,13 @@ class HomeRefreshUiTest {
                 val backdrop = rememberLayerBackdrop()
                 Box(Modifier.fillMaxSize()) {
                     Text("首页有更新", Modifier.layerBackdrop(backdrop))
-                    GlassNavigation(selected, { selected = it; clicks++ }, {}, backdrop, mode,
+                    GlassNavigation(selected, { selected = it; clicks++ }, backdrop, mode,
                         Modifier.align(Alignment.BottomCenter).padding(20.dp).width(280.dp), homeHasUpdates = true)
                 }
             }
         }
         for ((index, material) in GlassMode.entries.withIndex()) {
-            compose.runOnIdle { mode = material; selected = 4 }
+            compose.runOnIdle { mode = material; selected = 2 }
             compose.onAllNodesWithText("刷新").assertCountEquals(1)
             compose.onNodeWithText("刷新").performClick().assertIsSelected()
             compose.runOnIdle { assertEquals(index + 1, clicks); assertEquals(0, selected) }

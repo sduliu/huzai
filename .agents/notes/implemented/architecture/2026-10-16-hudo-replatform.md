@@ -676,7 +676,7 @@ Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage
 | `when(selected)` 挂载 | `KudoApp.kt:231` | 删 `3 -> ScorePage(request)`；`4 ->` 归位 `2 ->` |
 | `scoreRequest` 状态 | `KudoApp.kt:112` | 删（只服务旧 Tab 挂载） |
 | 通知落点 `{ selected = 3 }` | `KudoApp.kt:178` | → `{ selected = 0 }`（路由随后盖入，行为不变） |
-| 「底栏中间按钮」设置项 | `SettingsScreen.kt:72/152/157/169` | 删行+sheet 分支（底栏无中键后此设置是死入口）；`navigationAction` pref 字段保留（不迁移存量） |
+| 「底栏中间按钮」设置项 | `SettingsScreen.kt` 行+dialog 分支 | 删行+sheet 分支；`NavigationAction` 枚举/`DisplaySettings.navigationAction`/`navigation_action` pref 读写随 Q-2 整删（存量键无害残留，不再解码） |
 | `score/*` 深链路由 | `KudoApp.kt:288` | **保留**——频道顶部比分卡目标页 |
 | 频道顶部比分卡 | `SportChannelHeader`（批B 已建） | **已是官方形态 A**：`BoardMatchCard` 比分行→`score/$key?match=`、「查看近期N场热门比赛」→`score/$g`、快捷行/资讯切换——无需重建，只验回归 |
 | zoneDetailOpen 药丸隐藏 | `KudoApp.kt:269` | 保留（专区仍在） |
@@ -692,3 +692,13 @@ Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage
 - **不绕节流**：`fetchHtml` 全局 1s 节流/10min HTML 缓存均不动——冷启动首屏不再依赖该通道，排队影响降级为后台刷新延迟。
 - ZonePage 改动仅 `LaunchedEffect` 内 6 行播种；骨架仅在没有盘缓存时出现（同原语义）。
 - 测试：`ZoneCategoriesCodecTest` 3/3（roundTrip/坏条目丢弃/坏 JSON）。
+
+## 批Q-2：底栏三项导航——官方形态 A
+
+- **底栏**：`GlassNavigation` 5 项（首页/专区/发布+/比赛/我的）→ **3 项（首页 0/专区 1/我的 2）**；`onCompose`/`action` 参数删除，`LiquidBottomTabs(actionIndex=-1)` 让拖拽落点直接选中（`candidate != -1` 恒真、preview 恒发，无动作槽特判）。签名变 `(selected, onSelect, backdrop, mode, modifier, homeHasUpdates, unreadCount)`。
+- **未读徽标随迁**：`MessageCountBadge` 原挂已删「消息」槽位导致死参——现挂「我的」图标右上（index 2，`unreadCount>0` 才渲染，sampling 态不重复打 tag），未读可见性不回退。
+- **比赛迁移**：`when(selected)` 删 `3 -> ScorePage` 挂载与 `scoreRequest` 状态；赛程能力全部走 `score/*` 深链——频道顶部 `SportChannelHeader`（批B：`score/$key?match=`/`score/$g`/`standings/$g`/`dtab`）+ 热榜快捷行 `score/common`，即任务指定「频道顶部比分卡」形态，数据源零改动。
+- **发帖**：底栏 `+`/搜索动作删除；唯一入口 = 版块页红色「立即发布」FAB（`ZonePage.kt` 登录门控不变）+ 草稿续写 + `compose?` 深链。
+- **死参清理**：`NavigationAction` 枚举、`DisplaySettings.navigationAction`、`navigation_action` pref 读写全删（`DisplaySettings` 调用点全具名参数，删中间位参安全；存量 pref 键无害残留）。SettingsScreen「底栏中间按钮」行与 dialog 分支同删。
+- **通知落点**：`IncomingNotification` 的 tab 回调 `{selected=3}→{0}`——通知路由盖入后底层 Tab 落首页（原语义=消息 Tab 已不存在）。
+- **androidTest 适配**：`NavigationActionUiTest` 整删（测的是被删功能）;`CommunityUiTest`/`NavigationTapUiTest`/`NavigationMaterialUiTest`/`HomeRefreshUiTest`/`NotificationUiTest`/`DeepLinkUiTest` 按 3 项语义重写断言与手势坐标（槽位 fraction 映射 n/3，索引 4→2/3→1，`published` 计数删除）；徽章测试因徽标迁「我的」而继续有效。

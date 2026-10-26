@@ -19,7 +19,7 @@ class DeepLinkUiTest {
     @get:Rule val compose = createComposeRule()
     private var incoming by mutableStateOf<String?>(null)
     private var sequence by mutableStateOf(0L)
-    private var selected = 4
+    private var selected = 2
     private var consumed = 0
     private lateinit var nav: NavHostController
 

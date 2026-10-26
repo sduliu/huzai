@@ -57,12 +57,11 @@ class NavigationTapUiTest {
 
     @Test fun movingPointerKeepsLensAlignedAtDifferentInputRates() {
         var selected by mutableIntStateOf(0)
-        var actions = 0
         compose.setContent { KudoTheme(DisplaySettings()) {
             val backdrop = rememberLayerBackdrop()
             Box(Modifier.fillMaxSize()) {
                 Box(Modifier.fillMaxSize().layerBackdrop(backdrop).background(Color.White))
-                GlassNavigation(selected, { selected = it }, { actions++ }, backdrop, GlassMode.LIQUID,
+                GlassNavigation(selected, { selected = it }, backdrop, GlassMode.LIQUID,
                     Modifier.align(Alignment.Center).padding(20.dp).fillMaxWidth().testTag("tracking-navigation"))
             }
         } }
@@ -82,7 +81,7 @@ class NavigationTapUiTest {
                 for (direction in listOf(1, -1)) {
                     for (step in 1..24) {
                         val progress = if (direction == 1) step / 24f else 1f - step / 24f
-                        val targetX = firstX + tabWidth * 4f * progress
+                        val targetX = firstX + tabWidth * 2f * progress
                         navigation.performTouchInput {
                             val startX = requireNotNull(currentPosition()).x
                             val samples = (16L / samplePeriod).toInt()
@@ -95,7 +94,7 @@ class NavigationTapUiTest {
                         val lens = compose.onNodeWithTag("navigation-selection").fetchSemanticsNode().boundsInRoot
                         assertEquals("${samplePeriod}ms 输入移动中镜片应跟手：方向 $direction / 帧 $step",
                             navigationBounds.left + targetX, lens.center.x, tabWidth * .15f)
-                        compose.runOnIdle { assertEquals("松手前不能切页", 0, selected); assertEquals(0, actions) }
+                        compose.runOnIdle { assertEquals("松手前不能切页", 0, selected) }
                     }
                 }
                 navigation.performTouchInput { cancel() }
@@ -114,7 +113,7 @@ class NavigationTapUiTest {
             val backdrop = rememberLayerBackdrop()
             Box(Modifier.fillMaxSize()) {
                 Box(Modifier.fillMaxSize().layerBackdrop(backdrop).background(Color.White))
-                GlassNavigation(selected, { selected = it }, {}, backdrop, GlassMode.LIQUID,
+                GlassNavigation(selected, { selected = it }, backdrop, GlassMode.LIQUID,
                     Modifier.align(Alignment.Center).padding(20.dp).fillMaxWidth().testTag("press-navigation"))
             }
         } }
@@ -122,7 +121,7 @@ class NavigationTapUiTest {
         val navigation = compose.onNodeWithTag("press-navigation")
         val navigationBounds = navigation.fetchSemanticsNode().boundsInRoot
         val initial = compose.onNodeWithTag("navigation-selection").fetchSemanticsNode().boundsInRoot
-        val targetX = initial.center.x + initial.width * 4f
+        val targetX = initial.center.x + initial.width * 2f
         compose.mainClock.autoAdvance = false
         try {
             navigation.performTouchInput { down(Offset(targetX - navigationBounds.left, centerY)) }
@@ -132,7 +131,7 @@ class NavigationTapUiTest {
             compose.runOnIdle { assertEquals(0, selected) }
             navigation.performTouchInput { up() }
             repeat(100) { compose.mainClock.advanceTimeByFrame(); SystemClock.sleep(16) }
-            compose.runOnIdle { assertEquals(4, selected) }
+            compose.runOnIdle { assertEquals(2, selected) }
             val settled = compose.onNodeWithTag("navigation-selection").fetchSemanticsNode().boundsInRoot
             assertEquals(targetX, settled.center.x, 1.5f)
         } finally {
@@ -167,7 +166,7 @@ class NavigationTapUiTest {
             val backdrop = rememberLayerBackdrop()
             Box(Modifier.fillMaxSize()) {
                 Box(Modifier.fillMaxSize().layerBackdrop(backdrop).background(Color.White))
-                GlassNavigation(selected, { selected = it }, {}, backdrop, GlassMode.LIQUID,
+                GlassNavigation(selected, { selected = it }, backdrop, GlassMode.LIQUID,
                     Modifier.align(Alignment.Center).padding(20.dp).fillMaxWidth().testTag("tap-navigation"))
             }
         } }
@@ -185,11 +184,11 @@ class NavigationTapUiTest {
         navigation.performTouchInput { cancel() }
         frames(100)
         fun tap(index: Int, hold: Int) {
-            navigation.performTouchInput { down(Offset(width * ((index + .5f) / 5f), centerY)) }
+            navigation.performTouchInput { down(Offset(width * ((index + .5f) / 3f), centerY)) }
             frames(hold)
             navigation.performTouchInput { up() }
         }
-        for ((index, hold) in listOf(4 to 1, 1 to 3, 3 to 10, 0 to 1, 4 to 2, 0 to 12, 4 to 1)) {
+        for ((index, hold) in listOf(2 to 1, 1 to 3, 0 to 10, 2 to 1, 1 to 2, 0 to 12, 2 to 1)) {
             tap(index, hold)
             frames(2)
         }
@@ -197,7 +196,7 @@ class NavigationTapUiTest {
         compose.waitForIdle()
         val lens = compose.onNodeWithTag("navigation-selection").fetchSemanticsNode().boundsInRoot
         val panel = compose.onNodeWithTag("navigation-surface").fetchSemanticsNode().boundsInRoot
-        assertEquals(4, selected)
+        assertEquals(2, selected)
         assertEquals("点击停下后宽度不能残留速度拉伸", initial.width, lens.width, 1.5f)
         assertEquals("点击停下后高度不能残留速度压缩", initial.height, lens.height, 1.5f)
         assertEquals("上下留白恢复一致", lens.top - panel.top, panel.bottom - lens.bottom, 1.5f)

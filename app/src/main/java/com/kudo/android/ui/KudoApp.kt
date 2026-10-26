@@ -108,8 +108,6 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
         SideEffect { readingSync.setAccount(account.user?.id) }
         DisposableEffect(readingSync) { onDispose { readingSync.close() } }
         var selected by rememberSaveable { mutableIntStateOf(0) }
-        // 首页赛事频道 → 「比赛」Tab 跳转请求（nonce 区分连续点击）
-        var scoreRequest by remember { mutableStateOf<com.kudo.android.hupuui.pages.ScoreNavRequest?>(null) }
         val homeChannels = remember(com.kudo.android.hupu.HupuPrefs.homeChannelsVersion) {
             com.kudo.android.hupu.HupuPrefs.effectiveHomeChannels()
         }
@@ -175,7 +173,7 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
         IncomingLinuxDoLink(nav, incomingUrl, linkSequence, { selected = 0 }, consumeLink)
         com.kudo.android.notifications.NotificationPermission(account.user?.id)
         IncomingNotification(nav, incomingNotification, account.sessionReady, account.user?.id, linkSequence,
-            { selected = 3 }, account::readNotificationTarget, { app.notifications.consume(it); consumeNotification() })
+            { selected = 0 }, account::readNotificationTarget, { app.notifications.consume(it); consumeNotification() })
         TopicPresentationEnvironment(app.repository, account.user?.id) {
         AvatarEnvironment(app.repository, account.user?.id) {
             ImageGalleryHost(loadAlbum = { id ->
@@ -250,8 +248,7 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                                                 openRatings = { nav.navigate("score/common") })
                                         })
                                     1 -> com.kudo.android.hupuui.pages.ZonePage()
-                                    3 -> com.kudo.android.hupuui.pages.ScorePage(request = scoreRequest)
-                                    4 -> ProfileScreen(account.user, ::login, { nav.navigate("settings") }, { nav.navigate("bookmarks") }, { account.user?.username?.let(::user) }, repository = app.repository, about = { nav.navigate("about") }, downloads = { nav.navigate("downloads") },
+                                    2 -> ProfileScreen(account.user, ::login, { nav.navigate("settings") }, { nav.navigate("bookmarks") }, { account.user?.username?.let(::user) }, repository = app.repository, about = { nav.navigate("about") }, downloads = { nav.navigate("downloads") },
                                         destination = { destination ->
                                             when (destination) {
                                                 AccountDestination.BOOKMARKS -> nav.navigate("bookmarks")
@@ -269,7 +266,7 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                             if (!com.kudo.android.hupu.HupuUiSignals.zoneDetailOpen) GlassNavigation(selected, {
                                 selected = it
                                 if (it == 0 && state.forUser(account.user).hasUpdates) feed.refreshFromNavigation()
-                            }, { if (display.navigationAction == NavigationAction.SEARCH) nav.navigate("search") else editor() }, backdrop, display.glass, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(20.dp).widthIn(max = 530.dp).fillMaxWidth(), homeHasUpdates = state.forUser(account.user).hasUpdates, action = display.navigationAction, unreadCount = account.unreadCount)
+                            }, backdrop, display.glass, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(20.dp).widthIn(max = 530.dp).fillMaxWidth(), homeHasUpdates = state.forUser(account.user).hasUpdates, unreadCount = account.unreadCount)
                         }
                         }
                         }

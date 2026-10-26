@@ -52,58 +52,55 @@ class CommunityUiTest {
 
     @Test fun glassNavigationSwitchesTabsAndDoesNotPublishOnDrag() {
         var selected by mutableIntStateOf(0)
-        var published = 0
         compose.setContent {
             KudoTheme(DisplaySettings()) {
                 val backdrop = rememberLayerBackdrop()
                 Box(Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().layerBackdrop(backdrop).background(MaterialTheme.colorScheme.background))
-                    GlassNavigation(selected, { selected = it }, { published++ }, backdrop, GlassMode.LIQUID, Modifier.align(Alignment.BottomCenter).padding(16.dp).fillMaxWidth().testTag("navigation"))
+                    GlassNavigation(selected, { selected = it }, backdrop, GlassMode.LIQUID, Modifier.align(Alignment.BottomCenter).padding(16.dp).fillMaxWidth().testTag("navigation"))
                 }
             }
         }
-        compose.onNodeWithText("分类").performClick()
-        compose.runOnIdle { assertEquals(1, selected); assertEquals(0, published) }
+        compose.onNodeWithText("专区").performClick()
+        compose.runOnIdle { assertEquals(1, selected) }
         compose.onNodeWithText("我的").performClick()
-        compose.runOnIdle { assertEquals(4, selected) }
+        compose.runOnIdle { assertEquals(2, selected) }
         compose.onNodeWithTag("navigation").performTouchInput { swipeLeft() }
-        compose.runOnIdle { assertEquals(0, published) }
-        compose.onNodeWithContentDescription("发布话题").performClick()
-        compose.runOnIdle { assertEquals(1, published) }
+        compose.runOnIdle { assertEquals(2, selected) }
     }
 
-    @Test fun physicalNavigationTouchesKeepSamplingAndPublishIsolated() {
+    @Test fun physicalNavigationTouchesKeepSampling() {
         var selected by mutableIntStateOf(0)
-        var published = 0
         compose.setContent {
             KudoTheme(DisplaySettings(theme = ThemeMode.LIGHT)) {
                 val backdrop = rememberLayerBackdrop()
                 Box(Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().layerBackdrop(backdrop).background(MaterialTheme.colorScheme.surface))
-                    GlassNavigation(selected, { selected = it }, { published++ }, backdrop, GlassMode.LIQUID,
+                    GlassNavigation(selected, { selected = it }, backdrop, GlassMode.LIQUID,
                         Modifier.align(Alignment.BottomCenter).padding(20.dp).fillMaxWidth().testTag("navigation"))
                 }
             }
         }
         compose.onAllNodesWithText("首页").assertCountEquals(1)
-        compose.onAllNodesWithContentDescription("发布话题").assertCountEquals(1)
+        compose.onAllNodesWithText("专区").assertCountEquals(1)
+        compose.onAllNodesWithText("我的").assertCountEquals(1)
         val navigation = compose.onNodeWithTag("navigation")
-        navigation.performTouchInput { click(Offset(width * 0.3f, centerY)) }
-        compose.runOnIdle { assertEquals(1, selected); assertEquals(0, published) }
         navigation.performTouchInput { click(Offset(width * 0.5f, centerY)) }
-        compose.runOnIdle { assertEquals(1, selected); assertEquals(1, published) }
+        compose.runOnIdle { assertEquals(1, selected) }
+        navigation.performTouchInput { click(Offset(width * 0.9f, centerY)) }
+        compose.runOnIdle { assertEquals(2, selected) }
         navigation.performTouchInput {
             down(Offset(width * 0.5f, centerY))
             moveTo(Offset(width * 0.9f, centerY), delayMillis = 300)
             up()
         }
-        compose.runOnIdle { assertEquals(4, selected); assertEquals("从发布入口开始拖动不应发布", 1, published) }
+        compose.runOnIdle { assertEquals(2, selected) }
         navigation.performTouchInput {
             down(Offset(width * 0.3f, centerY))
             moveTo(Offset(width * 0.5f, centerY), delayMillis = 300)
             up()
         }
-        compose.runOnIdle { assertEquals("从未选中标签拖到发布仍保持当前页", 4, selected); assertEquals(1, published) }
+        compose.runOnIdle { assertEquals("松手位置决定选中标签", 1, selected) }
     }
 
     @Test fun themeAndMaterialOptionsChangeImmediately() {
@@ -123,13 +120,12 @@ class CommunityUiTest {
 
     @Test fun glassSelectionContinuesFromReleasePosition() {
         var selected by mutableIntStateOf(0)
-        var published = 0
         compose.setContent {
             KudoTheme(DisplaySettings()) {
                 val backdrop = rememberLayerBackdrop()
                 Box(Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().layerBackdrop(backdrop).background(MaterialTheme.colorScheme.background))
-                    GlassNavigation(selected, { selected = it }, { published++ }, backdrop, GlassMode.LIQUID,
+                    GlassNavigation(selected, { selected = it }, backdrop, GlassMode.LIQUID,
                         Modifier.align(Alignment.BottomCenter).padding(16.dp).fillMaxWidth().testTag("navigation"))
                 }
             }
@@ -149,7 +145,7 @@ class CommunityUiTest {
         val after = compose.onNodeWithTag("navigation-selection").getUnclippedBoundsInRoot()
         assertTrue("松手后胶囊不能跳回旧标签：${before.left} → ${after.left}", after.left >= before.left - (before.right - before.left) * 0.25f)
         compose.mainClock.advanceTimeBy(700)
-        compose.runOnIdle { assertEquals(4, selected); assertEquals(0, published) }
+        compose.runOnIdle { assertEquals(2, selected) }
         val settled = compose.onNodeWithTag("navigation-selection").getUnclippedBoundsInRoot()
         navigation.performTouchInput {
             down(Offset(width * 0.9f, centerY))
@@ -157,30 +153,29 @@ class CommunityUiTest {
             up()
         }
         compose.mainClock.advanceTimeBy(700)
-        compose.runOnIdle { assertEquals("松手于发布入口时保留原标签", 4, selected); assertEquals(0, published) }
-        val returned = compose.onNodeWithTag("navigation-selection").getUnclippedBoundsInRoot()
-        assertEquals("胶囊回到原标签", settled.left.value, returned.left.value, 1f)
+        compose.runOnIdle { assertEquals("松手位置决定选中标签", 1, selected) }
+        val moved = compose.onNodeWithTag("navigation-selection").getUnclippedBoundsInRoot()
+        assertTrue("胶囊移到中间标签", moved.left.value < settled.left.value)
         navigation.performTouchInput {
             down(Offset(width * 0.9f, centerY))
             moveTo(Offset(width * 0.6f, centerY), delayMillis = 300)
             cancel()
         }
         compose.mainClock.advanceTimeBy(700)
-        compose.runOnIdle { assertEquals(4, selected); assertEquals(0, published) }
+        compose.runOnIdle { assertEquals(1, selected) }
         val cancelled = compose.onNodeWithTag("navigation-selection").getUnclippedBoundsInRoot()
-        assertEquals("取消拖动回到原标签", settled.left.value, cancelled.left.value, 1f)
+        assertEquals("取消拖动回到原标签", moved.left.value, cancelled.left.value, 1f)
     }
 
     @Test fun draggingHighlightsCurrentAndPreviewWithoutSwitchingPage() {
         var selected by mutableIntStateOf(0)
-        var published = 0
         var settings by mutableStateOf(DisplaySettings(theme = ThemeMode.LIGHT))
         compose.setContent {
             KudoTheme(settings) {
                 val backdrop = rememberLayerBackdrop()
                 Box(Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().layerBackdrop(backdrop).background(MaterialTheme.colorScheme.surface))
-                    GlassNavigation(selected, { selected = it }, { published++ }, backdrop, GlassMode.LIQUID,
+                    GlassNavigation(selected, { selected = it }, backdrop, GlassMode.LIQUID,
                         Modifier.align(Alignment.BottomCenter).padding(16.dp).fillMaxWidth().testTag("navigation"))
                 }
             }
@@ -191,46 +186,46 @@ class CommunityUiTest {
             return layouts.single().layoutInput.style.color
         }
         val active = textColor("首页")
-        val inactive = textColor("分类")
+        val inactive = textColor("专区")
         assertNotEquals(active, inactive)
         val navigation = compose.onNodeWithTag("navigation")
         navigation.performTouchInput {
             down(Offset(width * 0.1f, centerY))
-            moveTo(Offset(width * 0.3f, centerY), delayMillis = 300)
+            moveTo(Offset(width * 0.5f, centerY), delayMillis = 300)
         }
         compose.waitForIdle()
-        assertEquals("拖到分类时与当前首页同时高亮", active, textColor("分类"))
+        assertEquals("拖到专区时与当前首页同时高亮", active, textColor("专区"))
         assertEquals(active, textColor("首页"))
         assertEquals(inactive, textColor("我的"))
-        compose.runOnIdle { assertEquals("松手之前不切换页面", 0, selected); assertEquals(0, published) }
+        compose.runOnIdle { assertEquals("松手之前不切换页面", 0, selected) }
         capture("navigation-drag-clear.png")
-        navigation.performTouchInput { moveTo(Offset(width * 0.5f, centerY), delayMillis = 300) }
+        navigation.performTouchInput { moveTo(Offset(width * 0.3f, centerY), delayMillis = 300) }
         compose.waitForIdle()
         assertEquals(active, textColor("首页"))
-        assertEquals(inactive, textColor("分类"))
-        compose.runOnIdle { assertEquals(0, selected); assertEquals(0, published) }
+        assertEquals(inactive, textColor("专区"))
+        compose.runOnIdle { assertEquals(0, selected) }
         navigation.performTouchInput { moveTo(Offset(width * 0.7f, centerY), delayMillis = 300) }
         compose.waitForIdle()
-        assertEquals(active, textColor("消息"))
-        assertEquals(inactive, textColor("分类"))
+        assertEquals(active, textColor("我的"))
+        assertEquals(inactive, textColor("专区"))
         assertEquals(active, textColor("首页"))
         navigation.performTouchInput { up() }
         compose.waitForIdle()
-        compose.runOnIdle { assertEquals(3, selected); assertEquals(0, published) }
+        compose.runOnIdle { assertEquals(2, selected) }
         assertEquals(inactive, textColor("首页"))
-        assertEquals(active, textColor("消息"))
+        assertEquals(active, textColor("我的"))
         navigation.performTouchInput {
             down(Offset(width * 0.7f, centerY))
             moveTo(Offset(width * 0.3f, centerY), delayMillis = 300)
             cancel()
         }
         compose.waitForIdle()
-        compose.runOnIdle { assertEquals(3, selected); assertEquals(0, published) }
-        assertEquals(inactive, textColor("分类"))
-        assertEquals(active, textColor("消息"))
+        compose.runOnIdle { assertEquals(2, selected) }
+        assertEquals(inactive, textColor("专区"))
+        assertEquals(active, textColor("我的"))
         compose.runOnIdle { settings = DisplaySettings(theme = ThemeMode.DARK, fontScale = 1.3f) }
         compose.waitForIdle()
-        val darkActive = textColor("消息")
+        val darkActive = textColor("我的")
         val darkInactive = textColor("首页")
         assertNotEquals(darkActive, darkInactive)
         navigation.performTouchInput {
@@ -239,12 +234,12 @@ class CommunityUiTest {
         }
         compose.waitForIdle()
         assertEquals(darkActive, textColor("首页"))
-        assertEquals(darkActive, textColor("消息"))
-        assertEquals(darkInactive, textColor("分类"))
+        assertEquals(darkActive, textColor("我的"))
+        assertEquals(darkInactive, textColor("专区"))
         capture("navigation-drag-dark-large.png")
         navigation.performTouchInput { cancel() }
         compose.waitForIdle()
-        compose.runOnIdle { assertEquals(3, selected); assertEquals(0, published) }
+        compose.runOnIdle { assertEquals(2, selected) }
     }
 
     @Test fun navigationHighlightsUseBrandYellowForIconAndLabel() {
@@ -278,7 +273,7 @@ class CommunityUiTest {
         val navigation = compose.onNodeWithTag("navigation")
         navigation.performTouchInput {
             down(Offset(width * 0.1f, centerY))
-            moveTo(Offset(width * 0.3f, centerY), delayMillis = 300)
+            moveTo(Offset(width * 0.5f, centerY), delayMillis = 300)
         }
         compose.waitForIdle()
         val lens = compose.onNodeWithTag("navigation-selection").fetchSemanticsNode().boundsInRoot
@@ -301,7 +296,7 @@ class CommunityUiTest {
         compose.mainClock.autoAdvance = false
         navigation.performTouchInput {
             down(Offset(width * 0.1f, centerY))
-            moveTo(Offset(width * 0.3f, centerY), delayMillis = 300)
+            moveTo(Offset(width * 0.5f, centerY), delayMillis = 300)
         }
         // Upstream velocity samples use wall time; let the gesture settle on real frames.
         repeat(60) {
@@ -313,9 +308,9 @@ class CommunityUiTest {
         assertTrue("拖动时整栏应横向放大：$resting → $moving", moving.width > resting.width)
         assertTrue("拖动时整栏应纵向放大", moving.height > resting.height)
         val lens = compose.onNodeWithTag("navigation-selection").fetchSemanticsNode().boundsInRoot
-        val touchX = with(compose.density) { (touchBounds.left + (touchBounds.right - touchBounds.left) * 0.3f).toPx() }
+        val touchX = with(compose.density) { (touchBounds.left + (touchBounds.right - touchBounds.left) * 0.5f).toPx() }
         // The demo allows a small elastic panel offset; compare transformed visual bounds.
-        val tabWidth = with(compose.density) { (touchBounds.right - touchBounds.left).toPx() / 5 }
+        val tabWidth = with(compose.density) { (touchBounds.right - touchBounds.left).toPx() / 3 }
         assertEquals("阻尼收敛后镜片中心仍应跟随手指", touchX, lens.center.x, tabWidth * 0.1f)
         val tabHeight = compose.onNodeWithTag("navigation-surface").fetchSemanticsNode().boundsInRoot.height
         val lensHeight = lens.height
@@ -331,16 +326,16 @@ class CommunityUiTest {
 
     @Test fun lensCenterContentKeepsNavigationMagnification() {
         showWhiteNavigation()
-        val restingInside = navigationIconWidth("分类")
+        val restingInside = navigationIconWidth("专区")
         val restingOutside = navigationIconWidth("我的")
         capture("navigation-scale-resting.png")
         val navigation = compose.onNodeWithTag("navigation")
         navigation.performTouchInput {
             down(Offset(width * 0.1f, centerY))
-            moveTo(Offset(width * 0.3f, centerY), delayMillis = 300)
+            moveTo(Offset(width * 0.5f, centerY), delayMillis = 300)
         }
         compose.waitForIdle()
-        val movingInside = navigationIconWidth("分类")
+        val movingInside = navigationIconWidth("专区")
         val movingOutside = navigationIconWidth("我的")
         val insideRatio = movingInside.toFloat() / restingInside
         val outsideRatio = movingOutside.toFloat() / restingOutside
@@ -379,7 +374,7 @@ class CommunityUiTest {
                 val backdrop = rememberLayerBackdrop()
                 Box(Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().layerBackdrop(backdrop).background(MaterialTheme.colorScheme.surface))
-                    GlassNavigation(0, {}, {}, backdrop, GlassMode.LIQUID,
+                    GlassNavigation(0, {}, backdrop, GlassMode.LIQUID,
                         Modifier.align(Alignment.BottomCenter).padding(20.dp).fillMaxWidth().testTag("navigation"))
                 }
             }
@@ -417,7 +412,7 @@ class CommunityUiTest {
                     Box(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
                         FeedScreen(FeedState(topics, listOf(Category(1, "开发调优", "dev", "FFB003", "", 6)), loading = false), member, {}, {}, {}, { opened = it }, {}, {}, {}, {})
                     }
-                    GlassNavigation(0, {}, {}, backdrop, GlassMode.LIQUID, Modifier.align(Alignment.BottomCenter).padding(16.dp).fillMaxWidth())
+                    GlassNavigation(0, {}, backdrop, GlassMode.LIQUID, Modifier.align(Alignment.BottomCenter).padding(16.dp).fillMaxWidth())
                 }
             }
         }

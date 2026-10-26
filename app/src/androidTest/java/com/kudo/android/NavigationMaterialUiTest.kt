@@ -44,7 +44,7 @@ class NavigationMaterialUiTest {
                 val backdrop = rememberLayerBackdrop()
                 Box(Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().layerBackdrop(backdrop).background(Color.White))
-                    GlassNavigation(0, {}, {}, backdrop, mode,
+                    GlassNavigation(0, {}, backdrop, mode,
                         Modifier.align(Alignment.BottomCenter).padding(20.dp).fillMaxWidth().testTag("navigation"))
                 }
             }
@@ -83,7 +83,7 @@ class NavigationMaterialUiTest {
                     Canvas(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
                         drawRect(Brush.horizontalGradient(listOf(Color(0xFF16BBAA), Color(0xFF147EDE))))
                     }
-                    GlassNavigation(0, {}, {}, backdrop, GlassMode.LIQUID,
+                    GlassNavigation(0, {}, backdrop, GlassMode.LIQUID,
                         Modifier.align(Alignment.Center).padding(20.dp).fillMaxWidth().testTag("navigation"))
                 }
             }
@@ -135,13 +135,13 @@ class NavigationMaterialUiTest {
                 val backdrop = rememberLayerBackdrop()
                 Box(Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().layerBackdrop(backdrop).background(Color.White))
-                    GlassNavigation(selected, { selected = it }, {}, backdrop, mode,
+                    GlassNavigation(selected, { selected = it }, backdrop, mode,
                         Modifier.align(Alignment.BottomCenter).padding(20.dp)
                             .then(if (narrow) Modifier.width(280.dp) else Modifier.fillMaxWidth()).testTag("navigation"))
                 }
             }
         }
-        for (small in listOf(false, true)) for (material in GlassMode.entries) for (end in listOf(0, 4)) {
+        for (small in listOf(false, true)) for (material in GlassMode.entries) for (end in listOf(0, 2)) {
             compose.runOnIdle {
                 narrow = small; mode = material; selected = end
                 settings = DisplaySettings(theme = if (small) ThemeMode.DARK else ThemeMode.LIGHT, fontScale = if (small) 1.3f else 1f)
@@ -166,7 +166,7 @@ class NavigationMaterialUiTest {
                 val backdrop = rememberLayerBackdrop()
                 Box(Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().layerBackdrop(backdrop).background(Color.Black))
-                    GlassNavigation(0, {}, {}, backdrop, mode,
+                    GlassNavigation(0, {}, backdrop, mode,
                         Modifier.align(Alignment.BottomCenter).padding(20.dp).fillMaxWidth().testTag("navigation"))
                 }
             }
@@ -206,7 +206,7 @@ class NavigationMaterialUiTest {
                 val backdrop = rememberLayerBackdrop()
                 Box(Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxSize().layerBackdrop(backdrop).background(Color.White))
-                    GlassNavigation(0, {}, {}, backdrop, GlassMode.LIQUID,
+                    GlassNavigation(0, {}, backdrop, GlassMode.LIQUID,
                         Modifier.align(Alignment.BottomCenter).padding(20.dp).fillMaxWidth().testTag("navigation"))
                 }
             }

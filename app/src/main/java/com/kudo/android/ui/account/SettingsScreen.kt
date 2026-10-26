@@ -69,8 +69,6 @@ fun SettingsScreen(settings: DisplaySettings, update: (DisplaySettings) -> Unit,
                         SettingsDivider()
                         SettingRow("主题列表样式", settings.topicListStyle.label, !showing) { show("list") }
                         SettingsDivider()
-                        SettingRow("底栏中间按钮", settings.navigationAction.label, !showing) { show("navigation") }
-                        SettingsDivider()
                         Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(horizontal = 18.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("显示用户签名", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
                             CommunitySwitch(settings.showSignatures, { update(settings.copy(showSignatures = it)) }, enabled = !showing,
@@ -128,10 +126,10 @@ fun SettingsScreen(settings: DisplaySettings, update: (DisplaySettings) -> Unit,
                 }
             }
         }
-        val actionSheet = dialog in listOf("theme", "glass", "font", "list", "navigation", "external-links")
+        val actionSheet = dialog in listOf("theme", "glass", "font", "list", "external-links")
         val title = when (dialog) {
             "theme" -> "主题风格"; "glass" -> "界面材质效果"; "font" -> "字体大小"
-            "list" -> "主题列表样式"; "navigation" -> "底栏中间按钮"
+            "list" -> "主题列表样式"
             "external-links" -> "外部链接打开方式"
             "logout" -> "退出登录？"; else -> "虎Do"
         }
@@ -149,12 +147,11 @@ fun SettingsScreen(settings: DisplaySettings, update: (DisplaySettings) -> Unit,
                     "theme" -> ThemeMode.entries.map { it.label }
                     "glass" -> GlassMode.entries.map { it.label }
                     "list" -> TopicListStyle.entries.map { it.label }
-                    "navigation" -> NavigationAction.entries.map { it.label }
                     "external-links" -> ExternalLinkMode.entries.map { it.label }
                     else -> listOf("较小 · 85%", "跟随系统", "较大 · 115%", "大号 · 130%")
                 }
                 val selected = when (dialog) {
-                    "theme" -> settings.theme.ordinal; "glass" -> settings.glass.ordinal; "list" -> settings.topicListStyle.ordinal; "navigation" -> settings.navigationAction.ordinal; "external-links" -> settings.externalLinkMode.ordinal; else -> scales.indexOf(settings.fontScale)
+                    "theme" -> settings.theme.ordinal; "glass" -> settings.glass.ordinal; "list" -> settings.topicListStyle.ordinal; "external-links" -> settings.externalLinkMode.ordinal; else -> scales.indexOf(settings.fontScale)
                 }
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.surface)) {
                     options.forEachIndexed { index, label ->
@@ -166,7 +163,6 @@ fun SettingsScreen(settings: DisplaySettings, update: (DisplaySettings) -> Unit,
                                     "theme" -> settings.copy(theme = ThemeMode.entries[index])
                                     "glass" -> settings.copy(glass = GlassMode.entries[index])
                                     "list" -> settings.copy(topicListStyle = TopicListStyle.entries[index])
-                                    "navigation" -> settings.copy(navigationAction = NavigationAction.entries[index])
                                     "external-links" -> settings.copy(externalLinkMode = ExternalLinkMode.entries[index])
                                     else -> settings.copy(fontScale = scales[index])
                                 })
