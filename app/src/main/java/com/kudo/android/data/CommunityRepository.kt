@@ -4,6 +4,10 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.FormBody
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import com.kudo.android.hupu.HUPU_BOARDS
@@ -111,6 +115,63 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
             }
         }
         return TopicPage(threads.map { it.toTopic() }, null)
+    }
+
+    /**
+     * 批Nfix-1：信息流卡按 tid 惰性补齐——作者（`threads?tid=`）+日期（createdAtFormat→bumpedAt
+     * 仅当为空）+转发数（`bbs-thread`）。缺什么补什么；4 条一批 + 批间 120ms，同批并发。
+     * 作者落盘缓存（值格式 puid|euid|name|avatar，旧两段值视为不完整再补）；
+     * 转发数易变不落盘。返回与入参等长的新列表。
+     */
+    suspend fun enrichTopics(topics: List<Topic>): List<Topic> = coroutineScope {
+        val cache = HupuPrefs.loadThreadAuthors()
+        val fresh = mutableMapOf<String, String>()
+        val out = topics.toMutableList()
+        val pending = topics.mapIndexedNotNull { i, t ->
+            HupuIds.tid(t.id)?.let { i to (t to it) }
+        }.filter { (_, pair) -> pair.first.author == null || pair.first.shareNum < 0 || pair.first.bumpedAt.isBlank() }
+        pending.chunked(4).forEach { batch ->
+            batch.map { (i, pair) ->
+                val (t, tid) = pair
+                async(Dispatchers.IO) {
+                    var author = t.author
+                    var bumped = t.bumpedAt
+                    var share = t.shareNum
+                    if (author == null || bumped.isBlank()) {
+                        val cached = cache[tid]?.split('|')
+                        if (author == null && cached != null && cached.size >= 4 &&
+                            (cached[0].isNotEmpty() || cached[1].isNotEmpty())) {
+                            author = Member(
+                                id = cached[1].takeIf { it.isNotBlank() }?.let(HupuIds::id) ?: 0,
+                                username = cached[1].ifBlank { cached[2] },
+                                name = cached[2],
+                                avatar = cached[3],
+                            )
+                        } else {
+                            val (a, date) = hupu.threadCardHead(tid)
+                            if (a != null && (a.puid.isNotEmpty() || a.euid.isNotEmpty() || a.name.isNotBlank())) {
+                                fresh[tid] = "${a.puid}|${a.euid}|${a.name}|${a.url}"
+                                if (author == null) author = Member(
+                                    id = a.euid.takeIf { it.isNotBlank() }?.let(HupuIds::id) ?: 0,
+                                    username = a.euid.ifBlank { a.name },
+                                    name = a.name,
+                                    avatar = a.url,
+                                )
+                            }
+                            if (bumped.isBlank() && date.isNotBlank()) bumped = date
+                        }
+                    }
+                    if (share < 0) share = hupu.threadShareNum(tid) ?: -1
+                    i to t.copy(author = author, bumpedAt = bumped, shareNum = share)
+                }
+            }.forEach { deferred ->
+                val (i, nt) = deferred.await()
+                out[i] = nt
+            }
+            if (batch.size == 4) delay(120)
+        }
+        HupuPrefs.putThreadAuthors(fresh)
+        out
     }
 
     /** 板块页原始数据（热榜频道/版块页头部用）。 */

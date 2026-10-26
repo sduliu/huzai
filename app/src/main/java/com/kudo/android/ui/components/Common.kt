@@ -157,7 +157,8 @@ fun TopicCard(topic: Topic, category: Category?, onClick: () -> Unit, onUser: (S
                     fontSize = 13.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (topic.pinned) Icon(Icons.Rounded.PushPin, "置顶", Modifier.size(15.dp), MaterialTheme.colorScheme.primary)
-                Text(relativeTime(topic.bumpedAt), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // 批Nfix-1：bumpedAt 为 ISO 走相对时间；补齐的 createdAtFormat 是中文显示文本，直接兜底显示
+                Text(relativeTime(topic.bumpedAt).ifBlank { topic.bumpedAt }, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1, softWrap = false)
             }
         }
@@ -209,6 +210,11 @@ fun TopicCard(topic: Topic, category: Category?, onClick: () -> Unit, onUser: (S
             Stat(Icons.Rounded.FavoriteBorder, compactNumber(topic.likes))
             Spacer(Modifier.width(14.dp))
             Stat(Icons.Rounded.ChatBubbleOutline, compactNumber(topic.replies))
+            // 批Nfix-1：转发数有数据才显示（-1=未携带，不占位）
+            if (topic.shareNum >= 0) {
+                Spacer(Modifier.width(14.dp))
+                Stat(Icons.Rounded.Share, compactNumber(topic.shareNum))
+            }
         }
     }
 }

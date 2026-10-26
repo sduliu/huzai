@@ -97,6 +97,7 @@ class FeedViewModel(private val repository: CommunityRepository, private val cat
                         tag = page.tag,
                     ))
                 }
+                enrichFeed(filter)
             } catch (e: CancellationException) { throw e } catch (_: Exception) {
                 _pages.update { it - filter }
             }
@@ -157,6 +158,31 @@ class FeedViewModel(private val repository: CommunityRepository, private val cat
         if (updatesActive == active) return
         updatesActive = active
         restartUpdates()
+    }
+
+    /**
+     * 批Nfix-1：信息流卡惰性补齐（作者/日期/转发数）。
+     * 页面先出列表（首屏不被补齐请求拖慢），补齐结果按 id 合回当前页与频道缓存。
+     * 只补缺字段；写回时 filter 校验防止跨页串改。
+     */
+    private val enrichJobs = mutableMapOf<String, Job>()
+    private fun enrichFeed(filter: String) {
+        if (filter == FeedFilter.HOT.value) return
+        enrichJobs[filter]?.cancel()
+        enrichJobs[filter] = viewModelScope.launch {
+            try {
+                val source = if (_state.value.filter == filter) _state.value.topics
+                    else _pages.value[filter]?.topics.orEmpty()
+                if (source.isEmpty()) return@launch
+                val enriched = withContext(Dispatchers.IO) { repository.enrichTopics(source) }
+                val byId = enriched.associateBy(Topic::id)
+                fun merge(list: List<Topic>) = list.map { byId[it.id] ?: it }
+                if (_state.value.filter == filter) _state.update { it.copy(topics = merge(it.topics)) }
+                _pages.update { pages -> pages[filter]?.let { pages + (filter to it.copy(topics = merge(it.topics))) } ?: pages }
+            } catch (e: CancellationException) { throw e } catch (_: Exception) {
+                // 补齐失败只意味着缺字段继续缺——绝不能把已出内容的页打坏
+            }
+        }
     }
 
     private fun restartUpdates() {
@@ -243,6 +269,7 @@ class FeedViewModel(private val repository: CommunityRepository, private val cat
                 baseline = page.topics.associateBy(Topic::id)
                 acknowledgeOnProbe = arrivalRevision != refreshRevision
                 _state.update { it.copy(topics = page.topics.distinctBy(Topic::id), next = page.next, loading = false, hasUpdates = it.hasUpdates && acknowledgeOnProbe, tag = page.tag ?: it.tag) }
+                enrichFeed(filter)
                 if (categoryId == null && tagSlug == null) loadedNewCount?.takeIf { it > 0 }?.let(refreshResults::trySend)
                 if (acknowledgeOnProbe) signals?.trySend(Unit)
                 coroutineScope {
@@ -275,7 +302,10 @@ class FeedViewModel(private val repository: CommunityRepository, private val cat
         moreJob = viewModelScope.launch {
             try {
                 val page = withContext(Dispatchers.IO) { loadTopics(snapshot.filter, next) }
-                if (token == generation) _state.update { it.copy(topics = (it.topics + page.topics).distinctBy(Topic::id), next = page.next?.takeUnless { path -> path == next }, loadingMore = false) }
+                if (token == generation) {
+                    _state.update { it.copy(topics = (it.topics + page.topics).distinctBy(Topic::id), next = page.next?.takeUnless { path -> path == next }, loadingMore = false) }
+                    enrichFeed(snapshot.filter)
+                }
             } catch (e: CancellationException) { throw e } catch (e: Exception) { if (token == generation) _state.update { it.copy(loadingMore = false, moreError = e) } }
         }
     }

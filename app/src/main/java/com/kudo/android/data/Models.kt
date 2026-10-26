@@ -36,6 +36,8 @@ data class Topic(
     val images: List<String> = emptyList(),
     /** 批G-1：视频帖标识（HupuThread.hasVideo 桥入；列表卡图区 ▶ 角标/无图时「视频」chip） */
     val hasVideo: Boolean = false,
+    /** 批Nfix-1：虎扑转发数（-1=未携带；信息流 SSR 无此字段，按 tid 惰性补齐） */
+    val shareNum: Int = -1,
 )
 data class TopicPage(val topics: List<Topic>, val next: String?, val tag: TopicTag? = null)
 

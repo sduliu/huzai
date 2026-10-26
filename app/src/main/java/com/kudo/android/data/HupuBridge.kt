@@ -105,7 +105,7 @@ private fun HupuAuthor?.toMember(): Member =
         id = this?.euid?.takeIf { it.isNotBlank() }?.let(HupuIds::id) ?: 0,
         username = this?.euid?.takeIf { it.isNotBlank() } ?: this?.name.orEmpty(),
         name = this?.name.orEmpty(),
-        avatar = "",
+        avatar = this?.url.orEmpty(),
     )
 
 private fun HupuTopic?.categoryIdOf(fallbackFid: String): Int = when {
@@ -128,6 +128,7 @@ fun HupuThread.toTopic(): Topic = Topic(
     images = covers,
     bumpedAt = isoTime(createdAt, createdAtText),
     hasVideo = hasVideo,
+    shareNum = shareNum,
 )
 
 /** 板块资讯 → feed 列表项（tid→Int id，点击走 topic 详情）。 */

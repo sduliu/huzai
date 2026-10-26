@@ -566,3 +566,13 @@ Muse 2026-10-26 真机验收：批N 的 N1/N4 改进了**无挂载点的死组�
 - `CommunityRepository` 是本端唯一社区仓储——读路径（话题流/详情/搜索）全部桥到 `HupuRepository`，`Topic`/`TopicDetail`/`Post` 是通用渲染模型；虎扑字段经 `HupuBridge` 映射进该模型（`author→Member`、`lights→likes`、`createdAtText→bumpedAt`）。
 - `toMember()` 此前把 `Member.avatar` 置空——桥入作者头像全丢（影响所有用到作者头像的渲染位）。
 - 主导航药丸 `GlassNavigation` 渲染在 `"root"` composable 外层 Box（`KudoApp.kt:257`），ZonePage 的盖入详情在它**下层**——这是批N-3 通栏底栏与药丸重叠的成因；`NavHost` 目的地页面（topic/category 等）不经过 root composable，天然无药丸。
+
+## 批Nfix-1：真实信息流卡复刻——作者行/日期/转发数（移植 N1 到 TopicCard 路径）
+
+批N 的补齐驱动挂在死代码 `hupuui/HomePage` 上；真实信息流是 `FeedScreen→FeedPage→TopicCard`（Discourse `Topic` 模型）。本次把同一套匿名源（`threads?tid=` 作者+createdAtFormat、`bbs-thread` share）落到真实管道：
+
+- **模型**：`Topic.shareNum: Int = -1`（-1=未携带，卡上不渲染转发位）；`toMember()` 修复 `avatar=""`——此前桥入作者头像全丢，现传 `author.url`（`mediaUrl` 对绝对 URL 透传，`Avatar` 直接可渲）。
+- **补齐驱动**：`CommunityRepository.enrichTopics()`——缺什么补什么（author==null / shareNum<0 / bumpedAt 空）；作者缓存复用 `HupuPrefs` 同一 `puid|euid|name|avatar` 格式（与死代码路径同 store，命中即零请求）；`createdAtFormat` 仅在 bumpedAt 为空时兜底写入（`TopicCard` 作者行 `relativeTime(...).ifBlank{bumpedAt}` 原样显示中文文本）。
+- **接入点**：`FeedViewModel.enrichFeed(filter)`——refresh/more/prefetch 落页后异步补齐（首屏不被请求拖慢），结果按 id 合回 `_state` 与 `_pages`；热榜（hot 频道）不走帖子卡、跳过。
+- `TopicCard` 底行 `shareNum>=0` 时追加 `Share + compactNumber`（官方「赞/评/转发」三计数）。
+- 成本与批N 相同：每 tid 两接口、4条/批+120ms 节流；作者缓存命中后只剩 share 请求。
