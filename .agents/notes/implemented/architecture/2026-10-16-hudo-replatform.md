@@ -453,3 +453,14 @@ Muse 验收发现 `assembleDebugAndroidTest` 全量编译被陈旧测试阻断�
 - 自证（dex 表直查）：主包 `LazyKt`/`CollectionsKt`/`CollectionsKt__CollectionsKt`/`BuildersKt`/`JobKt`/`Intrinsics` 全部 DEF；test dex kotlin.* 类定义=0（纯引用，单源解析）；`TestDirCalculator`/`ActivityScenario`/`AppInitializer`/`ProcessLifecycleInitializer` 链路类全部可解析；兜底测试调用树（`KudoThemeKt`/`FallbackImagesKt`/`DisplaySettings`/coil2 `SubcomposeAsyncImageKt`/M3 组件）全 canonical DEF。
 - 残余（如实）：test dex 引用的个别共享类主包仍无定义——`androidx.concurrent.futures.CallbackToFutureAdapter`、compose-ui `DialogWindowProvider`/`PixelMap`（兜底测试路径不经过，其他测试若触达仍可能缺）；`com.kudo.*` 被改名的类（`CommunityDirectoryScreenKt`/`DirectoryTag` 等）→ 直调这些类名的旧 androidTest 仍不可跑；mockwebserver WebSocket/okio 路径、junit 可选依赖（easymock/jmock，junit 自带容错）。完整 instrument 跑通与否最终仍需 Muse 真机确认。
 - 回退：删 `proguard-debug.pro` + `proguardFiles` 引用行 + 本笔记段（恢复批I 状态须另还原嵌入）。
+
+## 批K：compose 测试框架类被裁——一次性审计扩展 keep 边界（不再打地鼠）
+
+第三化身：`ClassNotFoundException: androidx.compose.ui.platform.InfiniteAnimationPolicy$DefaultImpls` @ `AndroidComposeTestRule` 初始化——runner 已启动，用例建规则时缺 compose-ui-test 框架传递需要的、App 不直接引用被主包 R8 裁掉的类。
+
+**一次性审计方法**（可复用）：test dex type_ids − test class_defs − app class_defs，剔除 JDK/框架/纯编译期注解 → 批J 组合下真实缺失仅 34 类，按包归因：androidx.compose×11、androidx.concurrent.futures×4、com.kudo 改名类×4、okhttp3-WS×8+okio×1、junit 可选×4、框架自带 org.json/org.w3c×3。
+
+- **keep 边界选型**：`-keep class androidx.** { *; }` + `-keep class com.kudo.android.** { *; }` 并入 `proguard-debug.pro`——androidx/kotlin/kotlinx = 测试类路径与主包的全部共享库空间，com.kudo 成员级 keep 使测试按源码名调 app 方法（顺带根治批J 记录的「直调改名 app 类的测试不可跑」残余面）。边界覆盖缺失类别而非类名，后续漂移自动吸收。
+- **自证（dex 表）**：崩溃类 `InfiniteAnimationPolicy$DefaultImpls`、`CallbackToFutureAdapter`、`CommunityDirectoryScreenKt`、`DirectoryTag`、`LazyKt`/`CollectionsKt` 全部 appDEX DEF；真实缺失 34→15，残余=okhttp3-WS/okio（mockwebserver WS 专用路径，现无用例触达）、easymock/jmock（junit 可选容错）、org.json/org.w3c（Android 框架 bootclasspath 自带）；`DialogWindowProvider` 为 ui-test 与 app compose-ui 版本偏差引用（两 dex 均无定义，兜底路径不经过）。
+- **代价**：debug 主包类定义 18,343→41,461（androidx+app 全保），放弃该部分 shrink/内联；APK 增大。仍只作用 debug 变体，release 零影响。
+- 回退：删 proguard-debug.pro 中批K 两行（回批J 状态）或整文件（回批H 状态）。
