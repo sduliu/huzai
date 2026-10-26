@@ -493,3 +493,12 @@ Muse 验收发现 `assembleDebugAndroidTest` 全量编译被陈旧测试阻断�
 - **版规正文**：`admins` 节点仅 title/adminApplicable/adminList，无 rules 文本或链接；全页无 guize/rule 字段。已兑现的部分=版主团队 + 招募标记（L-2）；申请版主与版规内容属登录态/无源，不做。
 
 结论：以上四项无匿名可读数据源，按规则不伪造、不占位——等官方接口面变化或登录批次再评估。
+
+## 批L-3：悬浮层遮挡——内容底部留白避让
+
+真机现状：KudoApp 的 `GlassNavigation` 药丸**始终可见**（SecondaryPage.count 写而未读——本宿主没接隐藏逻辑），二级盖入页上的悬浮元素会与它叠层。本批只加留白，不动药丸样式/位置：
+
+- 详情页 `LazyColumn` bottom：140dp → `64dp + LocalQuickScrollBottomPadding`（≈操作条高 + 导航药丸+手势区占用，navBars+88dp），末行可滚到两条悬浮层之上。
+- 版块页 `「立即发布」FAB` bottom：24dp → `LocalQuickScrollBottomPadding + 8dp`（原值时 FAB 下半被药丸遮住一半）。
+- 版块页 FeedList：新增 `bottomInset` 参数（默认 140dp 保既有调用方），版块页传 `LocalQuickScrollBottomPadding + 72dp`（FAB 高度+间隔）。
+- 遗留：`SecondaryPage.count` 在本宿主（KudoApp/GlassNavigation）无消费者——若后续接上「二级页打开隐藏导航」机制，三处留白可再收紧；当前留白对药丸不可见场景也安全（只是底部稍空）。

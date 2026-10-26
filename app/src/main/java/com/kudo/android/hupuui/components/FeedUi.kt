@@ -507,6 +507,8 @@ internal fun FeedList(
     headerContent: (@Composable () -> Unit)? = null,
     /** 官方版块页平铺帖行：无卡片底、细分隔线、纯文字（作者+标题+回复/推荐+时间） */
     flatRows: Boolean = false,
+    /** 批L-3：底部留白（避让悬浮层）。默认 140dp 维持既有调用方观感 */
+    bottomInset: Dp = 140.dp,
 ) {
     val listState = rememberLazyListState()
     // 刷新完成后回顶（仅当前活动列表）
@@ -562,7 +564,7 @@ internal fun FeedList(
             start = if (flatRows) 16.dp else 0.dp,
             end = if (flatRows) 16.dp else 0.dp,
             top = topInset,
-            bottom = 140.dp,
+            bottom = bottomInset,
         ),
         verticalArrangement = if (flatRows) Arrangement.Top else Arrangement.spacedBy(10.dp),
     ) {

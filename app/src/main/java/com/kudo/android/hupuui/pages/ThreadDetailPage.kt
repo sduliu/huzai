@@ -997,7 +997,12 @@ fun ThreadDetailOverlay(
                             LazyColumn(
                                 state = listState,
                                 contentPadding = PaddingValues(
-                                    start = 16.dp, end = 16.dp, top = 4.dp, bottom = 140.dp,
+                                    // 批L-3：底栏药丸（操作条 + 全局导航药丸叠层）避让——
+                                    // 末行必须能滚到两条悬浮层之上；64dp≈操作条高，
+                                    // LocalQuickScrollBottomPadding≈导航药丸+手势区占用。
+                                    start = 16.dp, end = 16.dp, top = 4.dp,
+                                    bottom = 64.dp +
+                                        com.kudo.android.ui.components.LocalQuickScrollBottomPadding.current,
                                 ),
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
                                 // 1.190: 列表「视口」整体从状态栏下方开始。此前只有 item("header")

@@ -798,6 +798,9 @@ private fun TopicFeedOverlay(
                             onLoadMore = { onLoadMore(topic.url, sel, selState.page) },
                             resetKey = "$selKey-$refreshVersion",
                             topInset = topInset,
+                            // 批L-3：末行避让「立即发布」FAB 与全局导航药丸叠层
+                            bottomInset =
+                                com.kudo.android.ui.components.LocalQuickScrollBottomPadding.current + 72.dp,
                             onOpenThread = onOpenThread,
                         )
                     }
@@ -806,10 +809,14 @@ private fun TopicFeedOverlay(
         }
         }
         // 官方版块页红色「立即发布」FAB——发帖需登录；未登录点击提示去「我的」页登录
+        // 批L-3：底距避让全局导航药丸（原 24dp 时 FAB 下半被药丸遮住一半）
         Box(
             Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 18.dp, bottom = 24.dp)
+                .padding(
+                    end = 18.dp,
+                    bottom = com.kudo.android.ui.components.LocalQuickScrollBottomPadding.current + 8.dp,
+                )
                 .clip(RoundedCornerShape(50))
                 .background(Color(0xFFE60023))
                 .clickable {
