@@ -1039,3 +1039,14 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **puid 路直达实证**：`m.hupu.com/user/116039819` 返回**同一用户**完整 SSR（euid/puid 同命名空间，回落语义安全）；官方资讯号实测 `虎扑篮球资讯`（puid=56098302/euid=27066519444214）、`JRs评选`（59548906/259329543946592）euid 俱全走 euid 路。
 - **官方账号结论**：抽样官方账号帖均带 euid 可跳；「euid 缺」场景 puid 回落已验证可达；euid/puid 双缺（纯展示号）→ `pageId` 归空行不可点——不接错误页，符合官方口径如实记。
 - 纯实证项无运行代码改动；点按路径见批W-2 节。
+
+## 批X-fix：死链修复未生效追查——移动页 SSR 双形态兜底
+
+### 批Xfix-1：设备实际拿到的是移动页结构（桌面解析恒 null），非纯缓存毒化
+
+- **断点判定**：批X-1 的「解析 null→剔除+重拉」修对了一半——但重拉到手的仍是同结构错页时恒失败。**bbs.hupu.com/{tid}.html 对移动 UA 发 307 → m.hupu.com/bbs/{tid}.html**（同 tid 桌面 200/移动 307 双形态并存，实测）；移动页 `pageProps` 无 `detail` 节点（`threadData/threadInfo/initialRepliesData` 结构）→ 桌面解析器恒 null。设备侧若被边缘/网关转到移动页（或移动网络下 `fetchHtml` 失败为 null），批X-1 的剔除+同构重拉救不了——Muse 2036 复测仍死即此。
+- **设备 id 链路复核（无回归）**：死链条目 `nid=23425022/tid=643319700/kanqiu://bbs/topic/643319700` 三字段齐全 → `toTopic`→`HupuIds.topicId(tid)`→`topic/{int}`→`detail(id)`→`HupuIds.tid` 还原 `643319700`→`loadThreadDetail`。**传的就是真 tid，走的是被修函数**，断点在解析层不吃移动页结构。
+- **修**（loadThreadDetail 四级链）：①同 HTML 先试 `parseThreadDetail` 再试 `parseMobileThreadDetail`（被 307 时零额外请求）；②仍 null → 剔除 `/{tid}.html` + 桌面强制重拉双解析；③仍 null → `fetchMobileHtml("/bbs/$tid.html")` 移动页兜底（不同 host+UA）；④移动页毒化同款剔除重拉（`m:` 前缀键）。
+- **`parseMobileThreadDetail` 映射**：`threadData.code!=200`→null（诚实）；thread←`threadInfo.t_detail`（tid/title/content/replies/lights/hits/share/is_lock，标量多为字符串）+`threadData.data.basicInfo`（fid/topicName/topic_id/author{puid,name}）；replies←`initialRepliesData.initialReplies`（pid/content/light/replies/createDt/is_lz/location/user{puid,username,header}/quote_info/via/isDelete|isHidden|hide|isAudit|illegal）。作者无 euid→`pageId` 回落 puid。
+- **顺带实证**：tid=643319700 作者=`赛场小助手`(puid=95496558,无 euid)——即批W Muse 点不动的官方账号帖本帖。
+- 回退：revert 本 commit。局限：移动兜底只出第 1 页回复（initialReplies 首屏），翻页仍走桌面 `/{tid}-{page}.html`（无移动等价分页）。

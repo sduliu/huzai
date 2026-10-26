@@ -344,6 +344,109 @@ object HupuParser {
     }
 
     /**
+     * 批Xfix-1：m.hupu.com/bbs/{tid}.html 移动 SSR 详情兜底解析。
+     *
+     * 触发场景：bbs.hupu.com 对移动 UA 发 307 → m.hupu.com/bbs/{tid}.html
+     * （实测同 tid 桌面 200/移动 307 双形态并存）。移动端或边缘节点拿到移动页时
+     * SSR 结构完全不同——pageProps.{threadData,threadInfo,initialRepliesData}，
+     * 无 detail 节点 → 桌面解析返回 null → NOT_FOUND。本函数吃移动页结构。
+     */
+    fun parseMobileThreadDetail(html: String): HupuThreadDetail? {
+        val next = extractNextData(html) ?: return null
+        val pp = next.optJSONObject("props")?.optJSONObject("pageProps") ?: return null
+        val td = pp.optJSONObject("threadData") ?: return null
+        // 移动页自带错误码（帖被删/无权时非 200）→ 如实失败
+        if (td.optInt("code", 200) != 200) return null
+        val data = td.optJSONObject("data")
+        val basic = data?.optJSONObject("basicInfo")
+        val tInfo = pp.optJSONObject("threadInfo")
+        val tDetail = tInfo?.optJSONObject("t_detail") ?: return null
+
+        val tid = tDetail.optString("tid").ifEmpty { basic?.optString("tid").orEmpty() }
+        if (tid.isEmpty() || tid == "0") return null
+
+        // 作者：basicInfo.author {puid,name}（新结构）或 threadInfo.t_author {puid,username}（旧字段）
+        val authorObj = basic?.optJSONObject("author") ?: tInfo.optJSONObject("t_author")
+        val author = authorObj?.let { a ->
+            val name = a.optString("name").ifEmpty { a.optString("username") }
+            if (name.isEmpty()) null else HupuAuthor(
+                puid = a.optString("puid"),
+                name = name,
+                url = a.optString("header"),
+                // 移动页 author 无 euid——pageId 回落 puid（m.hupu.com/user/{puid} 实测同达）
+                euid = a.optString("euid"),
+            )
+        }
+
+        val repArr = pp.optJSONObject("initialRepliesData")?.optJSONArray("initialReplies")
+        val replies = mutableListOf<HupuReply>()
+        for (i in 0 until (repArr?.length() ?: 0)) {
+            val o = repArr!!.optJSONObject(i) ?: continue
+            val u = o.optJSONObject("user")
+            val rAuthor = u?.let {
+                val name = it.optString("username").ifEmpty { it.optString("name") }
+                if (name.isEmpty()) null else HupuAuthor(
+                    puid = it.optString("puid"),
+                    name = name,
+                    url = it.optString("header"),
+                    euid = it.optString("euid"),
+                )
+            }
+            replies += HupuReply(
+                pid = o.optString("pid"),
+                contentHtml = o.optString("content"),
+                floor = i + 1,
+                lights = o.optString("light").toIntOrNull() ?: o.optInt("light", 0),
+                totalReplies = o.optString("replies").toIntOrNull()
+                    ?: o.optInt("replies", 0).coerceAtLeast(0),
+                createdAtText = o.optString("createDt"),
+                isStarter = o.optInt("is_lz", 0) > 0,
+                location = o.optString("location"),
+                author = rAuthor,
+                quotePid = o.optJSONObject("quote_info")?.optString("pid").orEmpty(),
+                client = o.optString("via"),
+                hidden = o.optBoolean("isDelete") || o.optBoolean("isHidden") ||
+                    o.optInt("hide", 0) > 0 || o.optBoolean("isAudit") ||
+                    o.optInt("illegal", 0) > 0,
+            )
+        }
+
+        val totalReplies = tDetail.optString("replies").toIntOrNull()
+            ?: tDetail.optInt("replies", replies.size)
+        val thread = HupuThread(
+            tid = tid,
+            title = tDetail.optString("title"),
+            fid = tDetail.optJSONObject("f_info")?.optString("fid")
+                ?: basic?.optString("fid").orEmpty(),
+            lights = tDetail.optString("lights").toIntOrNull()
+                ?: tDetail.optInt("lights", 0),
+            replies = totalReplies,
+            read = tDetail.optString("hits").toIntOrNull()
+                ?: tDetail.optInt("hits", 0),
+            createdAtText = tDetail.optString("createDt")
+                .ifEmpty { tDetail.optString("update") },
+            author = author,
+            topic = basic?.let {
+                val name = it.optString("topicName")
+                if (name.isEmpty()) null
+                else HupuTopic(topicId = it.optString("topic_id"), name = name)
+            },
+            shareNum = tDetail.optString("share").toIntOrNull() ?: -1,
+        )
+        return HupuThreadDetail(
+            thread = thread,
+            contentHtml = tDetail.optString("content"),
+            replies = replies,
+            replyCount = totalReplies,
+            replyPage = 1,
+            // 移动 SSR 首屏即全部回复（initialHasMore=false 实测）；翻页仍走桌面
+            // /{tid}-{page}.html，拿不到时同链路移动兜底不复用（页码结构不同）。
+            replyTotalPages = maxOf(1, (totalReplies + 19) / 20),
+            isLocked = tDetail.optString("is_lock").let { it == "1" || it == "true" },
+        )
+    }
+
+    /**
      * 1.119: 从帖子 format 里取投票节点。
      * format = {htmlV3, jsonV3:{type:doc,content:[{type:"vote",attrs:{voteId,limit,title,type,choices}}]}}
      * 无投票返回 null。

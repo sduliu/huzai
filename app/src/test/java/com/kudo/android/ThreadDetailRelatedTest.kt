@@ -1,6 +1,7 @@
 package com.kudo.android
 
 import com.kudo.android.hupu.HupuParser
+import com.kudo.android.hupu.pageId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -150,6 +151,41 @@ class ThreadDetailRelatedTest {
         val d = HupuParser.parseThreadDetail(html)
         assertNotNull(d)
         assertEquals("主帖标题", d!!.thread.title)
+    }
+
+    @Test
+    fun `mobile SSR page parses full detail batchXfix regression`() {
+        // 批Xfix-1 实证：bbs.hupu.com/{tid}.html 对移动 UA 发 307 → m.hupu.com/bbs/{tid}.html，
+        // 移动页 pageProps 无 detail 节点（threadData/threadInfo/initialRepliesData 结构）——
+        // 桌面解析返回 null 即设备端「内容不存在」形态。夹具 = 死链条目 tid=643319700 的真实移动页。
+        val html = javaClass.classLoader!!.getResource("mobile_thread_643319700.html")!!.readText()
+        assertNull(HupuParser.parseThreadDetail(html)) // 桌面解析器对移动页必须为 null（断点复现）
+        val d = HupuParser.parseMobileThreadDetail(html)
+        assertNotNull(d)
+        d!!
+        assertEquals("643319700", d.thread.tid)
+        assertEquals("组织防守同样在线！拉塞尔对上海队的帮助不单单体现在得分", d.thread.title)
+        assertEquals("赛场小助手", d.thread.author?.name)
+        assertEquals("95496558", d.thread.author?.puid)
+        // 官方账号无 euid → pageId 回落 puid（批W-2 链路）
+        assertEquals("95496558", d.thread.author!!.pageId)
+        assertEquals("CBA专区", d.thread.topic?.name)
+        assertEquals(10, d.replies.size)
+        assertEquals(10, d.replyCount)
+        assertEquals(1, d.replyTotalPages)
+        assertEquals("60203", d.replies[0].pid)
+        assertEquals("来自外行星的电子", d.replies[0].author?.name)
+        assertEquals(10, d.replies[0].lights)
+        assertFalse(d.replies[0].hidden)
+    }
+
+    @Test
+    fun `mobile SSR error page returns null`() {
+        // threadData.code 非 200（帖被删/无权）→ 如实失败，不编内容
+        val html = "<html><body><script id=\"__NEXT_DATA__\" type=\"application/json\">" +
+            "{\"props\":{\"pageProps\":{\"threadData\":{\"code\":500,\"success\":false}}," +
+            "\"threadInfo\":{}}}</script></body></html>"
+        assertNull(HupuParser.parseMobileThreadDetail(html))
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.kudo.android
 
+import com.kudo.android.data.toTopic
 import com.kudo.android.hupu.HupuParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -90,5 +91,24 @@ class BoardInfoParserTest {
         assertTrue(!p.items[0].openableAsThread)
         assertEquals("643310802", p.items[1].tid)       // 真帖 tid 直读
         assertEquals("643315009", p.items[2].tid)       // m.hupu.com/bbs/{tid} 兜底提取
+    }
+
+    @Test
+    fun `news item tap chain roundtrips real tid to detail loader`() {
+        // 批Xfix-1：死链条目原样载荷（2026-10-26 newsList?tagCode=nba 实测）——
+        // nid/link/tid 三字段齐全；断言 点按(Topic.id) → 详情(repository.detail → HupuIds.tid)
+        // 全链路解出的仍是同一 tid，而非 nid/link 内其他数字。
+        val json = """{"success":true,"result":{"data":[
+            {"nid":"23425022","tid":"643319700","type":"LINK","linkType":"POST",
+             "title":"组织防守同样在线！拉塞尔对上海队的帮助不单单体现在得分","img":"i.jpg",
+             "replies":8,"lights":3,"link":"kanqiu://bbs/topic/643319700"}],"topNewsCount":0}}"""
+        val p = com.kudo.android.hupu.HupuBoardParser.parseBoardNews(json)!!
+        val n = p.items[0]
+        assertTrue(n.openableAsThread)
+        assertEquals("643319700", n.tid)
+        assertEquals("23425022", n.nid)
+        val topic = n.toTopic()
+        // 详情页 repo.detail(id) → HupuIds.tid(id)：必须还原出帖 tid（不是 nid）
+        assertEquals("643319700", com.kudo.android.data.HupuIds.tid(topic.id))
     }
 }

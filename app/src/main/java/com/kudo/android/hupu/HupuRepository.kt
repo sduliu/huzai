@@ -172,15 +172,35 @@ class HupuRepository {
         val h = html
             // 1.123: 强刷失败降级磁盘缓存（TTL 内）——断网/服务器抖动时详情页仍可打开
             ?: if (refresh) HupuCache.get("/$tid.html") else null
-        if (h == null) return null
-        var det = withContext(Dispatchers.Default) { HupuParser.parseThreadDetail(h) }
-        if (det == null) {
+        // 批Xfix-1：移动 UA/边缘节点会把 bbs.hupu.com/{tid}.html 307 到 m.hupu.com 移动页
+        //（SSR 结构不同）——同一份 HTML 先试桌面结构再试移动结构，不额外发请求。
+        var det = h?.let {
+            withContext(Dispatchers.Default) { HupuParser.parseThreadDetail(it) }
+                ?: withContext(Dispatchers.Default) { HupuParser.parseMobileThreadDetail(it) }
+        }
+        if (h != null && det == null) {
             // 批X-1：错误页 SSR（detailErrorInfo≠200，如 4044/未同步壳页）也带 __NEXT_DATA__ 会过壳页
-            // 门槛被缓存，毒化条目让该 tid 在 TTL 内恒报「内容不存在」。剔除后强制走网重试一次——
-            // 仍失败才是真不存在（如实 NOT_FOUND，不兜移动接口）。
+            // 门槛被缓存，毒化条目让该 tid 在 TTL 内恒报「内容不存在」。剔除后强制走网重试一次。
             HupuCache.remove("/$tid.html")
             det = HupuApi.fetchHtml("/$tid.html", forceNetwork = true)
-                ?.let { withContext(Dispatchers.Default) { HupuParser.parseThreadDetail(it) } }
+                ?.let {
+                    withContext(Dispatchers.Default) { HupuParser.parseThreadDetail(it) }
+                        ?: withContext(Dispatchers.Default) { HupuParser.parseMobileThreadDetail(it) }
+                }
+        }
+        if (det == null) {
+            // 批Xfix-1：桌面链路仍失败（网络层失败/持续错误页/重定向移动页仍异常）→ 移动 SSR
+            // 兜底（不同 host+UA，实测匿名完整返回 threadData/threadInfo/initialRepliesData）。
+            // 移动页同样有「含 __NEXT_DATA__ 的错误页被缓存」风险（m: 前缀键）→ 同机制剔除重拉。
+            val mpath = "/bbs/$tid.html"
+            var mh = HupuApi.fetchMobileHtml(mpath)
+            var mdet = mh?.let { withContext(Dispatchers.Default) { HupuParser.parseMobileThreadDetail(it) } }
+            if (mh != null && mdet == null) {
+                HupuCache.remove("m:$mpath")
+                mh = HupuApi.fetchMobileHtml(mpath, forceNetwork = true)
+                mdet = mh?.let { withContext(Dispatchers.Default) { HupuParser.parseMobileThreadDetail(it) } }
+            }
+            det = mdet
         }
         // 1.223z: 详情加载成功 → 回写浏览记录，用**真实版块名**补齐。
         // 通知中心/回帖列表等入口首次写入时拿不到版块名，这里在数据到手后自愈。
