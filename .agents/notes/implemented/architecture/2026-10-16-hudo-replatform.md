@@ -861,3 +861,16 @@ Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage
 - **「AI」频道不接**：HUPU_BOARDS 无对应数据源，官方 AI 频道内容面匿名未探明——不编数据，如实欠账；后续发现接口可在 HUPU_BOARDS 加一行恢复。
 - **步行街/CBA 移出默认集**：☰ 管理页推荐频道可即时加回，无功能损失；已自定义频道的存量用户不受影响（`hasCustomHomeChannels` 门控）。
 - 回退：revert 本 commit 恢复五频道默认集。
+
+### 批T-5：回归面核查（本批 8 文件 vs 各批已验面）
+
+| 回归面 | 状态 | 依据 |
+|---|---|---|
+| 批Q 专区缓存（zone_categories_v1 SWR） | ✅ 未触碰 | `HupuPrefs` 本批仅改 `defaultHomeChannels`；缓存读写函数零 diff |
+| 底栏三项（首页/专区/我的） | ✅ 未触碰 | KudoApp 仅加 `onMyTeam` 回调参；`when(selected)` 三分支、`LocalUriHandler` 注入不变 |
+| 版块「立即发布」FAB | ✅ 未触碰 | `ZonePage.kt` 零 diff |
+| 批O 信息流卡作者行/转发数 | ✅ 未触碰 | `FeedUi.kt`/`enrichTopics` 零 diff；`TopicCard` 分支仅在 `sportNews` 为真时旁路（sport: 频道专属） |
+| 批R 话题 chip（board: 键路由） | ✅ 未触碰 | `HupuBridge`/`toTopicDetail` 零 diff |
+| 批S 标色标题（titleFont） | ✅ 未触碰 | `FlatPostRow`/`titleFont` 解析零 diff |
+| sport: 频道既有功能 | ⚠️ 有意改动 | 数据源/行形态/快捷位/计数口径即本批目标，逐项见 T-1~T-4 节 |
+- 未触碰 `FallbackImages*`/`proguard*`/release 变体；`score/*` 深链、`standings/*` 路由全部保留。
