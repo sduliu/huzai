@@ -200,6 +200,55 @@ data class HupuBoardPage(
     val trending: List<String> = emptyList(),
 )
 
+/** 批F-4：官方热榜条目（m.hupu.com/hot SSR pageProps.res，微博式热搜 tag 榜） */
+data class HupuHotTag(
+    val tagId: String = "",
+    val name: String = "",
+    val heat: Long = 0,
+    val icon: String = "",
+    val rank: Int = 0,
+    /** 赛事 / 非赛事（官方分类标签，暂仅透传） */
+    val competitionType: String = "",
+    /** 「每10分钟更新一次」等官方更新说明 */
+    val updateDesc: String = "",
+)
+
+/** 批F-4：tag 聚合页头部（m.hupu.com/tag/{id} SSR topicTopInfo） */
+data class HupuTagInfo(
+    val tagId: String = "",
+    val name: String = "",
+    val icon: String = "",
+    val banner: String = "",
+    val bannerRgb: String = "",
+    /** 话题帖数（tNum）与浏览量（pv） */
+    val tNum: Long = 0,
+    val pv: Long = 0,
+    val followNum: Long = 0,
+)
+
+/** 批F-4：tag 聚合页帖行（topicThreadList/threadList 元素，字段与热帖流不同 schema） */
+data class HupuTagThread(
+    val tid: String = "",
+    val userName: String = "",
+    val header: String = "",
+    val time: String = "",
+    val title: String = "",
+    val summary: String = "",
+    val replies: Int = 0,
+    val recommendCount: Int = 0,
+    val shareNum: Int = 0,
+    val pics: List<String> = emptyList(),
+    val video: String = "",
+)
+
+/** 批F-4：tag 聚合页（SSR 首屏 page=1；/api/v2/bbs/tagThreads 分页只填 threads/nextPage/page） */
+data class HupuTagPage(
+    val info: HupuTagInfo = HupuTagInfo(),
+    val threads: List<HupuTagThread> = emptyList(),
+    val nextPage: Boolean = false,
+    val page: Int = 1,
+)
+
 /** 话题页数据（含分页） */
 data class HupuTopicPage(
     val topic: HupuTopicInfo,

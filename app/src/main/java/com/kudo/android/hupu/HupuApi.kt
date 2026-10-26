@@ -236,6 +236,63 @@ object HupuApi {
         }
     }
 
+    /**
+     * 批F-4：m.hupu.com 通用 SSR HTML（/hot、/tag/{id} 等，移动 UA + __NEXT_DATA__ 门槛 + 列表缓存）。
+     * 与 fetchUserHtml 同族，path 自含「?」查询；失败/壳页返回 null。
+     */
+    suspend fun fetchMobileHtml(path: String, forceNetwork: Boolean = false): String? {
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            throttle.acquire()
+            if (!forceNetwork) {
+                HupuCache.get("m:$path")?.let { return@withContext it }
+            }
+            val request = Request.Builder()
+                .url("https://m.hupu.com$path")
+                .header("User-Agent", MOBILE_UA)
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                .header("Accept-Language", "zh-CN,zh;q=0.9")
+                .header("Referer", "https://m.hupu.com/")
+                .apply {
+                    if (HupuAccount.isLoggedIn) {
+                        header("Cookie", HupuAccount.loadCookieHeaderPublic())
+                    }
+                }
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use null
+                    val html = response.body?.string() ?: return@use null
+                    if (!html.contains("__NEXT_DATA__")) return@use null
+                    HupuCache.put("m:$path", html)
+                    html
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
+    /** 批F-4：m.hupu.com JSON API（/api/v2/bbs/tagThreads 等，移动 UA，无缓存——分页按页号自取） */
+    suspend fun getMobileJson(pathWithQuery: String): String? {
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                throttle.acquire()
+                val request = Request.Builder()
+                    .url("https://m.hupu.com$pathWithQuery")
+                    .header("User-Agent", MOBILE_UA)
+                    .header("Referer", "https://m.hupu.com/")
+                    .header("Accept", "application/json, text/plain, */*")
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use null
+                    response.body?.string()
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
     suspend fun fetchUserHtml(euid: String, forceNetwork: Boolean = false): String? {
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             throttle.acquire()

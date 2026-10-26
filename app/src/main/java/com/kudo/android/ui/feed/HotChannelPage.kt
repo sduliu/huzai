@@ -14,16 +14,28 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +49,8 @@ import coil.compose.AsyncImage
 import com.kudo.android.data.CommunityRepository
 import com.kudo.android.data.HupuIds
 import com.kudo.android.hupu.HupuBoardPage
+import com.kudo.android.hupu.HupuHotTag
+import com.kudo.android.hupu.HupuTagPage
 import com.kudo.android.hupuui.pages.formatCount
 
 private val RankRed = Color(0xFFE60023)
@@ -62,13 +76,53 @@ fun HotChannelPage(
     val subjects by produceState<List<com.kudo.android.hupu.HupuCommonSubject>>(initialValue = emptyList()) {
         value = runCatching { com.kudo.android.hupu.HupuRepository().commonSubjects() }.getOrDefault(emptyList())
     }
+    // 批F-4：官方热榜（m.hupu.com/hot——微博式热搜 tag 榜，与官方「热榜」内容形态对齐）
+    val hotTags by produceState<List<HupuHotTag>>(initialValue = emptyList()) {
+        value = runCatching { repository.hotTags() }.getOrDefault(emptyList())
+    }
+    // 批F-4：tag 点击 → 聚合页盖入层（m.hupu.com/tag/{id} 匿名 SSR + tagThreads 分页）
+    var openTag by remember { mutableStateOf<HupuHotTag?>(null) }
     val p = page
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
         if (p == null) {
             Box(Modifier.fillMaxWidth().height(240.dp), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
             return@Column
+        }
+        // 批F-4：虎扑热榜（官方同形态：排名 + 话题词 + 🔥热度；点击进 tag 聚合页）
+        if (hotTags.isNotEmpty()) {
+            SectionTitle("虎扑热榜")
+            SectionCard {
+                hotTags.forEachIndexed { i, tag ->
+                    if (i > 0) Divider()
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clickable { openTag = tag }
+                            .padding(horizontal = 12.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "${tag.rank}", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                            color = when (tag.rank) {
+                                1 -> RankRed
+                                2, 3 -> RankOrange
+                                else -> RankGray
+                            },
+                            modifier = Modifier.width(26.dp),
+                        )
+                        Text(
+                            tag.name, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f).padding(end = 10.dp),
+                        )
+                        Text(
+                            "🔥${formatCount(tag.heat)}",
+                            fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
         }
         if (subjects.isNotEmpty()) {
             SectionTitle("评分榜")
@@ -191,6 +245,205 @@ fun HotChannelPage(
                     }
                 }
             }
+        }
+    }
+    // 批F-4：tag 聚合页盖入层（全屏，盖在频道内容之上；返回手势/返回键收起）
+    openTag?.let { tag ->
+        TagFeedOverlay(
+            tag = tag,
+            repository = repository,
+            onClose = { openTag = null },
+            openThread = { tid -> tid.toIntOrNull()?.let(openTopic) },
+        )
+    }
+    }
+}
+
+/**
+ * 批F-4：tag 聚合页（官方 m.hupu.com/tag/{id} 同款信息流——
+ * banner 头 + 帖数/浏览 + 帖列表 + 滚动分页）。匿名数据：SSR 首屏 + tagThreads API。
+ */
+@Composable
+private fun TagFeedOverlay(
+    tag: HupuHotTag,
+    repository: CommunityRepository,
+    onClose: () -> Unit,
+    openThread: (String) -> Unit,
+) {
+    BackHandler { onClose() }
+    var page by remember(tag.tagId) { mutableStateOf<HupuTagPage?>(null) }
+    var loading by remember(tag.tagId) { mutableStateOf(true) }
+    var failed by remember(tag.tagId) { mutableStateOf(false) }
+    var loadingMore by remember { mutableStateOf(false) }
+    var retryTick by remember { mutableStateOf(0) }
+    androidx.compose.runtime.LaunchedEffect(tag.tagId, retryTick) {
+        loading = true; failed = false
+        val tp = runCatching { repository.tagPage(tag.tagId) }.getOrNull()
+        if (tp != null) page = tp else failed = true
+        loading = false
+    }
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
+        // 顶栏：返回 + 话题名
+        Row(
+            Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onClose) {
+                Icon(
+                    Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = "返回",
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            Text(
+                "#${page?.info?.name?.ifBlank { tag.name } ?: tag.name}",
+                fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+        when {
+            loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+            failed -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("加载失败，点击重试", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.clickable { retryTick++ })
+            }
+            else -> {
+                val info = page!!.info
+                val listState = rememberLazyListState()
+                val threads = page!!.threads
+                val canLoadMore = page!!.nextPage
+                val shouldLoadMore by remember(threads.size, canLoadMore, loadingMore) {
+                    derivedStateOf {
+                        val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                        canLoadMore && !loadingMore && last >= listState.layoutInfo.totalItemsCount - 4
+                    }
+                }
+                androidx.compose.runtime.LaunchedEffect(shouldLoadMore) {
+                    if (shouldLoadMore) {
+                        loadingMore = true
+                        val next = runCatching { repository.tagThreads(tag.tagId, page!!.page + 1) }.getOrNull()
+                        if (next != null) {
+                            page = next.copy(
+                                info = info,
+                                threads = (threads + next.threads).distinctBy { it.tid },
+                            )
+                        }
+                        loadingMore = false
+                    }
+                }
+                LazyColumn(
+                    state = listState,
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 32.dp),
+                ) {
+                    // banner 头（官方 banner + bannerRgb 兜底色）+ 帖数/浏览
+                    item(key = "banner") {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(110.dp)
+                                .background(
+                                    info.bannerRgb.takeIf { it.isNotBlank() }
+                                        ?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() }
+                                        ?: MaterialTheme.colorScheme.surfaceVariant,
+                                ),
+                        ) {
+                            if (info.banner.isNotBlank()) {
+                                AsyncImage(
+                                    model = info.banner, contentDescription = null,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop,
+                                )
+                            }
+                            Column(
+                                Modifier.align(Alignment.BottomStart).padding(14.dp),
+                            ) {
+                                Text(
+                                    "#${info.name.ifBlank { tag.name }}",
+                                    fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    "${formatCount(info.tNum)}帖子 · ${formatCount(info.pv)}浏览",
+                                    fontSize = 12.sp, color = Color.White.copy(alpha = 0.9f),
+                                )
+                            }
+                        }
+                    }
+                    itemsIndexed(threads, key = { _, t -> t.tid }) { _, t ->
+                        TagThreadRow(t) { openThread(t.tid) }
+                        Divider()
+                    }
+                    if (loadingMore || canLoadMore) {
+                        item(key = "more") {
+                            Box(
+                                Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (loadingMore) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                                else Text("上拉加载更多", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 批F-4：tag 帖行——头像+昵称+时间 / 标题 / 摘要2行 / 右小图 / 计数（👍💬↗） */
+@Composable
+private fun TagThreadRow(t: com.kudo.android.hupu.HupuTagThread, onClick: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (t.header.isNotBlank()) {
+                AsyncImage(
+                    model = t.header, contentDescription = null,
+                    modifier = Modifier.size(20.dp).clip(CircleShape),
+                    contentScale = ContentScale.Crop,
+                )
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(t.userName.ifBlank { "虎扑JR" }, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            if (t.time.isNotBlank()) {
+                Text(t.time, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Row(verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f)) {
+                Text(t.title, fontSize = 15.sp, fontWeight = FontWeight.Medium,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (t.summary.isNotBlank()) {
+                    Spacer(Modifier.height(3.dp))
+                    Text(t.summary, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            t.pics.firstOrNull()?.let { pic ->
+                Spacer(Modifier.width(10.dp))
+                AsyncImage(
+                    model = pic, contentDescription = null,
+                    modifier = Modifier.size(72.dp).clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop,
+                )
+            }
+        }
+        Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp)) {
+            Text("👍${formatCount(t.recommendCount.toLong())}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("💬${formatCount(t.replies.toLong())}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("↗${formatCount(t.shareNum.toLong())}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

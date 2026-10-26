@@ -376,3 +376,14 @@ Muse 找不到内嵌视频帖是「样本难找」而非链路不通。用 2026-
 - **仍记缺口（无字段不伪造）**：神回复预览卡（detail 根无对应字段）、转发数（thread 无 share/repost 字段）、楼层序号角标（官方有 #N，我方无——reply JSON 无楼层序号字段，翻页合并后更无法推导，不接）。
 
 测试：ThreadDetailRelatedTest 4 例（hot/latest 解析与空回落、client/hidden 各 flag）。
+
+## 批F-4：热榜对照补齐（官方 tag 热搜榜 + tag 聚合页）
+
+匿名实测官方 `m.hupu.com/hot`（2026-10-26）= 微博式**热搜 tag 榜**：`pageProps.res` 30 条/totalElements≈50，行字段 rank/tagName/heat/icon/competitionType/tagUpdateDesc；官方页 JS（hot-*.js）渲染形态=排名（top3 着色）+话题词+🔥热度，点击 `huputiyu://bbs/topicTag?tagId=`，页尾 `huputiyu://search/hotTagList`「前往虎扑APP获取更多精彩内容」——**后 ~20 条为 App 专属，匿名上限=首屏 30 条**（探测 /api/v2/*/hotTagList 均 400 未知错误）。酷DO 原热榜频道只有评分榜/热帖榜/热门版块/大家都在搜，**缺官方主形态热搜榜**。
+
+- 接：`hotTags()`（fetchMobileHtml("/hot")→parseHotTags）→ HotChannelPage 首段「虎扑热榜」官方同形态行（rank 着色 + tagName + 🔥formatCount(heat)）。
+- 接：tag 点按 → `TagFeedOverlay` 全屏盖入页（BackHandler 收起）：`tagPage()`=m.hupu.com/tag/{id} SSR topicTopInfo（banner/bannerRgb/tNum/pv 头）+ topicThreadList 首屏 20 帖；滚动底 4 项触发 `tagThreads()`=`/api/v2/bbs/tagThreads?tagId=&tagType=（空=非播客）&page=N&pageSize=20`（官方页 JS 同款，匿名实测 200）续载，tid 去重合并；帖行=头像+昵称+时间/标题/摘要2行/右小图/👍💬↗ 计数，点击 `tid.toIntOrNull` 走既有 openTopic 详情链。
+- 网络层新增 `fetchMobileHtml(path)`（m.hupu.com+MOBILE_UA+NEXT_DATA 门槛+`m:` 前缀缓存键，与 bbs.hupu.com 的 fetchHtml/user 键不冲突）与 `getMobileJson`（同源 JSON，不缓存）。
+- 缺口（如实）：热榜 31-50 名（`search/hotTagList` 为 App 内路由，无匿名 HTTP 端点）；`aggregationType/competitionType` 分类筛选（官方页未提供 tab，字段已透传未渲）；tag 关注数交互（写接口不碰）。
+
+测试：HotRankParserTest 5 例（hot 解析与空回落、tagPage 头部+帖行+picList、tagThreads 分页 code 门槛与非 JSON）。

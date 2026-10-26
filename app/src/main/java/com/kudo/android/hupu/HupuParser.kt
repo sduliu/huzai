@@ -412,6 +412,97 @@ object HupuParser {
 
     // ---------- 映射工具 ----------
 
+    // ---------- 批F-4：官方热榜 / tag 聚合页（m.hupu.com） ----------
+
+    /** m.hupu.com/hot SSR → 热搜 tag 榜（pageProps.res；实测 30 条/页、totalElements≈50，匿名仅首屏） */
+    fun parseHotTags(html: String): List<HupuHotTag> {
+        val arr = extractNextData(html)
+            ?.optJSONObject("props")
+            ?.optJSONObject("pageProps")
+            ?.optJSONArray("res") ?: return emptyList()
+        val out = mutableListOf<HupuHotTag>()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val name = o.optString("tagName")
+            if (name.isBlank()) continue
+            out += HupuHotTag(
+                tagId = o.optString("tagId"),
+                name = name,
+                heat = o.optLong("heat"),
+                icon = o.optString("icon"),
+                rank = o.optInt("rank", i + 1),
+                competitionType = o.optString("competitionType"),
+                updateDesc = o.optString("tagUpdateDesc"),
+            )
+        }
+        return out
+    }
+
+    /** m.hupu.com/tag/{tagId} SSR → topicTopInfo + topicThreadList 首屏 */
+    fun parseTagPage(html: String): HupuTagPage? {
+        val pp = extractNextData(html)
+            ?.optJSONObject("props")
+            ?.optJSONObject("pageProps") ?: return null
+        val top = pp.optJSONObject("topicTopInfo") ?: return null
+        val tl = pp.optJSONObject("topicThreadList")
+        return HupuTagPage(
+            info = HupuTagInfo(
+                tagId = top.optString("tagId"),
+                name = top.optString("name"),
+                icon = top.optString("icon"),
+                banner = top.optString("banner"),
+                bannerRgb = top.optString("bannerRgb"),
+                tNum = top.optLong("tNum", top.optLong("tnum")),
+                pv = top.optLong("pv"),
+                followNum = top.optLong("followNum"),
+            ),
+            threads = tagThreadsFrom(tl?.optJSONArray("threadList")),
+            nextPage = tl?.optBoolean("nextPage", false) ?: false,
+            page = 1,
+        )
+    }
+
+    /** m.hupu.com/api/v2/bbs/tagThreads JSON → {code:200,data:{nextPage,threadList}} */
+    fun parseTagThreads(json: String, page: Int): HupuTagPage? {
+        val root = try { JSONObject(json) } catch (e: Exception) { return null }
+        if (root.optInt("code", -1) != 200) return null
+        val data = root.optJSONObject("data") ?: return null
+        return HupuTagPage(
+            threads = tagThreadsFrom(data.optJSONArray("threadList")),
+            nextPage = data.optBoolean("nextPage", false),
+            page = page,
+        )
+    }
+
+    private fun tagThreadsFrom(arr: org.json.JSONArray?): List<HupuTagThread> {
+        if (arr == null) return emptyList()
+        val out = mutableListOf<HupuTagThread>()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val pics = mutableListOf<String>()
+            o.optJSONArray("picList")?.let { pa ->
+                for (j in 0 until pa.length()) {
+                    pa.optJSONObject(j)?.optString("url")?.takeIf { it.isNotBlank() }?.let(pics::add)
+                }
+            }
+            out += HupuTagThread(
+                tid = o.optString("tid"),
+                userName = o.optString("userName"),
+                header = o.optString("header").ifEmpty { o.optString("userHeader") },
+                time = o.optString("time"),
+                title = o.optString("title"),
+                summary = o.optString("summary"),
+                replies = o.optInt("replies"),
+                recommendCount = o.optInt("recommendCount"),
+                shareNum = o.optInt("shareNum"),
+                pics = pics,
+                video = o.optJSONObject("video")?.optString("src").orEmpty()
+                    .ifEmpty { o.optString("video") },
+            )
+        }
+        return out
+    }
+
     private fun threadFrom(o: JSONObject): HupuThread = HupuThread(
         tid = o.optString("tid"),
         title = o.optString("title"),

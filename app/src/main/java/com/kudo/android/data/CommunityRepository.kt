@@ -116,6 +116,13 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
     /** 板块页原始数据（热榜频道/版块页头部用）。 */
     suspend fun boardPage(url: String): HupuBoardPage? = hupu.board(url)
 
+    /** 批F-4：官方热榜 tag 榜（m.hupu.com/hot 匿名首屏 30 条）。 */
+    suspend fun hotTags() = hupu.hotTags()
+
+    /** 批F-4：tag 聚合页首屏 / 帖分页（m.hupu.com/tag/{id} + tagThreads API）。 */
+    suspend fun tagPage(tagId: String) = hupu.tagPage(tagId)
+    suspend fun tagThreads(tagId: String, page: Int) = hupu.tagThreads(tagId, page)
+
     /** 赛事频道的近期赛程（首页频道页顶部赛事条）。 */
     suspend fun sportMatches(key: String): List<HupuMatchDay> {
         val cfg = HUPU_BOARDS[key] ?: return emptyList()

@@ -12,6 +12,29 @@ import kotlinx.coroutines.withContext
  */
 class HupuRepository {
 
+    /** 批F-4：官方热榜（m.hupu.com/hot SSR，30条/页匿名首屏、totalElements≈50；失败空表） */
+    suspend fun hotTags(refresh: Boolean = false): List<HupuHotTag> {
+        val html = HupuApi.fetchMobileHtml("/hot", forceNetwork = refresh) ?: return emptyList()
+        return try { HupuParser.parseHotTags(html) } catch (e: Exception) { emptyList() }
+    }
+
+    /** 批F-4：tag 聚合页首屏（m.hupu.com/tag/{id} SSR；失败 null） */
+    suspend fun tagPage(tagId: String, refresh: Boolean = false): HupuTagPage? {
+        val html = HupuApi.fetchMobileHtml("/tag/$tagId", forceNetwork = refresh) ?: return null
+        return try { HupuParser.parseTagPage(html) } catch (e: Exception) { null }
+    }
+
+    /**
+     * 批F-4：tag 帖分页（m.hupu.com/api/v2/bbs/tagThreads?tagType= 空串=非播客、pageSize=20，官方页 JS 同款）。
+     * 网络/非200返回 null（与「nextPage=false 榜尾」区分）。
+     */
+    suspend fun tagThreads(tagId: String, page: Int): HupuTagPage? {
+        val json = HupuApi.getMobileJson(
+            "/api/v2/bbs/tagThreads?tagId=$tagId&tagType=&page=$page&pageSize=20"
+        ) ?: return null
+        return try { HupuParser.parseTagThreads(json, page) } catch (e: Exception) { null }
+    }
+
     /** 版块热帖页（首页默认：步行街 /all-gambia） */
     suspend fun board(url: String = "/all-gambia", refresh: Boolean = false): HupuBoardPage? {
         val html = HupuApi.fetchHtml(url, forceNetwork = refresh) ?: return null
