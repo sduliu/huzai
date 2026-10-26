@@ -823,3 +823,11 @@ Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage
 - `getScheduleListByTagForH5` 返回 ~30 天 dayGameData；SSR 足球 `games[]` 带 `day/date_block/data[]`；`anchorMatchId` 指当日首场。
 - 主队快捷位：官方主队=登录态聚合页，匿名源不可得 → 本批留入口+「登录后可用」提示。
 - AI工坊/NBA游戏/冠军经理/足球游戏：推广/游戏类排除项 → 位留空不渲染，决策入 DECISIONS。
+
+### 批T-1：热门比赛链接行——计数口径修正为锚定日集合
+
+- **口径**：`近期热门比赛 = 进行中 ∪ 锚定日（today 或最近过往往日）场次`，计数=去重后集合大小。官方实证：NBA 锚定日 7 场=官方「7场」精确命中；足球官方 4 场为服务端精选（匿名无 hot 字段，端点猜测全 404），锚定日全量（8）为最近似匿名口径——偏差如实记，后续若发现精选接口可一行替换。
+- **卡列**：热门集合内 进行中优先 → 评分人数（`hupuScoreCount`）降序取前 4。官方卡序即评分降序（NBA：活塞18.1/湖人15.6/快船13.1；足球：巴萨12.5/曼联3.3/利物浦2.7/蒂华纳0——蒂华纳例外为服务端精选痕迹）。
+- **旧实现缺陷**：`ds.drop(start)` 取锚定日起全部未来日 → NBA 计数虚高至 53、卡列混入远日场次。
+- **行样式**：火焰 emoji + 左文右灰箭头（官方形态），文案 `查看近期N场热门比赛` 与官方逐字一致；点按仍复用 `onOpenSchedule`（赛程中心）。
+- 新增 `hupuScoreCount`/`hupuJrsScoreText` 顶级辅助（T-4 卡文案复用）；单测 `jrsScoreText_normalizesWanAndRenSuffix`/`scoreCount_parsesWanAndPlainNumbers` 入 HupuDataParserTest。

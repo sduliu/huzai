@@ -3,6 +3,8 @@ package com.kudo.android
 import com.kudo.android.data.toTopicDetail
 import com.kudo.android.hupu.HupuDataParser
 import com.kudo.android.hupu.HupuMatchParser
+import com.kudo.android.hupu.hupuJrsScoreText
+import com.kudo.android.hupu.hupuScoreCount
 import com.kudo.android.ui.topic.ArticleBlock
 import com.kudo.android.ui.topic.parseArticle
 import org.junit.Assert.*
@@ -232,5 +234,24 @@ class HupuDataParserTest {
         assertEquals("湖人 vs 爵士", s.desc) // subScribeDesc → 对话框正文
         assertNull(ms[1].subscribe)
         assertNull(ms[2].subscribe)
+    }
+
+    @Test fun jrsScoreText_normalizesWanAndRenSuffix() {
+        // 官方频道卡底行：原文计数 + 「JRs评分」（批T-0 实证）
+        assertEquals("15.6万JRs评分", hupuJrsScoreText("15.6万人评分"))
+        assertEquals("18.1万JRs评分", hupuJrsScoreText("18.1万人评分"))
+        assertEquals("3.3万JRs评分", hupuJrsScoreText("3.3万评分"))
+        assertEquals("9223JRs评分", hupuJrsScoreText("9223评分"))
+        assertEquals("9068JRs评分", hupuJrsScoreText("9068人评分"))
+        assertEquals("", hupuJrsScoreText(""))
+        assertEquals("", hupuJrsScoreText("已结束"))
+    }
+
+    @Test fun scoreCount_parsesWanAndPlainNumbers() {
+        assertEquals(156_000L, hupuScoreCount("15.6万人评分"))
+        assertEquals(33_000L, hupuScoreCount("3.3万评分"))
+        assertEquals(9_223L, hupuScoreCount("9223评分"))
+        assertEquals(0L, hupuScoreCount(""))
+        assertEquals(0L, hupuScoreCount("进行中"))
     }
 }

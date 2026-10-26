@@ -581,3 +581,16 @@ object HupuMatchParser {
         emptyList()
     }
 }
+
+/** 「JRs评分」人数解析（"15.6万人评分"→156000、"3.3万评分"→33000、"9223评分"→9223）。无法解析→0。 */
+internal fun hupuScoreCount(text: String): Long {
+    val m = Regex("([0-9]+(?:\\.[0-9]+)?)(万?)").find(text) ?: return 0L
+    val v = m.groupValues[1].toDoubleOrNull() ?: return 0L
+    return if (m.groupValues[2] == "万") (v * 10000).toLong() else v.toLong()
+}
+
+/** 官方频道卡底行评分文案："15.6万人评分"→"15.6万JRs评分"、"9223评分"→"9223JRs评分"。 */
+internal fun hupuJrsScoreText(text: String): String {
+    val m = Regex("([0-9]+(?:\\.[0-9]+)?)(万?)(?:人)?评分").find(text.trim()) ?: return ""
+    return "${m.groupValues[1]}${m.groupValues[2]}JRs评分"
+}

@@ -75,11 +75,21 @@ fun SportChannelHeader(
             else -> 0
         }
     }
-    val hotMatches = remember(ds) {
+    // 批T-1：「近期热门比赛」口径 = 进行中 ∪ 锚定日场次（官方实证：NBA 锚定日 7 场全量
+    // 即热门；足球官方为服务端精选子集——匿名数据无 hot 标记，取锚定日全量为近似，
+    // 偏差入架构笔记批T-0 节）。原实现取 drop(start) 全部未来日 → 计数虚高。
+    val hotSet = remember(ds) {
         val live = ds.flatMap { it.matches }.filter { it.status.equals("INPROGRESS", true) }
-        (live + ds.drop(start).flatMap { it.matches }).distinctBy { it.matchId }.take(4)
+        (live + ds.getOrNull(start)?.matches.orEmpty()).distinctBy { it.matchId }
     }
-    val recentCount = remember(ds) { ds.drop(start).flatMap { it.matches }.size }
+    // 卡列 = 热门集合按评分人数降序取前 4（官方卡序即评分降序；进行中优先置顶）
+    val hotMatches = remember(hotSet) {
+        hotSet.sortedWith(
+            compareByDescending<HupuMatch> { it.status.equals("INPROGRESS", true) }
+                .thenByDescending { com.kudo.android.hupu.hupuScoreCount(it.scoreCountText) }
+        ).take(4)
+    }
+    val recentCount = hotSet.size
     val cfg = HUPU_BOARDS[sportKey]
     val hasStandings = cfg != null &&
         (cfg.standing != HupuBoardStanding.NONE || cfg.standingsUrl.isNotEmpty())
@@ -100,7 +110,7 @@ fun SportChannelHeader(
                     BoardMatchCard(m) { onOpenMatch(m) }
                 }
             }
-            // 官方同款：🔥 查看近期N场热门比赛 ›
+            // 官方同款：🔥 查看近期N场热门比赛 ›（左文右箭头，红色火焰）
             Row(
                 Modifier.fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
@@ -109,19 +119,18 @@ fun SportChannelHeader(
                         contentDescription = "查看近期${recentCount}场热门比赛"
                     }
                     .testTag("schedule-all-link")
-                    .padding(vertical = 10.dp),
+                    .padding(horizontal = 4.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Spacer(Modifier.weight(1f))
                 Text(
                     "🔥 查看近期${recentCount}场热门比赛",
-                    fontSize = 13.sp, color = MaterialTheme.colorScheme.primary,
-                )
-                Icon(
-                    Icons.AutoMirrored.Rounded.KeyboardArrowRight, null,
-                    tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp),
+                    fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface,
                 )
                 Spacer(Modifier.weight(1f))
+                Icon(
+                    Icons.AutoMirrored.Rounded.KeyboardArrowRight, null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp),
+                )
             }
         }
         // 官方快捷图标行：圆形图标 + 下方文字（赛程必有；积分榜按频道配置出现）
