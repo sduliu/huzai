@@ -20,11 +20,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import com.kudo.android.hupuui.components.AutoFitScore
-import com.kudo.android.hupuui.components.HuzaiToast
 import com.kudo.android.hupuui.components.animateChipCenterTo
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -211,10 +211,11 @@ internal fun MatchRow(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
             }
             // 批B-2：预约占位——官方在未开赛行给「预约」入口（subscribeInfo.showSubscribe）；
             // 订阅是写接口（需登录态），这里只做展示占位，不伪造已约态。
-            // 批F-2：点 chip 弹出官方订阅文案（subScribeTitle/desc 真实字段，只读展示）。
+            // 批F-2/批G-3：点 chip 弹只读对话框，标题/正文=官方 subScribeTitle/subScribeDesc
+            // 真实字段，不发任何订阅/写请求（匿名可达范围只读）。
             if (m.subscribe?.show == true) {
                 Spacer(Modifier.height(3.dp))
-                val hint = m.subscribe.desc.ifBlank { m.subscribe.title }
+                var showSubscribe by remember { mutableStateOf(false) }
                 Text(
                     "预约",
                     fontSize = 10.sp,
@@ -222,11 +223,22 @@ internal fun MatchRow(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
-                        .clickable {
-                            if (hint.isNotBlank()) HuzaiToast.show("预约提醒：$hint")
-                        }
+                        .clickable { showSubscribe = true }
                         .padding(horizontal = 8.dp, vertical = 2.dp),
                 )
+                if (showSubscribe) {
+                    AlertDialog(
+                        onDismissRequest = { showSubscribe = false },
+                        title = { Text(m.subscribe.title.ifBlank { "预约提醒" }, fontSize = 16.sp) },
+                        text = { Text(m.subscribe.desc.ifBlank { "暂无预约说明" }, fontSize = 14.sp) },
+                        confirmButton = {
+                            Text(
+                                "知道了", fontSize = 14.sp, color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.clickable { showSubscribe = false }.padding(horizontal = 12.dp, vertical = 8.dp),
+                            )
+                        },
+                    )
+                }
             }
         }
     }

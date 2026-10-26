@@ -409,3 +409,12 @@ Muse 找不到内嵌视频帖是「样本难找」而非链路不通。用 2026-
 - 本批扩面：批F `TagFeedOverlay`/`hotTopics` 4 处裸 AsyncImage（banner/logo/头像/pic）补齐为对应兜底包装——新写代码不再新增透明洞。
 
 取舍：`UserProfilePage` 封面缩略图「失败整块撤除」维持批E 判定不变（84×60 灰洞压窄标题换行，撤块优于空洞）。
+
+## 批G-3：预约对话框确认——toast 升级为只读 AlertDialog
+
+复核链：`ScheduleMatchRow` 预约 chip（`m.subscribe?.show == true` 才渲，`showSubscribe` 门槛）→ 批F-2 实现是 `HuzaiToast`，与任务书「对话框」口径不符 → 升级为 `AlertDialog`：title=`subScribeTitle`（空→「预约提醒」）、text=`subScribeDesc`（空→「暂无预约说明」）、唯一动作「知道了」关闭。
+
+- **只读确认**：clickable lambda 只置 `showSubscribe=true` 本地态，无 repository/API 调用；`HuzaiToast` import 一并移除——该文件从此零网络触点。
+- **字段来源**：`HupuMatchParser` `subscribeInfo`→`HupuSubscribe(show=subScribeTitle非空或showSubscribe, subscribed=didSubscribe, title=subScribeTitle, desc=subScribeDesc)`，官方字段名与注释对齐。
+- **测试**：`scheduleSubscribe_mapsOfficialFieldsAndNullsWhenAbsent`（真字段 fixture：未赛带 info→show/title/desc/didSubscribe=false；无 info 行与已赛空 info 行→null）。
+- 真机点按验证仍归 Muse（同 G2 设备约束）；对话框语义与官方订阅动作刻意脱钩——订阅是登录写接口，排除项。

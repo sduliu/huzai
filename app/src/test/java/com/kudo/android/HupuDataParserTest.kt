@@ -2,6 +2,7 @@ package com.kudo.android
 
 import com.kudo.android.data.toTopicDetail
 import com.kudo.android.hupu.HupuDataParser
+import com.kudo.android.hupu.HupuMatchParser
 import com.kudo.android.ui.topic.ArticleBlock
 import com.kudo.android.ui.topic.parseArticle
 import org.junit.Assert.*
@@ -197,5 +198,24 @@ class HupuDataParserTest {
         assertTrue(end!!.leaders.isEmpty())
         assertNull(HupuDataParser.parsePlayerRankPage("""{"success":false}"""))
         assertNull(HupuDataParser.parsePlayerRankPage("not json"))
+    }
+
+    // 批G-3：预约 chip 只读对话框的字段来源——官方 subscribeInfo 原样映射；
+    // 未开赛行带 showSubscribe+title/desc，已赛/无信息行为 null（chip 不渲）。
+    @Test fun scheduleSubscribe_mapsOfficialFieldsAndNullsWhenAbsent() {
+        val json = """{"success":true,"result":{"dayGameData":[{"dayTime":"2026-10-26","matchData":[
+            {"matchId":"m1","matchStatus":"NOTSTARTED","subscribeInfo":{"showSubscribe":true,"didSubscribe":false,"subScribeTitle":"预约提醒","subScribeDesc":"湖人 vs 爵士"}},
+            {"matchId":"m2","matchStatus":"NOTSTARTED"},
+            {"matchId":"m3","matchStatus":"FINISHED","subscribeInfo":{"showSubscribe":false,"subScribeTitle":"","subScribeDesc":""}}
+        ]}]}}"""
+        val ms = HupuMatchParser.parseSchedule(json).single().matches
+        assertEquals(3, ms.size)
+        val s = ms[0].subscribe!!
+        assertTrue(s.show)
+        assertFalse(s.subscribed)          // 匿名恒 false，不伪造已约态
+        assertEquals("预约提醒", s.title)    // subScribeTitle → 对话框标题
+        assertEquals("湖人 vs 爵士", s.desc) // subScribeDesc → 对话框正文
+        assertNull(ms[1].subscribe)
+        assertNull(ms[2].subscribe)
     }
 }
