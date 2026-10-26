@@ -104,12 +104,16 @@ fun ZonePage(modifier: Modifier = Modifier) {
     var loading by remember { mutableStateOf(true) }
     var cateRefreshTick by remember { mutableIntStateOf(0) }
     // 1.191: 收藏专区操作的轻提示（顶部胶囊，点击立即消失）
-    // 当前选中大类（默认第 1 个；1.191 起有收藏专区时默认选中「收藏专区」）
+    // 当前选中大类（默认第 1 个；批L-1 起收藏板块走顶层「关注」tab，不再入左栏）
     var selectedCateId by remember { mutableStateOf("") }
-    // 1.191: 收藏专区——有收藏时在横滑条最前面插入「收藏专区」tab（默认选中）。
-    // 必须声明在下方那个决定「默认选中项」的 LaunchedEffect 之前（Kotlin 局部变量先声明后使用）。
+    // 批L-1: 收藏板块列表（顶层「关注」tab 数据源，本地 HupuPrefs，匿名可用）
     val favTopics = remember(HupuPrefs.favoriteTopicsVersion) { HupuPrefs.loadFavoriteTopics() }
-    val hasFav = favTopics.isNotEmpty()
+    // 批L-1：「广场/关注」顶层切换（官方形态）。关注=本地收藏板块（匿名可用，
+    // 官方云端关注需登录态的部分不在此实现——等登录批次）。
+    var zoneTab by remember { mutableStateOf("plaza") }
+    // 批L-1：本页版块搜索盖入页（search2 type=topic，匿名可读）
+    var boardSearchOpen by remember { mutableStateOf(false) }
+    var boardSearchClosing by remember { mutableStateOf(false) }
 
     // ---------- 二级页状态（外置，关闭再进不重载） ----------
     var openedTopic by remember { mutableStateOf<HupuTopicInfo?>(null) }
@@ -149,11 +153,9 @@ fun ZonePage(modifier: Modifier = Modifier) {
         }
         if (list.isNotEmpty()) {
             categories = list
-            // 1.191: 有收藏专区 → 默认选中「收藏专区」；否则保持/回落到第一个大类
-            val stillValid = (selectedCateId == FAV_CATE_ID && hasFav) ||
-                list.any { it.cateId == selectedCateId }
-            if (!stillValid) {
-                selectedCateId = if (hasFav) FAV_CATE_ID else list.first().cateId
+            // 批L-1: 收藏改走顶层「关注」tab——选中项只在服务器大类里保持/回落
+            if (list.none { it.cateId == selectedCateId }) {
+                selectedCateId = list.first().cateId
             }
         }
         loading = false
@@ -292,12 +294,9 @@ fun ZonePage(modifier: Modifier = Modifier) {
     }
     val opened = openedTopic
 
-    // 1.186: 顶部大类 Tab 左右滑动切换（仅本大页面内）
-    val cateIds = remember(categories, hasFav) {
-        buildList {
-            if (hasFav) add(FAV_CATE_ID)
-            categories?.forEach { add(it.cateId) }
-        }
+    // 1.186: 顶部大类 Tab 左右滑动切换（仅本大页面内；批L-1 起收藏走「关注」tab 不入滑轨）
+    val cateIds = remember(categories) {
+        categories?.map { it.cateId } ?: emptyList()
     }
     fun swipeCate(delta: Int) {
         val cur = cateIds.indexOf(selectedCateId)
@@ -305,13 +304,6 @@ fun ZonePage(modifier: Modifier = Modifier) {
         val ni = cur + delta
         if (ni !in cateIds.indices) return
         selectedCateId = cateIds[ni]
-    }
-
-    // 1.191: 收藏被全部移除时，若正停留在「收藏专区」→ 回落到第一个大类（该 tab 已消失）
-    LaunchedEffect(hasFav, categories) {
-        if (!hasFav && selectedCateId == FAV_CATE_ID) {
-            categories?.firstOrNull()?.let { selectedCateId = it.cateId }
-        }
     }
 
     Box(modifier.fillMaxSize()) {
@@ -325,7 +317,23 @@ fun ZonePage(modifier: Modifier = Modifier) {
                     onNext = { swipeCate(1) },
                 ),
             header = {
-                PageHeader(title = "专区")
+                PageHeader(title = "专区") {
+                    // 批L-1：本页版块搜索入口（官方专区页同款位置）
+                    LiquidIconButton(
+                        icon = HupuIcons.SearchOutlined,
+                        contentDescription = "搜索版块",
+                        onClick = { boardSearchOpen = true },
+                        iconSize = 24.dp,
+                    )
+                }
+                // 批L-1：官方「广场/关注」切换（关注=本地收藏板块，匿名可用）
+                SortBar(
+                    sorts = listOf(
+                        SortTab(id = 0, title = "广场", url = "plaza"),
+                        SortTab(id = 1, title = "关注", url = "follow"),
+                    ),
+                    selected = zoneTab,
+                ) { zoneTab = it }
             },
         ) { topInset ->
             when {
@@ -333,6 +341,38 @@ fun ZonePage(modifier: Modifier = Modifier) {
                 categories == null && loading -> SkeletonHome(Modifier.padding(top = topInset))
                 categories == null -> ErrorRetry { cateRefreshTick++ }
                 categories!!.isEmpty() -> ErrorRetry { cateRefreshTick++ }
+                zoneTab == "follow" -> {
+                    // 批L-1: 「关注」页=本地收藏板块全宽网格（无左栏；官方云端关注需登录态）
+                    if (favTopics.isEmpty()) {
+                        Box(Modifier.fillMaxSize().padding(top = topInset), contentAlignment = Alignment.Center) {
+                            Text(
+                                "还没有关注板块\n在广场里点亮版块右上角的星标即可关注",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    } else {
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(3),
+                            contentPadding = PaddingValues(
+                                start = 10.dp, end = 10.dp,
+                                top = topInset + 10.dp, bottom = 140.dp,
+                            ),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
+                            gridItems(favTopics, key = { it.topicId + it.url }) { t ->
+                                TopicCell(t,
+                                    isFavorite = true,
+                                    onClick = { openTopic(t) },
+                                    onToggleFavorite = { toggleFav(t) },
+                                )
+                            }
+                        }
+                    }
+                }
                 else -> {
                     // 官方布局：左栏分类竖排导航（灰底）+ 右栏版块网格
                     Row(Modifier.fillMaxSize().padding(top = topInset)) {
@@ -340,16 +380,14 @@ fun ZonePage(modifier: Modifier = Modifier) {
                             categories = categories!!,
                             selected = selectedCateId,
                             onSelect = { selectedCateId = it },
-                            showFavorites = hasFav,
-                            onSelectFavorites = { selectedCateId = FAV_CATE_ID },
+                            showFavorites = false,
+                            onSelectFavorites = {},
                         )
-                        // 1.191: 选中「收藏专区」时网格数据来自收藏列表，其余走大类版块
-                        val favTab = selectedCateId == FAV_CATE_ID
-                        val topics = if (favTab) favTopics else current?.topics.orEmpty()
+                        val topics = current?.topics.orEmpty()
                         if (topics.isEmpty()) {
                             Box(Modifier.weight(1f).fillMaxSize(), contentAlignment = Alignment.Center) {
                                 Text(
-                                    if (favTab) "还没有关注板块" else "该分类暂无版块",
+                                    "该分类暂无版块",
                                     fontSize = 14.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -546,6 +584,27 @@ fun ZonePage(modifier: Modifier = Modifier) {
                  onOpenFloor = { r -> openFloor(ot.tid, r) },
                  onFloorLoadMore = { pid, fr -> loadFloorMore(ot.tid, pid, fr) },
              )
+        }
+
+        // ---------- 批L-1：版块搜索盖入页（盖过话题流/详情页） ----------
+        if (boardSearchOpen) {
+            androidx.compose.runtime.DisposableEffect(Unit) {
+                onDispose { boardSearchClosing = false }
+            }
+            ZoneSearchOverlay(
+                closing = boardSearchClosing,
+                categories = categories,
+                favTopics = favTopics,
+                onBack = { boardSearchClosing = true },
+                onClosed = {
+                    boardSearchClosing = false
+                    boardSearchOpen = false
+                },
+                onOpenTopic = { t ->
+                    boardSearchClosing = true
+                    openTopic(t)
+                },
+            )
         }
     }
 }
@@ -934,6 +993,209 @@ private fun TopicCell(t: HupuTopicInfo, isFavorite: Boolean, onClick: () -> Unit
                 tint = if (isFavorite) MaterialTheme.colorScheme.primary
                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
             )
+        }
+    }
+}
+
+/**
+ * 批L-1：专区版块搜索盖入页（官方专区页搜索入口的对应物）。
+ * 数据走 m.hupu.com/api/v2/search2 type=topic（匿名可读）；
+ * 结果点击 → 优先按 topicId 映射回本地类目 url，否则用 /{topicId} 数字路径兜底。
+ */
+@Composable
+private fun ZoneSearchOverlay(
+    closing: Boolean,
+    categories: List<HupuCategory>?,
+    favTopics: List<HupuTopicInfo>,
+    onBack: () -> Unit,
+    onClosed: () -> Unit,
+    onOpenTopic: (HupuTopicInfo) -> Unit,
+) {
+    val repo = remember { HupuRepository() }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    var query by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<HupuTopicInfo>>(emptyList()) }
+    var loading by remember { mutableStateOf(false) }
+    var searched by remember { mutableStateOf(false) }
+
+    // 盖入动画 + 二级页计数（与 TopicFeedOverlay 同套）
+    val progress = remember { Animatable(0f) }
+    var pageEntered by remember { mutableStateOf(false) }
+    LaunchedEffect(closing) {
+        if (closing) {
+            progress.animateTo(0f, tween(280))
+            onClosed()
+        } else {
+            progress.animateTo(1f, tween(280))
+        }
+    }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        pageEntered = true
+        SecondaryPage.enter()
+        onDispose { if (pageEntered) { pageEntered = false; SecondaryPage.exit() } }
+    }
+    LaunchedEffect(closing) {
+        if (closing && pageEntered) { pageEntered = false; SecondaryPage.exit() }
+    }
+    PredictiveBackHandler { events ->
+        if (closing) {
+            events.collect { }
+            return@PredictiveBackHandler
+        }
+        events.collect { }
+        onBack()
+    }
+
+    // 400ms 防抖实时搜（接口侧另有 1s 全局节流兜底）
+    LaunchedEffect(query) {
+        if (query.isBlank()) {
+            results = emptyList()
+            searched = false
+            loading = false
+            return@LaunchedEffect
+        }
+        loading = true
+        kotlinx.coroutines.delay(400)
+        results = repo.searchTopics(query.trim())
+        loading = false
+        searched = true
+    }
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .zIndex(3f)
+            .graphicsLayer { translationX = (1f - progress.value) * size.width }
+            .background(MaterialTheme.colorScheme.background)
+            .tapGuard(),
+    ) {
+        Column(Modifier.fillMaxSize().statusBarsPadding()) {
+            // 顶栏：返回 + 输入框
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 16.dp, top = 10.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                LiquidBackButton(onBack)
+                Spacer(Modifier.width(10.dp))
+                Row(
+                    Modifier
+                        .weight(1f)
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            imeAction = androidx.compose.ui.text.input.ImeAction.Search,
+                        ),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                            onSearch = { keyboard?.hide() },
+                        ),
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        ),
+                        modifier = Modifier.weight(1f),
+                        decorationBox = { inner ->
+                            if (query.isEmpty()) {
+                                Text(
+                                    "搜索版块",
+                                    fontSize = 15.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            inner()
+                        },
+                    )
+                    Icon(
+                        HupuIcons.SearchOutlined,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            when {
+                loading -> SkeletonHome()
+                searched && results.isEmpty() -> Box(
+                    Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "没有找到相关版块",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                else -> androidx.compose.foundation.lazy.LazyColumn(
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 40.dp),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    items(
+                        results,
+                        key = { it.topicId },
+                    ) { t ->
+                        val fav = favTopics.any {
+                            it.topicId == t.topicId || it.url == t.url
+                        }
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    // 优先用本地类目里的正式 url（数字路径也有效，但正式 url 更稳）
+                                    val real = categories
+                                        ?.flatMap { it.topics }
+                                        ?.firstOrNull { it.topicId == t.topicId }
+                                    onOpenTopic(real ?: t)
+                                }
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            HupuIconImage(
+                                model = normalizeCover(t.logo),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.size(44.dp).clip(CircleShape),
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    t.name,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                                if (t.desc.isNotBlank()) {
+                                    Text(
+                                        t.desc,
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                            if (fav) {
+                                Icon(
+                                    HupuIcons.StarRate,
+                                    contentDescription = "已关注",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

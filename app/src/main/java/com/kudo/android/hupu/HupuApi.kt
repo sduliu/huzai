@@ -68,6 +68,35 @@ object HupuApi {
     }
 
     /**
+     * m.hupu.com/api/v2/ 家族只读 JSON 拉取（桌面 UA 实测匿名可读）。
+     * 批L-1：search2 type=topic（专区版块搜索）等轻量接口共用本通道。
+     */
+    suspend fun fetchMobileJson(path: String): String? {
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            throttle.acquire()
+            val request = Request.Builder()
+                .url("https://m.hupu.com$path")
+                .header("User-Agent", DESKTOP_UA)
+                .header("Accept", "application/json, text/plain, */*")
+                .header("Referer", "https://m.hupu.com/")
+                .apply {
+                    if (HupuAccount.isLoggedIn) {
+                        header("Cookie", HupuAccount.loadCookieHeaderPublic())
+                    }
+                }
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use null
+                    response.body?.string()
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
+    /**
      * 用户主页 HTML（m.hupu.com/user/{euid}，移动 UA）。
      * 用户页 SSR 仅在移动形态下完整；小体积壳页保护改为检查 __NEXT_DATA__ 载体。
      * 缓存与 bbs 页共用一套磁盘（path 已含域语义，不会与 /tid.html 冲突）。

@@ -214,6 +214,32 @@ object HupuParser {
         )
     }
 
+    /**
+     * 批L-1：专区版块搜索（m.hupu.com/api/v2/search2?type=topic）→ 版块条目。
+     * title 带 <font> 高亮标签需剥除；结果无 url 字段，用 /{topicId} 数字路径
+     * （服务端解析到正式版块页，实测 /127 → 湖人专区）。
+     */
+    fun parseTopicSearch(json: String): List<HupuTopicInfo> {
+        val root = try { JSONObject(json) } catch (e: Exception) { return emptyList() }
+        val arr = root.optJSONObject("data")?.optJSONObject("result")
+            ?.optJSONArray("data") ?: return emptyList()
+        val htmlTag = Regex("<[^>]+>")
+        val out = mutableListOf<HupuTopicInfo>()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val id = o.optString("id")
+            if (id.isEmpty()) continue
+            out += HupuTopicInfo(
+                topicId = id,
+                name = o.optString("title").replace(htmlTag, ""),
+                url = "/$id",
+                desc = o.optString("content"),
+                logo = o.optString("img").ifEmpty { null },
+            )
+        }
+        return out
+    }
+
     // ---------- 详情页 /{tid}.html ----------
 
     fun parseThreadDetail(html: String): HupuThreadDetail? {

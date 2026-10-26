@@ -62,6 +62,15 @@ class HupuRepository {
         return withContext(Dispatchers.Default) { HupuParser.parseCategories(html) }
     }
 
+    /** 批L-1：专区版块搜索（m.hupu.com/api/v2/search2 type=topic，匿名可读） */
+    suspend fun searchTopics(query: String): List<HupuTopicInfo> {
+        val q = java.net.URLEncoder.encode(query, "UTF-8")
+        val json = HupuApi.fetchMobileJson(
+            "/api/v2/search2?keyword=$q&puid=0&type=topic&topicId=0&page=1",
+        ) ?: return emptyList()
+        return withContext(Dispatchers.Default) { HupuParser.parseTopicSearch(json) }
+    }
+
     /** 话题列表页（含分页）。url 如 /topic、/topic-daily；page 从 1 开始 */
     suspend fun topicPage(url: String, page: Int = 1, refresh: Boolean = false): HupuTopicPage? {
         val path = if (page <= 1) url else "$url-$page"

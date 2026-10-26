@@ -464,3 +464,12 @@ Muse 验收发现 `assembleDebugAndroidTest` 全量编译被陈旧测试阻断�
 - **自证（dex 表）**：崩溃类 `InfiniteAnimationPolicy$DefaultImpls`、`CallbackToFutureAdapter`、`CommunityDirectoryScreenKt`、`DirectoryTag`、`LazyKt`/`CollectionsKt` 全部 appDEX DEF；真实缺失 34→15，残余=okhttp3-WS/okio（mockwebserver WS 专用路径，现无用例触达）、easymock/jmock（junit 可选容错）、org.json/org.w3c（Android 框架 bootclasspath 自带）；`DialogWindowProvider` 为 ui-test 与 app compose-ui 版本偏差引用（两 dex 均无定义，兜底路径不经过）。
 - **代价**：debug 主包类定义 18,343→41,461（androidx+app 全保），放弃该部分 shrink/内联；APK 增大。仍只作用 debug 变体，release 零影响。
 - 回退：删 proguard-debug.pro 中批K 两行（回批J 状态）或整文件（回批H 状态）。
+
+## 批L-1：专区页「广场/关注」切换 + 本页版块搜索（search2 type=topic）
+
+对齐官方专区页顶层结构（Muse 2026-10-26 实测缺口）：
+
+- **广场/关注**：`SortBar` 段控复用为顶层切换（plaza/follow），放 `PageHeader` 下。广场=原左栏+版块网格；关注=本地 `HupuPrefs.favoriteTopics` 全宽网格（匿名可用；官方云端关注需登录态，不做）。原左栏「收藏专区」入口移除（`CateRail.showFavorites=false`、FAV_CATE_ID 不再入滑轨）——顶层关注覆盖同一功能，避免双入口。
+- **版块搜索**：顶栏右侧 `SearchOutlined` → `ZoneSearchOverlay` 盖入页（zIndex 3，盖过话题流/详情盖入页）。数据走 `m.hupu.com/api/v2/search2?type=topic`（实测匿名可读）：`id`→topicId、`title` 剥 `<font>` 高亮、`content`→desc、`img`→logo；无 url 字段，用 `/{topicId}` 数字路径兜底（实测 /127 → 湖人专区 SSR）。400ms 防抖实时搜；结果点击优先按 topicId 映射本地类目 url。
+- 新接口通道：`HupuApi.fetchMobileJson`（m.hupu.com/api/v2/ 家族只读 GET，桌面 UA + 全局节流 + 登录 cookie 透传）。
+- **嵌套注释坑**：KDoc 里写 `api/v2/*` 的 `/*` 会开嵌套注释、吞掉后续函数到下一个 `*/`（恰在字符串 `"*/*"` 里闭合）——语法报错全是指向函数体的 "Expecting member declaration"。教训：注释内避免 `/*`/`*/` 字符序列。
