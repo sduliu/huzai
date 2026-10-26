@@ -353,3 +353,13 @@ Muse 找不到内嵌视频帖是「样本难找」而非链路不通。用 2026-
 - `HupuRankItem` 增 `hasMore`（官方下发，top5 是否有全量可展开）。
 - `PlayerRankView`：统计项卡底部 `hasMore` 时出「查看完整榜单 ›」→ `PlayerRankFullOverlay`（LeagueStandingsOverlay 同款滑入骨架：SecondaryPage 计数+PredictiveBack+CenteredTopBar「{项}榜」）→ `PlayerRankFullList` pageNo 续载（derivedStateOf 滚动距底 5 项触发），footer 三态（转圈/失败重试/「已加载全部 N 人」）。
 - 单测 `playerRankPage_parsesSingleDimensionPageAndEmptyPageMeansListEnd`：真实字段 fixture + teamShortName→teamName 回落 + 空页=榜尾 + 非 JSON/false→null。
+
+## 批F-2：多赛事赛程详情链审计 + 预约文案可点
+
+匿名实测（2026-10-26，getScheduleListByTagForH5 + getDataTabList）逐项结论：
+
+- **缺 scoreItemKey 的行全部是 NOTSTARTED/CANCELLED**（global.json 314 场：COMPLETED/INPROGRESS/PENDING 全带 key，NOTSTARTED 236 行 scoreItemKey=null）——评分详情页是赛后生成的，服务端对未开赛本无此页，非端点缺失。官方未开赛行的唯一链接是 `liveRoomLink`（huputiyu://bball/live=直播间，**直播属排除项**不接）。按状态分类：缺 key=未开赛/取消（设计使然）、无端点（前瞻详情不存在）、需登录（订阅写接口不碰）。
+- **WNBA**：getDataTabList?enType=wnba 现返回 3 tab（赛程=原生 schedule/季后赛对阵图=h5 WebView/资讯=h5 WebView）；businessId=wnba 赛程 102 场、100 场已赛带 key → 详情链已通，批B「不认」是当年 tab 空，现已可用，无需改代码。
+- **带 key 行三 bizType 均可点**：basketball_match / common_sports_first（土超等 48 行，getSelfByBizKey 匿名实测 200）/ football_match（epl 已赛 101 行带 key 直接开，无 key 行走 footballScoreNo 换取链）。
+- **可改进点**：预约 chip（批B-2 占位）现可点——弹官方订阅文案「预约提醒：{subScribeDesc/Title}」（真实字段只读展示，HuzaiToast，不伪造订阅态、不写接口）。
+- **未接**：CANCELLED 与个别 COMPLETED 无 key 行（网球 14 场/乒羽 1 场）——服务端同样无评分页，只能展示，记入缺口。

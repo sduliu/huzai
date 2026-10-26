@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import com.kudo.android.hupuui.components.AutoFitScore
+import com.kudo.android.hupuui.components.HuzaiToast
 import com.kudo.android.hupuui.components.animateChipCenterTo
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -209,9 +210,11 @@ internal fun MatchRow(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
                 Text(m.scoreCountText, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             // 批B-2：预约占位——官方在未开赛行给「预约」入口（subscribeInfo.showSubscribe）；
-            // 订阅是写接口（需登录态），这里只做展示占位，不可点、不伪造已约态。
+            // 订阅是写接口（需登录态），这里只做展示占位，不伪造已约态。
+            // 批F-2：点 chip 弹出官方订阅文案（subScribeTitle/desc 真实字段，只读展示）。
             if (m.subscribe?.show == true) {
                 Spacer(Modifier.height(3.dp))
+                val hint = m.subscribe.desc.ifBlank { m.subscribe.title }
                 Text(
                     "预约",
                     fontSize = 10.sp,
@@ -219,6 +222,9 @@ internal fun MatchRow(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
+                        .clickable {
+                            if (hint.isNotBlank()) HuzaiToast.show("预约提醒：$hint")
+                        }
                         .padding(horizontal = 8.dp, vertical = 2.dp),
                 )
             }
