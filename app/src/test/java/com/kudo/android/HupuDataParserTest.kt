@@ -340,3 +340,14 @@ class TrendPointsTest {
         )).isEmpty())
     }
 }
+
+class WanScoreTextTest {
+    @Test fun wanScoreText_normalizesToPeopleFormat() {
+        assertEquals("15.6万人评分", com.kudo.android.hupu.hupuWanScoreText("15.6万人评分"))
+        assertEquals("3.5万人评分", com.kudo.android.hupu.hupuWanScoreText("3.5万评分"))
+        assertEquals("9223人评分", com.kudo.android.hupu.hupuWanScoreText("9223评分"))
+        assertEquals("9068人评分", com.kudo.android.hupu.hupuWanScoreText("9068人评分"))
+        assertEquals("", com.kudo.android.hupu.hupuWanScoreText("已结束"))
+        assertEquals("", com.kudo.android.hupu.hupuWanScoreText(""))
+    }
+}

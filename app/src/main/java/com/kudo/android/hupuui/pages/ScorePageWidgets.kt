@@ -108,7 +108,8 @@ internal fun PlayerScoreCard(p: HupuPlayerScore, matchScoreCount: String) {
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    p.scoreCountText.ifEmpty { matchScoreCount },
+                    com.kudo.android.hupu.hupuWanScoreText(p.scoreCountText.ifEmpty { matchScoreCount })
+                        .ifEmpty { p.scoreCountText.ifEmpty { matchScoreCount } },
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

@@ -205,9 +205,13 @@ internal fun MatchRow(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
                 color = if (m.status == "INPROGRESS") MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (m.scoreCountText.isNotBlank()) {
+            // 批U-5：官方赛程行右侧评分文案为万制「N万人评分」——"9223评分"→"9223人评分"、
+            // "15.6万人评分"→"15.6万人评分"；非计数文案原样显示。
+            val countText = com.kudo.android.hupu.hupuWanScoreText(m.scoreCountText)
+                .ifEmpty { m.scoreCountText }
+            if (countText.isNotBlank()) {
                 Spacer(Modifier.height(3.dp))
-                Text(m.scoreCountText, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(countText, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             // 批B-2：预约占位——官方在未开赛行给「预约」入口（subscribeInfo.showSubscribe）；
             // 订阅是写接口（需登录态），这里只做展示占位，不伪造已约态。

@@ -937,3 +937,9 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **节次表**：列头 `1/2/3/4` → 官方「第1节/第2节/第3节/第4节/总分」（OT 列显示「加时N」），数值列宽 30→40dp；行首加 20dp 队标（matchInfo 队标优先、赛程卡兜底）。
 - **走势折线**：无官方端点（8 个命名猜测全 404），由 playbyplay 事件 `score`（"客-主" 累计分）+ `quarter`/`time` 客户端推导：`trendPoints()` 把节内剩余时间换成已打分钟（Q1-4 各 12min、OT 各 5min），Canvas 画双折线；纵轴 0..ceil(max/10)*10 网格，队色取 matchInfo `homeTeamDayColor/awayTeamDayColor`，缺省走主题色。BOX tab 加载时顺带补取 pbp（不置 pbpServed，PLAY 记账独立）。
 - 单测：`TrendPointsTest` 2 例（正常序列分钟换算、稀疏/脏数据拒绝）。回退：revert 本 commit。
+
+### 批U-5：比分文案收口——频道卡 JRs 蓝 / 赛程行与详情页人评分万制
+
+- **三种口径分屏保留**（官方实证）：频道大卡=蓝「N万JRs评分」（批T-4 `hupuJrsScoreText`）；赛程页紧凑行+选手评分卡=灰「N万人评分」（新 `hupuWanScoreText`：9223评分→9223人评分、3.5万评分→3.5万人评分）；详情页球员卡=「9087JRs评分」原始计数。
+- 改动面：`ScorePageSchedule` 右列、`ScorePageWidgets` 选手评分卡计数行；非计数文案原样透传。
+- 回退：revert 本 commit。

@@ -594,3 +594,16 @@ internal fun hupuJrsScoreText(text: String): String {
     val m = Regex("([0-9]+(?:\\.[0-9]+)?)(万?)(?:人)?评分").find(text.trim()) ?: return ""
     return "${m.groupValues[1]}${m.groupValues[2]}JRs评分"
 }
+/**
+ * 批U-5：官方赛程行评分文案——"3.5万人评分" 万制 + "人评分" 后缀。
+ * 频道卡用 [hupuJrsScoreText]（JRs评分蓝字）；赛程行官方文案是「N万人评分」，两套口径分屏保留。
+ */
+internal fun hupuWanScoreText(text: String): String {
+    val n = hupuScoreCount(text)
+    if (n <= 0) return ""
+    return if (n >= 10000) {
+        val w = n / 10000.0
+        val s = if (w == w.toLong().toDouble()) "${w.toLong()}万" else String.format(java.util.Locale.CHINA, "%.1f万", w)
+        "${s}人评分"
+    } else "${n}人评分"
+}
