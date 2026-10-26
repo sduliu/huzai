@@ -1032,3 +1032,10 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
   3. `parseThreadDetail` 的 `detailErrorInfo` 改读 pageProps 级（真实位置，detail 级兜底保留），`code` 缺省按成功、显式非 200 才判失败。
 - **不接**：`api/v2/bbs-thread/{tid}` 移动接口实测含完整 t_detail（可作滞后窗口兜底源），但回复流/related 结构不同、整合面大——本批只修缓存毒化，回退=revert 本 commit。
 - 单测：`error SSR page returns null`（真实 4044 载荷断言）、`pageProps level detailErrorInfo code 200`（不误判好页）、`HupuCacheTest.remove`。
+
+### 批X-2：作者主页两路实证（配合批W-2 pageId 回落的真机未验项）
+
+- **普通用户帖链路**：板块流取普通用户帖 tid=643316642（「拉塞尔背身强攻撞倒徐杰…」），SSR author puid=116039819 + euid=21560100293238 俱全 → `pageId`=euid → `m.hupu.com/user/21560100293238`：SSR 完整——昵称「老场王三分」、Lv.2(#E68C25)、粉丝 30、被亮 11150、被推荐 21186、发帖 40、回帖 1438、「加入虎扑360天」、threadList 20 + replyList 20。
+- **puid 路直达实证**：`m.hupu.com/user/116039819` 返回**同一用户**完整 SSR（euid/puid 同命名空间，回落语义安全）；官方资讯号实测 `虎扑篮球资讯`（puid=56098302/euid=27066519444214）、`JRs评选`（59548906/259329543946592）euid 俱全走 euid 路。
+- **官方账号结论**：抽样官方账号帖均带 euid 可跳；「euid 缺」场景 puid 回落已验证可达；euid/puid 双缺（纯展示号）→ `pageId` 归空行不可点——不接错误页，符合官方口径如实记。
+- 纯实证项无运行代码改动；点按路径见批W-2 节。
