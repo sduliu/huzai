@@ -502,3 +502,12 @@ Muse 验收发现 `assembleDebugAndroidTest` 全量编译被陈旧测试阻断�
 - 版块页 `「立即发布」FAB` bottom：24dp → `LocalQuickScrollBottomPadding + 8dp`（原值时 FAB 下半被药丸遮住一半）。
 - 版块页 FeedList：新增 `bottomInset` 参数（默认 140dp 保既有调用方），版块页传 `LocalQuickScrollBottomPadding + 72dp`（FAB 高度+间隔）。
 - 遗留：`SecondaryPage.count` 在本宿主（KudoApp/GlassNavigation）无消费者——若后续接上「二级页打开隐藏导航」机制，三处留白可再收紧；当前留白对药丸不可见场景也安全（只是底部稍空）。
+
+## 批L-4：NBA 频道快捷行核查（无需改动）
+
+Muse 要求核查「层级稀疏 + 快捷行项数」——先查代码与接口现状再定：
+
+- **项数**：快捷行 = 赛程 + 数据 tab 深链项（`leagueDataTabs` → `nativeDataTabKind` 命中才渲染）。2026-10-26 实测 `getDataTabList?enType=nba`：命中 kind = team/player/draft/injury 四项 → 行内 5 条（赛程/积分榜/球员榜/选秀/伤病），对齐官方 5 位；against/honor/history tab 属 h5 内嵌轨道，不进快捷行（按既有设计）。
+- **层级稀疏**：`ShortcutIcon` 已 `semantics(mergeDescendants=true)` + `testTag("shortcut-{label}")`（批A-4 修复）——uiautomator 每入口单节点、bounds=整列触控区，不再稀疏。
+- **降级链**：dataKinds 空（接口失败/无轨道频道）→ 回退 赛程+积分榜（hasStandings 有值时），不留空行。
+- 结论：代码与实时接口均已达官方形态，本批零改动。
