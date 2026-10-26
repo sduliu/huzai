@@ -692,6 +692,18 @@ object HupuParser {
         }
     }
 
+    /** 批O-1：同接口的发布时刻（`data.thread.createdAt`，ms epoch——可缓存、转 ISO 走 relativeTime） */
+    fun parseThreadCreatedAtMs(json: String): Long {
+        return try {
+            val o = JSONObject(json)
+            if (o.optInt("code", 0) != 200) return 0L
+            o.optJSONObject("data")?.optJSONObject("thread")
+                ?.optLong("createdAt") ?: 0L
+        } catch (e: Exception) {
+            0L
+        }
+    }
+
     /**
      * 1.222: `/api/v2/threads?tid=` 详情接口里的作者。
      * 首页热帖列表不带 author，黑名单过滤需要按 tid 补取作者时用这里。

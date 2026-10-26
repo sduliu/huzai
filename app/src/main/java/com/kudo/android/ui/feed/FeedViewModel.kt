@@ -174,11 +174,19 @@ class FeedViewModel(private val repository: CommunityRepository, private val cat
                 val source = if (_state.value.filter == filter) _state.value.topics
                     else _pages.value[filter]?.topics.orEmpty()
                 if (source.isEmpty()) return@launch
-                val enriched = withContext(Dispatchers.IO) { repository.enrichTopics(source) }
-                val byId = enriched.associateBy(Topic::id)
-                fun merge(list: List<Topic>) = list.map { byId[it.id] ?: it }
-                if (_state.value.filter == filter) _state.update { it.copy(topics = merge(it.topics)) }
-                _pages.update { pages -> pages[filter]?.let { pages + (filter to it.copy(topics = merge(it.topics))) } ?: pages }
+                fun merge(list: List<Topic>, byId: Map<Int, Topic>) =
+                    list.map { byId[it.id] ?: it }
+                // 批O-1：逐批合回——作者/日期首屏 ~2-4s 上屏，转发数按全局节流节奏渐入；
+                // 不再等全量补齐（曾被 1s 全局节流拖出 30s+ 的零变化窗口）
+                fun apply(partial: List<Topic>) {
+                    val byId = partial.associateBy(Topic::id)
+                    if (_state.value.filter == filter) _state.update { it.copy(topics = merge(it.topics, byId)) }
+                    _pages.update { pages -> pages[filter]?.let { pages + (filter to it.copy(topics = merge(it.topics, byId))) } ?: pages }
+                }
+                val enriched = withContext(Dispatchers.IO) {
+                    repository.enrichTopics(source) { apply(it) }
+                }
+                apply(enriched)
             } catch (e: CancellationException) { throw e } catch (_: Exception) {
                 // 补齐失败只意味着缺字段继续缺——绝不能把已出内容的页打坏
             }

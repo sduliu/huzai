@@ -118,12 +118,20 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
     }
 
     /**
-     * 批Nfix-1：信息流卡按 tid 惰性补齐——作者（`threads?tid=`）+日期（createdAtFormat→bumpedAt
+     * 批Nfix-1：信息流卡按 tid 惰性补齐——作者（`threads?tid=`）+日期（createdAt→bumpedAt
      * 仅当为空）+转发数（`bbs-thread`）。缺什么补什么；4 条一批 + 批间 120ms，同批并发。
-     * 作者落盘缓存（值格式 puid|euid|name|avatar，旧两段值视为不完整再补）；
+     * 作者落盘缓存（值格式 puid|euid|name|avatar|createdAtMs，旧两段值视为不完整再补）；
      * 转发数易变不落盘。返回与入参等长的新列表。
+     *
+     * 批O-1：改**渐进交付**——`onBatch` 每批完成即回调一次（默认 no-op，老调用方不受影响）。
+     * 此前全量交付：share 走全局 1s 节流把 30 条串行成 ≥30s，快的作者/日期被拖住，
+     * 观察窗口内屏幕上零变化；现在作者行按批 ~2-4s 即可上屏，share 随节流渐入。
+     * 缓存命中但无日期（旧 4 段值）仍补一次 threadCardHead 只为日期。
      */
-    suspend fun enrichTopics(topics: List<Topic>): List<Topic> = coroutineScope {
+    suspend fun enrichTopics(
+        topics: List<Topic>,
+        onBatch: suspend (List<Topic>) -> Unit = {},
+    ): List<Topic> = coroutineScope {
         val cache = HupuPrefs.loadThreadAuthors()
         val fresh = mutableMapOf<String, String>()
         val out = topics.toMutableList()
@@ -139,18 +147,24 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
                     var share = t.shareNum
                     if (author == null || bumped.isBlank()) {
                         val cached = cache[tid]?.split('|')
-                        if (author == null && cached != null && cached.size >= 4 &&
-                            (cached[0].isNotEmpty() || cached[1].isNotEmpty())) {
+                        val cachedAuthor = cached != null && cached.size >= 4 &&
+                            (cached[0].isNotEmpty() || cached[1].isNotEmpty())
+                        val cachedMs = cached?.getOrNull(4)?.toLongOrNull() ?: 0L
+                        if (author == null && cachedAuthor && cached != null) {
                             author = Member(
                                 id = cached[1].takeIf { it.isNotBlank() }?.let(HupuIds::id) ?: 0,
                                 username = cached[1].ifBlank { cached[2] },
                                 name = cached[2],
                                 avatar = cached[3],
                             )
-                        } else {
-                            val (a, date) = hupu.threadCardHead(tid)
+                        }
+                        if (bumped.isBlank() && cachedMs > 0) {
+                            bumped = java.time.Instant.ofEpochMilli(cachedMs).toString()
+                        }
+                        if ((author == null && !cachedAuthor) || (bumped.isBlank() && cachedMs <= 0)) {
+                            val (a, date, ms) = hupu.threadCardHead(tid)
                             if (a != null && (a.puid.isNotEmpty() || a.euid.isNotEmpty() || a.name.isNotBlank())) {
-                                fresh[tid] = "${a.puid}|${a.euid}|${a.name}|${a.url}"
+                                fresh[tid] = "${a.puid}|${a.euid}|${a.name}|${a.url}|$ms"
                                 if (author == null) author = Member(
                                     id = a.euid.takeIf { it.isNotBlank() }?.let(HupuIds::id) ?: 0,
                                     username = a.euid.ifBlank { a.name },
@@ -158,7 +172,9 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
                                     avatar = a.url,
                                 )
                             }
-                            if (bumped.isBlank() && date.isNotBlank()) bumped = date
+                            if (bumped.isBlank()) {
+                                bumped = if (ms > 0) java.time.Instant.ofEpochMilli(ms).toString() else date
+                            }
                         }
                     }
                     if (share < 0) share = hupu.threadShareNum(tid) ?: -1
@@ -168,6 +184,7 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
                 val (i, nt) = deferred.await()
                 out[i] = nt
             }
+            onBatch(out.toList())
             if (batch.size == 4) delay(120)
         }
         HupuPrefs.putThreadAuthors(fresh)

@@ -66,13 +66,18 @@ class HupuRepository {
     }
 
     /**
-     * 批N-1：热帖卡作者行补齐（`threads?tid=` 单次请求拿两样）：
-     * first = author（头像+昵称），second = createdAtFormat（官方卡的「日期」）。
+     * 批N-1：热帖卡作者行补齐（`threads?tid=` 单次请求拿三样）：
+     * first = author（头像+昵称），second = createdAtFormat（「4小时前」相对文本，会变陈旧），
+     * third = createdAt（ms epoch——批O-1 起随作者缓存落盘，转 ISO 后 relativeTime 恒定准确）。
      */
-    suspend fun threadCardHead(tid: String): Pair<HupuAuthor?, String> {
-        val json = HupuApi.fetchThreadAuthorJson(tid) ?: return null to ""
+    suspend fun threadCardHead(tid: String): Triple<HupuAuthor?, String, Long> {
+        val json = HupuApi.fetchThreadAuthorJson(tid) ?: return Triple(null, "", 0L)
         return withContext(Dispatchers.Default) {
-            HupuParser.parseThreadAuthor(json) to HupuParser.parseThreadCreatedAt(json)
+            Triple(
+                HupuParser.parseThreadAuthor(json),
+                HupuParser.parseThreadCreatedAt(json),
+                HupuParser.parseThreadCreatedAtMs(json),
+            )
         }
     }
 

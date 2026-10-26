@@ -617,3 +617,11 @@ Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage
 - 次级缺陷：作者缓存命中分支跳过 `threadCardHead` → `createdAtFormat` 永不再取 → **缓存命中后日期永远不显示**（`puid|euid|name|avatar` 四段值没有日期位）。
 
 修复方向（批O-1）：(a) `enrichTopics` 改**渐进交付**——每批完成即 `onBatch` 回调，ViewModel 逐批 merge 上屏（作者行 2-4s 可见，share 按节流节奏每批 4 条渐入，不再全量等待）；(b) 作者缓存扩第 5 段 `createdAtMs`（epoch ms，转 ISO 走 `relativeTime`，不会变陈旧的相对文本），旧 4 段值视为「作者命中、日期缺」→ 仅为日期补一次 `threadCardHead`；(c) share 仍走节流通道（防频控不动），靠渐进回调与作者行解耦。
+
+## 批O-1：补齐链路修复——渐进交付 + 日期入缓存
+
+- **`enrichTopics(topics, onBatch)`** 增可选回调（默认 no-op，兼容老调用方）：每批 4 条 await 完即 `onBatch(out.toList())`；`FeedViewModel.enrichFeed` 把回调接到逐批 `apply()`（同一份 byId merge 逻辑），enriched 终值再 apply 一次兜底。作者行（`fetchThreadAuthorJson` 无节流）≈ 2-4s 可见；share 随 `getMobileJson` 的 1s 全局节流按批渐入，不再拖住作者行。
+- **作者缓存 5 段** `puid|euid|name|avatar|createdAtMs`：`threadCardHead` 返回升 `Triple(author, createdAtFormat, createdAtMs)`；命中且 `createdAtMs>0` → `bumpedAt=Instant.ofEpochMilli(ms).toString()`（ISO，`relativeTime` 恒定准确，不变陈旧文本）；命中作者但缺日期段（旧 4 段值）→ 仍为日期补一次 `threadCardHead` 并改写 5 段；`ms<=0` 时回退 `createdAtFormat` 原文显示。
+- **share 不动节流**：`threadShareNum` 仍走 `getMobileJson`（防频控常设），总量 ≥30s 不变——但渐显可见且与作者行解耦；`more()`/`refresh()` 重跑 enrich 时，已带 share≥0/作者缓存的条目在 pending 过滤中自然跳过，重放成本低。
+- 测试：`ThreadExtrasParserTest` 加 `createdAtMs` 例（正/空/脏值），4/4 绿。
+- 回归面：未触碰 NF2（FeedScreen 搜索条）/NF3（TopicScreen 详情）/NF4（zoneDetailOpen 信号）——改动文件为 HupuParser/HupuRepository/CommunityRepository/FeedViewModel/ThreadExtrasParserTest，与三处零文件交集。

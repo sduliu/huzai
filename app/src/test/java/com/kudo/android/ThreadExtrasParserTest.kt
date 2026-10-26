@@ -14,7 +14,7 @@ class ThreadExtrasParserTest {
     private val threadJson = """
         {"data":{"thread":{"author":{"puid":"114534948","euid":"264887970925976",
         "puname":"不减30斤不改名","header":"https://i3.hoopchina.com.cn/user/default/tiger3.png"},
-        "createdAtFormat":"2小时前","lights":5,"replies":15}},"code":200,"msg":"ok"}
+        "createdAt":1792977459000,"createdAtFormat":"2小时前","lights":5,"replies":15}},"code":200,"msg":"ok"}
     """.trimIndent()
 
     private val bbsThreadJson = """
@@ -41,5 +41,14 @@ class ThreadExtrasParserTest {
         assertNull(HupuParser.parseThreadShareNum("not-json"))
         assertEquals("", HupuParser.parseThreadCreatedAt("""{"code":400,"data":{}}"""))
         assertEquals("", HupuParser.parseThreadCreatedAt("not-json"))
+    }
+
+    /** 批O-1：createdAt(ms epoch) 解析——随作者缓存落盘供日期命中 */
+    @Test
+    fun `createdAt ms parsed for cacheable date`() {
+        assertEquals(1792977459000L, HupuParser.parseThreadCreatedAtMs(threadJson))
+        assertEquals(0L, HupuParser.parseThreadCreatedAtMs("""{"code":400,"data":{}}"""))
+        assertEquals(0L, HupuParser.parseThreadCreatedAtMs("""{"data":{"thread":{}},"code":200}"""))
+        assertEquals(0L, HupuParser.parseThreadCreatedAtMs("not-json"))
     }
 }
