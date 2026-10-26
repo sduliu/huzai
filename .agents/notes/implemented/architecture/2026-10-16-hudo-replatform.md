@@ -730,3 +730,31 @@ Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage
 | Tag | `/tag/{id}`、`?tagId=`、`huputiyu://bbs/subject/{id}` | `tag/`→`tagpage:{tagId}`→`tagThreads` | `tagThreads?tagId=41333` 实测有数据 | ✅ 可达（tagId 命名空间正确） |
 
 **发现并修复的真实缺口**：专区路径（`hupuui` 详情，`HtmlContent` 供 ThreadDetailHeader/Floor/Reply 用）的 `LinkAnnotation.Url` 依赖 ambient `LocalUriHandler`——全应用无自定义 provider，点按直跳**系统浏览器**，四类分发在该渲染器不可达。修复：KudoApp 的 `ZonePage()` 挂载点外包 `LocalUriHandler provides {openLink}`，专区下所有正文链接/话题词/@用户随即走 `openLink`→`HupuLink` 分发；首页 RichContent 路径自供 `linkHandler` 不受影响（本就可达）。外链行为不变：非虎扑域仍由 `openLink` 落 `fallbackUrl→openContentLink`。
+
+## 批S-0：L2b 四项独立复核——逐项实测定性（不沿用批L 旧结论）
+
+**实测环境**：Resin 住宅代理，匿名只读 GET（桌面 UA→`bbs.hupu.com` SSR `$$data`；移动 UA→`m.hupu.com` `__NEXT_DATA__`+`/api/v2/`），2026-10-26。
+
+**探测面与响应键集**：
+| 请求 | 响应结构 | 关键发现 |
+|---|---|---|
+| `GET bbs.hupu.com/all-gambia` | `pageData.{categories,category,follow,hot,recommend,threads,trending}`；threads[69] 键 `{cover,desc,lights,replies,tid,title,topic,url}` | 无置顶/精华字段；全文无「精华/版规/置顶/真实经历」字样 |
+| `GET bbs.hupu.com/{502,topic,topic-daily,lakers,cba,nba,warriors,lol,dota2,f1}` | `topic.{topic,threads,tabs,sort,page,breadCrumb,categories,keywords,hot,follow}`；threads.list[] 键 `{author,cover,createdAt,createdAtFormat,hasVideo,lights,read,repliedAt,replies,tid,title,titleFont,topic,topicId,url}` | tabs 恒为 `最新回复/最新发布/24小时榜` 三项；**`titleFont` 标色字段存在**（见下）；topic.desc 为版块一句简介（lakers 实测含规则句「无关内容请移步湿乎乎话题区，违反将删除」） |
+| `GET bbs.hupu.com/cba-postdate`（排序变体） | 同构 | 标色帖在 postdate 排序中消失——标色≠全排序置顶 |
+| `GET m.hupu.com/bbs/bxj` | `pageProps.{zoneData,postList}`；zoneData `{topicId,cateId,name,count,desc,followedUserNum,allThreadNum,logo,bgColor,schema}`；topicThreads[] 键 `{certTitle,isVideo,isVote,recommendNum,replies,tid,time,title,type,url,username}` | 无任何置顶/精华/规则字段 |
+| `GET m.hupu.com/api/v2/bbs/topicThreads?topicId={1,502,184,10,34,60}` | `{count,topicThreads[10],nextCursor}` | 条目键同上，`topThread` 键不存在；`?essence=1/sort=essence/type=essence` 参数被忽略（返回同一默认流） |
+| `GET m.hupu.com/api/v2/bbs/walkingStreet/threads?page=1..5` | `{threadList[10],cursor,nextPage,stamp}`；条目含 `topThread` 布尔 + `certTitle` | 50 条样本 `topThread` 全 false；`certTitle` 为作者认证（如「科技博主」）非帖标记 |
+| `GET m.hupu.com/api/v2/bbs/{essenceThreads,toppedThreads}` | HTTP 400「未知错误」 | 端点不存在 |
+| `GET bbs.hupu.com/{bxj,all-gambia,lakers,topic-daily}-rules` | HTTP 200 但 `pageData.category={cateId:"0",name:"虎扑社区"}` + 首页通用流 | **slug 兜底页**，非版规页 |
+| 移动站 `_next/static/chunks/pages/zone/[id].js` 及关联 chunk | 调用面 `{topicThreads,tagThreads,walkingStreet/threads,bbs-thread,reply/list,search2,user}` | 全部 chunk 无「精华/置顶/版规/真实经历」字符串——移动专区页无此类 tab |
+| 板块目录树（`pageData.categories` 全量 walk） | 400+ 话题条目 | 无「真实经历」版块 |
+
+**`titleFont` 语义实证**：格式 `{css颜色}~{粗体flag}~~~~~`。实测取值——`orange~1~~~~~`(cba, tid 3503479, SSR 渲染 `color:orange;font-weight:600`)、`blue~1~~~~~`(lakers tid 633589012)、`blue~~~~~~`(nba tid 61081155 渲染 `color:blue`)。官方 PC 版块列表对标色帖仅做彩色加粗标题、无文字徽标；平坦 `<li>` 列表无独立置顶区块。标色帖出现于默认「最新回复」排序、postdate 排序消失——官方仅把它当标题样式通道（置顶/精华/高亮混用，无语义布尔）。
+
+**逐项定性**：
+| L2b 项 | 定性 | 依据 |
+|---|---|---|
+| 版块页精华 tab | (a) 无匿名源 | 桌面/移动所有列表面无精华过滤 tab 或参数；`essenceThreads` 端点 400；蓝色 `titleFont` 内联存在但无独立精华流 |
+| 真实经历 tab | (a) 无匿名源 | 目录树无该版块；`walkingStreet/threads` 仅 `{page,cursor}` 无 tab 参；全 JS chunk 无字符串 |
+| 置顶标记 | **(b) 有源可接** | `topicPage` `threads.list[].titleFont`——官方渲染 `color:X;font-weight:600` 标色标题即其置顶/高亮呈现形态；无 `isTop` 布尔，实现按官方同款「彩色加粗标题」还原而非自造徽标 |
+| 版规正文 | (a) 无匿名源 | `-rules` URL 全系社区首页兜底；`topic.desc` 仅一句简介（已在版头上屏，lakers 含规则句属偶发文本非结构化版规）；完整版规疑走 App 内管理面，匿名不可得 |
