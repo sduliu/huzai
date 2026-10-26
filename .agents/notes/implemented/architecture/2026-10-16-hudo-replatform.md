@@ -853,3 +853,11 @@ Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage
 - **JrsBlue=0xFF3B82F6**：与批S `titleFont` 官方蓝同值复用，不新开色板。
 - **字号对齐**：轮次 11→13sp 深字；队名 15→16sp SemiBold；队标 30→40dp；比分 20→24sp Bold；底行 11→12sp。
 - 注意 `scoreCountText`/`pv` 原文保留（不落 JRs 格式进模型）——归一化发生在渲染层，其他消费方（比赛详情等）用原文不受影响。回退：revert 本 commit。
+
+### 批T-频道默认集：对齐官方默认频道（调查项→落地）
+
+- **调查结论**：☰ = `home-channels` 管理页（`home_channels_v1` 持久化自定义集，`effectiveHomeChannels` 未自定义走默认）——频道表可配置，默认集改动低风险。
+- **改动**：默认集 `sport:nba/sport:soccer/board:all-gambia/sport:lol/sport:cba` → `sport:nba/sport:soccer/sport:lol`（lol label 冠名「英雄联盟S16」对齐官方当季叫法）。
+- **「AI」频道不接**：HUPU_BOARDS 无对应数据源，官方 AI 频道内容面匿名未探明——不编数据，如实欠账；后续发现接口可在 HUPU_BOARDS 加一行恢复。
+- **步行街/CBA 移出默认集**：☰ 管理页推荐频道可即时加回，无功能损失；已自定义频道的存量用户不受影响（`hasCustomHomeChannels` 门控）。
+- 回退：revert 本 commit 恢复五频道默认集。

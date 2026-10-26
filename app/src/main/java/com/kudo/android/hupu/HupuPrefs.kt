@@ -466,13 +466,13 @@ object HupuPrefs {
 
     fun hasCustomHomeChannels(): Boolean = prefs.contains(KEY_HOME_CHANNELS)
 
-    /** 首页频道默认值（未自定义时）：赛事频道优先对齐官方形态。 */
+    /** 首页频道默认值（未自定义时）：赛事频道优先对齐官方形态。
+     *  批T：默认集对齐官方实测（热榜/推荐固定 + NBA/国际足球/英雄联盟S16/AI…）——
+     *  「AI」频道无匿名数据源不接；「步行街」移出默认集（☰ 管理页可随时加回）。 */
     fun defaultHomeChannels(): List<Pair<String, String>> = listOf(
         "sport:nba" to "NBA",
         "sport:soccer" to "国际足球",
-        "board:/all-gambia" to "步行街",
-        "sport:lol" to "英雄联盟",
-        "sport:cba" to "CBA",
+        "sport:lol" to "英雄联盟S16",
     )
 
     /** 生效频道：自定义优先，未配置走默认。 */
