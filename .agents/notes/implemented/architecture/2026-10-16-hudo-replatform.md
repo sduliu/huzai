@@ -431,3 +431,13 @@ Muse 验收发现 `assembleDebugAndroidTest` 全量编译被陈旧测试阻断�
 - 原则：不动主代码迁就测试；移除用例=特性已删无对齐对象，非掩盖失败。
 
 产物：`app-debug-androidTest.apk`（`com.huzai.kudo.test`，debug 签名）；Muse 执行 `adb install -r -t <test.apk> && adb shell am instrument -w -e class com.kudo.android.FallbackImagesUiTest com.huzai.kudo.test/androidx.test.runner.AndroidJUnitRunner`。
+
+## 批I：测试 APK 运行时缺类修复（dex 级证据链）
+
+崩溃：`am instrument` 启动即 `NoClassDefFoundError: Lkotlin/LazyKt` @ `TestDirCalculator` <clinit>。**根因（dex 表级证实，非猜测）**：app/test 共享构件不进 test dex（AGP dedup），而主 APK 的 R8 把 kotlin 多文件门面水平合并——`LazyKt`→`LazyKt__LazyKt`+`LazyKt__LazyJVMKt`（主 APK 两 dex 连 type_id 都无 `Lkotlin/LazyKt;`），测试 dex 仍按规范名引用 → 全 classpath 无定义。
+
+- `proguard-androidTest.pro` 加 `-dontshrink/-dontobfuscate/-dontoptimize`：AGP 9.1 DeviceTest API 无 per-variant minify 开关，testProguardFiles 是唯一作用域；测试 APK 无 shrink 收益，keep 清单是对「全保留」的脆弱近似。`-keepattributes` 保注解/签名/内部类元数据。
+- **但 dontshrink 只保输入类——dedup 在 R8 之前已把共享构件剔出输入**（新旧 dex 类数恒 6798 证明）。真正修复：`libs/` 下以**文件依赖**形式嵌入 `kotlin-stdlib-2.4.10.jar` + `kotlinx-coroutines-core-jvm-1.10.2.jar`（与 test 类路径解析版本一致）→ 构件身份与共享 GAV 不同绕过 dedup → `Lkotlin/LazyKt`/`Intrinsics`/`BuildersKt`/`JobKt` 等 canonical 类由 test dex **自身定义**（8753 类）。
+- coroutines jar 带入 JVM debug-agent 对 `java.lang.instrument`/`sun.misc.Signal` 的引用（仅 -javaagent 场景可达）→ 补 4 条 dontwarn。
+- 自证（dex 表直查）：LazyKt 旧包=引用无定义，新包=**DEF**；8 探针类全 DEF；剩余未解析引用=编译期注解（errorprone/Composable/Jetbrains）+ JDK-only + **他测试引用的 app 已改名类**（`CommunityDirectoryScreenKt`/`DirectoryTag` 在主 APK 已 rename——`CommunityDirectoryUiTest` 等直调该类名的测试仍不可跑，属 debug-minify 的固有局限，`-e class` 过滤下不阻塞兜底测试；mockwebserver WebSocket 路径同理）。`FallbackImagesUiTest` 所需 app 类（`KudoThemeKt`/`FallbackImagesKt`/`HupuImageFallback`/`DisplaySettings`）均 canonical DEF 于主 APK。
+- 回退：删 `libs/*.jar` + build.gradle 两行 files() 依赖 + 本笔记段。

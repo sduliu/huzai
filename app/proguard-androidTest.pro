@@ -5,3 +5,24 @@
 -dontwarn com.google.errorprone.annotations.CanIgnoreReturnValue
 -dontwarn com.google.errorprone.annotations.MustBeClosed
 -dontwarn org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement
+# 批I-1：coroutines-core-jvm 嵌入后带入 kotlinx.coroutines.debug AgentPremain
+# 对 JDK-only 类（java.lang.instrument/sun.misc.Signal）的引用——仅 -javaagent
+# JVM 场景可达，Android 运行时永远不会走到，dontwarn 安全。
+-dontwarn java.lang.instrument.ClassFileTransformer
+-dontwarn java.lang.instrument.Instrumentation
+-dontwarn sun.misc.Signal
+-dontwarn sun.misc.SignalHandler
+
+# 批I-1：测试变体整体禁用 R8 收缩/混淆/优化（debug.isMinifyEnabled 会传染 test APK）。
+# 原因：am instrument 在 runner 启动即 NoClassDefFoundError kotlin/LazyKt——
+# androidx.test runner、junit、compose-ui-test、kotlin stdlib 的测试类路径大量走反射
+# 与 ServiceLoader，R8 无法静态判定入口，逐条 keep 是对「全保留」的脆弱近似；
+# 测试 APK 无包体积/性能诉求，shrink 只有害处。AGP 9.1 DeviceTest API 无
+# enableMinification 开关，testProguardFiles 是唯一作用域正确的关闭手段。
+# 只作用于 androidTest 变体；主 debug/release APK 的 proguard 规则不受影响。
+-dontshrink
+-dontobfuscate
+-dontoptimize
+# 反射驱动框架（kotlin reflect-metadata、junit runner、compose semantics）依赖
+# 注解/签名/内部类元数据，显式保留防 R8 属性裁剪。
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod,Exceptions

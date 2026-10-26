@@ -170,6 +170,14 @@ dependencies {
     testImplementation("org.json:json:20250107")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    // 批I-1：把 kotlin-stdlib / coroutines-core 作为 test-only 文件依赖打进测试 APK。
+    // 原因：app/test 共享构件不进 test dex（AGP 构件级 dedup），而主 APK 的 R8 把
+    // kotlin 多文件门面（LazyKt→LazyKt__LazyKt、JobKt→JobKt__JobKt 等）水平合并改名，
+    // 测试类路径按规范名引用 → am instrument 运行时 NoClassDefFoundError。
+    // 文件依赖与共享构件身份不同，绕过 dedup，canonical 类名由 test dex 自身定义。
+    // 版本与 debugAndroidTestRuntimeClasspath 解析结果一致（stdlib 2.4.10 / core-jvm 1.10.2）。
+    androidTestImplementation(files("libs/kotlin-stdlib-2.4.10.jar"))
+    androidTestImplementation(files("libs/kotlinx-coroutines-core-jvm-1.10.2.jar"))
     androidTestImplementation(platform("androidx.compose:compose-bom:2026.03.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
