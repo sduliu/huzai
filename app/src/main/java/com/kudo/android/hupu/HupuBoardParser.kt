@@ -14,7 +14,12 @@ import org.json.JSONObject
  */
 object HupuBoardParser {
 
-    private val TID_IN_LINK = Regex("(?:topic|bbs)/(\\d+)")
+    /**
+     * link 兜底取 tid（批U-0a）：真帖链形态 `kanqiu://bbs/(topic|thread)/{tid}`、
+     * `m.hupu.com/bbs/{tid}`、`{tid}.html`；**`news/topic/{nid}` 是专题合集 id 不是帖 tid**
+     * （实测「今日赛况」SUBJECT 链接被旧 `topic/` 正则误提 → 点按进「内容不存在」）。
+     */
+    private val TID_IN_LINK = Regex("bbs/(?:topic/|thread/)?(\\d+)|(\\d+)\\.html")
 
     /**
      * 解析 newsList 响应。网络失败/非成功返回 null；成功但空 data 返回空页（区分空态与失败）。
@@ -80,7 +85,7 @@ object HupuBoardParser {
         var tid = o.optString("tid").takeUnless { it == "null" } ?: ""
         val link = o.optString("link").takeUnless { it == "null" } ?: ""
         if (tid.isEmpty()) {
-            tid = TID_IN_LINK.find(link)?.groupValues?.get(1) ?: ""
+            tid = TID_IN_LINK.find(link)?.groupValues?.drop(1)?.firstOrNull { it.isNotEmpty() } ?: ""
         }
         val badgeArr = o.optJSONArray("badge")
         val badges = mutableListOf<String>()

@@ -72,4 +72,23 @@ class BoardInfoParserTest {
         assertNull(HupuParser.parseZoneInfo("""{"pageProps":{}}"""))
         assertNull(HupuParser.parseZoneInfo("not-json"))
     }
+
+    @Test
+    fun `newsList subject link does not leak fake tid`() {
+        // 批U-0a：huputiyu://news/topic/{nid} 是专题合集 id，旧 topic/ 正则误提为帖 tid
+        // → 点按进「内容不存在」。收紧后该条目保持不可开帖（openableAsThread=false）。
+        val json = """{"success":true,"result":{"data":[
+            {"nid":"23327534","tid":"","type":"SUBJECT","title":"今日赛况","img":"i.jpg",
+             "replies":3552,"lights":815,"link":"huputiyu://news/topic/23327534?enName=nba"},
+            {"nid":"1","tid":"643310802","type":"LINK","title":"杰威","img":"i.jpg",
+             "link":"kanqiu://bbs/topic/643310802"},
+            {"nid":"2","tid":"","type":"IMG_TEXT","title":"数据帖","img":"i.jpg",
+             "link":"https://m.hupu.com/bbs/643315009"}]}}"""
+        val p = com.kudo.android.hupu.HupuBoardParser.parseBoardNews(json)!!
+        assertEquals(3, p.items.size)
+        assertTrue(p.items[0].tid.isEmpty())            // SUBJECT 专题 id 不再漏进 tid
+        assertTrue(!p.items[0].openableAsThread)
+        assertEquals("643310802", p.items[1].tid)       // 真帖 tid 直读
+        assertEquals("643315009", p.items[2].tid)       // m.hupu.com/bbs/{tid} 兜底提取
+    }
 }

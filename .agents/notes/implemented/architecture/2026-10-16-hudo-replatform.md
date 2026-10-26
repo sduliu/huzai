@@ -874,3 +874,39 @@ Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage
 | 批S 标色标题（titleFont） | ✅ 未触碰 | `FlatPostRow`/`titleFont` 解析零 diff |
 | sport: 频道既有功能 | ⚠️ 有意改动 | 数据源/行形态/快捷位/计数口径即本批目标，逐项见 T-1~T-4 节 |
 - 未触碰 `FallbackImages*`/`proguard*`/release 变体；`score/*` 深链、`standings/*` 路由全部保留。
+
+## 批U：四级点击深遍历像素复刻——比分线与内容线
+
+### 批U-0a：资讯行死链根因——`news/topic/{nid}` 专题 id 误提为帖 tid
+
+- **实证**：newsList `SUBJECT` 条目 link=`huputiyu://news/topic/23327534?enName=nba`（专题合集 id），旧 `TID_IN_LINK=(?:topic|bbs)/(\d+)` 的 `topic/` 分支把它提成 tid=23327534 → `openTopic` 打开不存在的帖 → 「内容不存在或暂无权限」（真机复现）。
+- **修法**：正则收紧 `bbs/(?:topic/|thread/)?(\d+)|(\d+)\.html`——只认 `bbs/` 命名空间与 `.html` 形态；提取改 `groupValues.drop(1).firstOrNull{it.isNotEmpty()}`（`groupValues[0]` 是全匹配，两个捕获组需跳过空组）。
+- 回归测试：`BoardInfoParserTest.newsList subject link does not leak fake tid`（SUBJECT 保持不可开帖 / kanqiu bbs 直读 / m.hupu.com bbs 兜底提取）。回退：revert 本 commit。
+
+### 批U-0b/c：资讯切换胶囊官方化 + 🔥 门控
+
+- **胶囊**：官方=蓝选中字+浅蓝底+蓝边框圆胶囊。改 `Row` 底 `JrsBlue.copy(0.10)` 圆角 16dp；选中项 `JrsBlue.copy(0.16)` 底 + 1dp JrsBlue 边框 + JrsBlue 字；未选中 onSurfaceVariant。（原金色字无边框系旧主题残留。）
+- **🔥 门控**：newsList **无显式 hot 字段**——实测官方带🔥行共同点=亮回复恰为 50（「50亮回复」封顶口径），低亮行（56/38/83/222 回复）不带。取 `likes>=50` 作门控近似；若官方实为其他阈值，改一行常量即可。
+- 回退：revert 本 commit。
+
+### 批U-0（主项）：四级路径数据源量取（匿名探测实测）
+
+DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）——量取基准改用任务文本描述 + 官方匿名接口/H5 实测，偏差风险如实记。
+
+**比分线已探明匿名源（match-api + games.mobileapi basketballapi）：**
+
+| 数据 | 端点 | 实测 |
+|---|---|---|
+| 比赛头 | `basketballapi/matchInfo?matchId=` | ✅ 队名/队标/比分/`matchStatusChinese`/`matchTime`/节末时间 `sectionEndTime`/`homeRank`+`homeArea`（排名+分区，旧场为 null）/队色 `homeTeamDayColor`/`attendance`/`costTime`/`score`="3.6万评分"/`ad_inside_pop`（广告位，排除） |
+| 节次比分 | `basketballapi/teamMatchQuarterStats?matchId=` | ✅ `homeQuarterScore`/`awayQuarterScore` 数组 + 队色 |
+| 球员数据统计 | `basketballapi/playerMatchStats?matchId=` | ✅ 存在（字段待解析时详查） |
+| 评分树 | `bplcommentapi/score_tree/*`（既有） | ✅ `basketball_match/{bizNo}`→球员节点 infoJson 带 `netPoints/ast/reb` 数据行、`playerLink`；节点自身 `scoreAvg`/`scorePersonCount`/`hotCommentModels`=官方球员卡（头像/星级/数据行/蓝大分/「9087JRs评分」/橙引言）全字段 |
+| 讨论 | `bplcommentapi/comment/list/primarySingleRow` | ⚠️ 端点匿名可达但实测 3 个近期完赛场均 `commentCount=0` 且 infoJson `canComment=false`——官方口径讨论区本场未开，非登录墙报错；挂「本场讨论未开放」空态接通，有数据即渲染 |
+| 战报 | — | ❌ 无专属端点：`infoJson.link`空、`matchReport/matchRecap/matchNews` 全 404、score 树无战报节点。官方战报=编辑帖，无匿名结构化源——**不编数据**，本批战报位挂空态说明 |
+| 走势折线 | — | ⚠️ 无独立端点（8 个命名猜测全 404）；`infoJson.showScoreTrend`="show" 存在但数据需推导——**用既有 playbyplay 事件 `NbaPlay.score` 逐事件比分序列客户端生成**（nba.hupu.com 实录页已解析，quarter+time+score 齐备） |
+| 排名行 | `matchInfo.homeRank/awayRank/homeArea/awayArea` | ⚠️ 字段存在，旧完赛场均 null——渲染层按「有才显示」；实时场待真机验证 |
+| matchId 桥接 | schedule `matchId`→matchInfo 同键 | ✅ 无需新 join（gdcId 是 live 页钥匙非 matchInfo 参数） |
+
+**官方详情页结构（任务文本口径）**：深色头（队标/大比分/已结束/日期时间/客·主排名行/分享钮）→ Tab `战报/虎扑评分/统计/讨论/直播`（直播排除）→ 虎扑评分=球队切换+球员卡（头像/姓名/星级/数据行/蓝色大分/`{原始计数}JRs评分`/橙引言块）→ 统计=节次表（`第N节`列头+队标）+走势折线图。酷DO 现状差异：浅色卡头、Tab 命名 评分/数据统计/文字实录、绿色分+N人、列头 1/2/3/4 无队标、无走势图。
+
+**文案格式屏级口径**：频道卡=万制「N万JRs评分」蓝（批T-4 已落）；详情页球员卡=原始计数「9087JRs评分」——**两口径分屏保留，不全局统一**。
