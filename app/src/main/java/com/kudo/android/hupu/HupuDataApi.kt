@@ -175,6 +175,17 @@ object HupuDataApi {
         )
 
     /**
+     * 批Y：荣誉榜（allPlayerAwardList）——官方 honor.html 同源实参 leagueType/competitionType 大写。
+     * result.playerAwardMapDTOList：20 个奖项 × 近年 top5 获奖者（pts/reb/asts 随行）。
+     */
+    suspend fun fetchPlayerAwards(leagueType: String, forceNetwork: Boolean = false): String? =
+        get(
+            "$GAMES_BASE/basketballapi/allPlayerAwardList" +
+                "?leagueType=${leagueType.uppercase()}&competitionType=${leagueType.uppercase()}",
+            "player-awards-$leagueType", forceNetwork, "https://m.hupu.com/",
+        )
+
+    /**
      * 单节比分（teamMatchQuarterStats）：home/awayQuarterScore 数组（Q1..Q4+OT）。
      * 仅 businessType=basketball 的 matchId 有效。
      */

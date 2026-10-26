@@ -853,6 +853,25 @@ data class HupuQuarterScore(
     val away: List<String>,
 )
 
+/** 批Y：荣誉榜获奖者（allPlayerAwardList playerAwardDetailDTOList 一项）。 */
+data class HupuAwardWinner(
+    val playerId: String,
+    val name: String,
+    val photo: String,
+    val teamName: String,
+    val season: String,      // awardDate（获奖赛季，如 2025-2026）
+    val pts: String,
+    val reb: String,
+    val asts: String,
+)
+
+/** 批Y：荣誉榜奖项分组（allPlayerAwardList playerAwardMapDTOList 一项，top5 近年获奖者）。 */
+data class HupuAward(
+    val awardName: String,   // NBA_Most_Valuable_Player
+    val awardDesc: String,   // MVP
+    val winners: List<HupuAwardWinner>,
+)
+
 /**
  * 批U-1：篮球比赛详情头（basketballapi/matchInfo?matchId= 的 result 子集）。
  *

@@ -328,6 +328,57 @@ object HupuDataParser {
         }
     }
 
+    /**
+     * 批Y：allPlayerAwardList → 奖项分组（awardDesc 题名 + 近年 top5 获奖者）。
+     * pts/reb/asts 是 JSON 数字（如 31.132），保留 1 位小数文案与官方一致。
+     */
+    fun parseAwards(json: String): List<HupuAward> {
+        fun num(o: JSONObject, key: String): String {
+            val v = o.opt(key) ?: return ""
+            return when (v) {
+                is Number -> {
+                    val d = v.toDouble()
+                    if (d == d.toLong().toDouble()) "${v.toLong()}" else String.format("%.1f", d)
+                }
+                else -> v.toString().takeUnless { it == "null" } ?: ""
+            }
+        }
+        return try {
+            val arr = JSONObject(json).optJSONObject("result")
+                ?.optJSONArray("playerAwardMapDTOList") ?: return emptyList()
+            val out = mutableListOf<HupuAward>()
+            for (i in 0 until arr.length()) {
+                val a = arr.optJSONObject(i) ?: continue
+                val winners = mutableListOf<HupuAwardWinner>()
+                a.optJSONArray("playerAwardDetailDTOList")?.let { wl ->
+                    for (j in 0 until wl.length()) {
+                        val w = wl.optJSONObject(j) ?: continue
+                        winners += HupuAwardWinner(
+                            playerId = w.optString("playerId"),
+                            name = w.optString("playerName"),
+                            photo = w.optString("photo"),
+                            teamName = w.optString("teamName"),
+                            season = w.optString("awardDate").ifEmpty { w.optString("season") },
+                            pts = num(w, "pts"),
+                            reb = num(w, "reb"),
+                            asts = num(w, "asts"),
+                        )
+                    }
+                }
+                if (winners.isNotEmpty()) {
+                    out += HupuAward(
+                        awardName = a.optString("awardName"),
+                        awardDesc = a.optString("awardDesc").ifEmpty { a.optString("awardName") },
+                        winners = winners,
+                    )
+                }
+            }
+            out
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     /** teamMatchQuarterStats → 单节比分（Q1..Qn 原样数组；OT 节由数组长度>4 表达）。 */
     fun parseQuarterStats(json: String): HupuQuarterScore? {
         return try {

@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
+import com.kudo.android.hupu.HupuAward
 import com.kudo.android.hupu.HupuDataTab
 import com.kudo.android.hupu.HupuDraftBoard
 import com.kudo.android.hupu.HupuInjury
@@ -89,9 +90,9 @@ import kotlin.coroutines.cancellation.CancellationException
  *   · 其余 h5 → 交回宿主开 EmbedWebPage（官方 H5 原页内嵌）
  */
 
-/** tabUrl 命中官方数据 H5 → (leagueType, kind)；kind ∈ team|player|draft|injury */
+/** tabUrl 命中官方数据 H5 → (leagueType, kind)；kind ∈ team|player|draft|injury|honor */
 internal fun nativeDataTabKind(url: String): Pair<String, String>? {
-    val m = Regex("/300003/([a-zA-Z]+)/(team|player|draft|injury)\\.html").find(url)
+    val m = Regex("/300003/([a-zA-Z]+)/(team|player|draft|injury|honor)\\.html").find(url)
         ?: return null
     return m.groupValues[1].lowercase() to m.groupValues[2]
 }
@@ -136,6 +137,7 @@ internal fun DataTabContent(
                 "player" -> PlayerRankView(kind.first)
                 "draft" -> DraftView(kind.first)
                 "injury" -> InjuryView(kind.first)
+                "honor" -> AwardView(kind.first)
                 else -> Box(Modifier.fillMaxSize()) // 不应到达：h5 在宿主层已开 embed
             }
         }
@@ -882,6 +884,93 @@ internal fun InjuryView(league: String) {
                                             )
                                         }
                                     }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ==================== 荣誉榜（allPlayerAwardList，奖项 × 近年 top5 获奖者） ====================
+
+/** 批Y：官方 honor.html 同源——奖项卡 + 获奖者行（头像/姓名/队名/赛季/分板助）。 */
+@Composable
+internal fun AwardView(league: String) {
+    val repo = remember { HupuRepository() }
+    var awards by remember { mutableStateOf<List<HupuAward>?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var tick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(league, tick) {
+        loading = true
+        awards = repo.playerAwards(league, refresh = tick > 0)
+        loading = false
+    }
+    when {
+        awards == null && loading -> SkeletonHome()
+        awards == null -> ErrorRetry { tick++ }
+        awards!!.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("暂无荣誉数据", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+        }
+        else -> LazyColumn(
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 100.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            awards!!.forEach { a ->
+                item(key = "aw-${a.awardName}") {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    ) {
+                        Text(
+                            a.awardDesc, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(vertical = 4.dp),
+                        )
+                        a.winners.forEach { w ->
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                AsyncImage(
+                                    model = normalizeCover(w.photo), contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.size(30.dp).clip(CircleShape),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        w.name, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    )
+                                    val sub = listOf(w.teamName, w.season).filter { it.isNotEmpty() }
+                                        .joinToString(" · ")
+                                    if (sub.isNotEmpty()) {
+                                        Text(
+                                            sub, fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                        )
+                                    }
+                                }
+                                val stats = listOf(
+                                    w.pts.takeIf { it.isNotEmpty() }?.let { "${it}分" },
+                                    w.reb.takeIf { it.isNotEmpty() }?.let { "${it}板" },
+                                    w.asts.takeIf { it.isNotEmpty() }?.let { "${it}助" },
+                                ).filterNotNull().joinToString(" ")
+                                if (stats.isNotEmpty()) {
+                                    Text(
+                                        stats, fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        maxLines = 1,
+                                    )
                                 }
                             }
                         }

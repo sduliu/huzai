@@ -624,6 +624,12 @@ class HupuRepository {
         return withContext(Dispatchers.Default) { HupuDataParser.parseInjuries(json) }
     }
 
+    /** 批Y：荣誉榜整版（allPlayerAwardList，20 奖项 × top5 获奖者）。 */
+    suspend fun playerAwards(leagueType: String, refresh: Boolean = false): List<HupuAward> {
+        val json = HupuDataApi.fetchPlayerAwards(leagueType, forceNetwork = refresh) ?: return emptyList()
+        return withContext(Dispatchers.Default) { HupuDataParser.parseAwards(json) }
+    }
+
     /** 单节比分（仅 businessType=basketball 的比赛有效；失败返回 null）。 */
     suspend fun quarterStats(matchId: String, refresh: Boolean = false): HupuQuarterScore? {
         val json = HupuDataApi.fetchQuarterStats(matchId, forceNetwork = refresh) ?: return null

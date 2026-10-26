@@ -111,6 +111,29 @@ class HupuDataParserTest {
         assertEquals("无法出场", m[0].status)
     }
 
+    @Test fun awards_parsesGroupsWinnersAndStatLine() {
+        // 批Y：allPlayerAwardList 真实结构（2026-10-27 匿名实测）——20 奖项 × top5 获奖者
+        val json = """{"success":true,"result":{"playerAwardMapDTOList":[
+            {"awardName":"NBA_Most_Valuable_Player","awardDesc":"MVP","playerAwardDetailDTOList":[
+                {"playerId":"p1","playerName":"亚历山大","photo":"ph","teamName":"雷霆",
+                 "season":"2025-2026","awardDate":"2025-2026","pts":31.132,"reb":4.294,"asts":6.588},
+                {"playerId":"p2","playerName":"约基奇","photo":"","teamName":"掘金",
+                 "season":"2024-2025","awardDate":"2024-2025","pts":29,"reb":12,"asts":10}
+            ]},
+            {"awardName":"NBA_Total_champion","awardDesc":"总冠军","playerAwardDetailDTOList":[]}
+        ]}}"""
+        val list = HupuDataParser.parseAwards(json)
+        assertEquals(1, list.size)   // 获奖者全空的奖项不渲染（不编数据）
+        val a = list[0]
+        assertEquals("MVP", a.awardDesc)
+        assertEquals(2, a.winners.size)
+        assertEquals("亚历山大", a.winners[0].name)
+        assertEquals("2025-2026", a.winners[0].season)
+        assertEquals("31.1", a.winners[0].pts)   // 1 位小数
+        assertEquals("29", a.winners[1].pts)     // 整数不补零
+        assertEquals(emptyList<Any>(), HupuDataParser.parseAwards("""{"result":{}}"""))
+    }
+
     @Test fun quarterStats_homeAwayArrays() {
         val json = """{"success":true,"result":{"homeQuarterScore":["35","26","37","25"],"awayQuarterScore":["32","49","29","22"]}}"""
         val q = HupuDataParser.parseQuarterStats(json)!!
