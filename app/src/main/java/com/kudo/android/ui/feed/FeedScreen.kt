@@ -68,6 +68,9 @@ import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import kotlin.math.roundToInt
 
+/** 批Nfix-2：官方虎扑品牌红（顶栏「搜索」胶囊底色，与批N-4 HUPU_RED 同值） */
+private val HUPU_FEED_SEARCH_RED = Color(0xFFC01E2F)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refresh: () -> Unit, more: () -> Unit, openTopic: (Int) -> Unit, openUser: (String) -> Unit, search: () -> Unit, login: () -> Unit, categories: () -> Unit, modifier: Modifier = Modifier, category: Category? = null, back: () -> Unit = {}, listStyle: TopicListStyle = TopicListStyle.FEED, pages: Map<String, FeedState> = emptyMap(), createTopic: (Int) -> Unit = {}, glass: GlassMode = LocalDisplaySettings.current.glass,
@@ -164,11 +167,14 @@ fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refres
                         else Avatar(user, 28.dp, presentation = AvatarPresentation.ACCOUNT)
                     }
                     Box(Modifier.weight(1f).heightIn(min = 40.dp).clip(CircleShape).clickable(role = Role.Button, onClick = search).testTag("home-search"), contentAlignment = Alignment.Center) {
-                        Row(Modifier.fillMaxWidth().heightIn(min = 30.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 10.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(Modifier.fillMaxWidth().heightIn(min = 30.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant).padding(start = 10.dp, end = 3.dp, top = 3.dp, bottom = 3.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Icon(Icons.Rounded.Search, null, Modifier.size(20.dp).testTag("home-search-icon"), MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("湿乎乎 · 足球 · 电竞 · 步行街", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Box(Modifier.width(1.dp).height(14.dp).background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)).testTag("home-search-divider"))
-                            Text("搜索", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, softWrap = false)
+                            // 批Nfix-2：官方红底「搜索」胶囊（品牌红 #C01E2F），原分隔线+灰字样式替换；
+                            // 只改样式，入口不变（外层 clickable 仍进 SearchScreen）
+                            Box(Modifier.clip(CircleShape).background(HUPU_FEED_SEARCH_RED).testTag("home-search-button").padding(horizontal = 11.dp, vertical = 3.dp), contentAlignment = Alignment.Center) {
+                                Text("搜索", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = Color.White, maxLines = 1, softWrap = false)
+                            }
                         }
                     }
                 }
