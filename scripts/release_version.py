@@ -20,10 +20,15 @@ class ReleaseVersion:
 
 
 def parse_tag(tag: str) -> ReleaseVersion:
-    match = re.fullmatch(r"v([0-9])\.([0-9])\.([0-9])", tag)
+    match = re.fullmatch(r"v([0-9]+)\.([0-9]+)\.([0-9]+)", tag)
     if not match:
-        raise ValueError("Use vX.Y.Z with each component from 0 to 9 and no suffixes.")
-    major, minor, patch = map(int, match.groups())
+        raise ValueError("Use vX.Y.Z with each component from 0 to 999, no leading zeros and no suffixes.")
+    parts = match.groups()
+    if any(len(part) > 1 and part.startswith("0") for part in parts):
+        raise ValueError("Use vX.Y.Z with each component from 0 to 999, no leading zeros and no suffixes.")
+    major, minor, patch = map(int, parts)
+    if max(major, minor, patch) >= 1000:
+        raise ValueError("Use vX.Y.Z with each component from 0 to 999, no leading zeros and no suffixes.")
     code = major * 1_000_000 + minor * 1_000 + patch + 1
     if code > 2_100_000_000:
         raise ValueError("The tag exceeds Android's maximum versionCode (2100000000).")
