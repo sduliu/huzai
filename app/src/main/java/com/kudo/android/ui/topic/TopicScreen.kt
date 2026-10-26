@@ -262,7 +262,7 @@ fun TopicScreen(state: TopicState, glass: GlassMode, back: () -> Unit, retry: ()
                                 val category = LocalTopicPresentation.current.categories.firstOrNull { it.id == detail.categoryId }
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                     if (author != null) {
-                                        Row(Modifier.weight(1f).clickable(enabled = !showing, role = androidx.compose.ui.semantics.Role.Button) { user(author.username) },
+                                        Row(Modifier.weight(1f).clickable(enabled = !showing && author.id != 0, role = androidx.compose.ui.semantics.Role.Button) { user(author.username) },
                                             verticalAlignment = Alignment.CenterVertically) {
                                             Avatar(author, 28.dp, presentation = AvatarPresentation.PUBLIC)
                                             Column(Modifier.weight(1f).padding(start = 8.dp)) {
@@ -387,7 +387,7 @@ fun TopicScreen(state: TopicState, glass: GlassMode, back: () -> Unit, retry: ()
                     LazyColumn(state = threadList, modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp).testTag("thread-posts")) {
                         itemsIndexed(thread.replies, key = { _, post -> post.id }) { index, post ->
                             if (index > 0) HorizontalDivider()
-                            ThreadPreviewPost(post, threadEnabled, image, openLink, ::navigatePost,
+                            ThreadPreviewPost(post, threadEnabled, image, openLink, ::navigatePost, user,
                                 replyAuthorLabel(post, thread.root.number, threadPosts), state, like, ::replyTo, ::choose, quote = quotedReply)
                         }
                         val load = state.replyLoads[thread.root.id]

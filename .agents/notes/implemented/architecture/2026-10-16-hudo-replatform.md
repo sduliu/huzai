@@ -1070,3 +1070,9 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **`spaceUserInfo` 同款毒化防护**：错误 SSR（无 userInfoData）也含 `__NEXT_DATA__` 会被 `fetchUserHtml` 缓存——解析 null 时 `HupuCache.remove("/user/$euid")` 定向剔除 + `forceNetwork` 重拉一次，仍失败才判真不存在（与 X-1/Xfix-1 详情机制同源）。
 - **不接**：登录态 PC `getUserInfo` 的 euid 命名空间不做 puid 回退改写（语义不同）；双缺（euid/puid 均无）作者在批X2-2 由 UI 侧 `author.id != 0` 门控成不可点、不接错页。
 - 单测：`member username carries pageId not nickname`（真实帖作者载荷断言）、`member ids are namespaced per pageId`、`puid route user SSR parses full profile`（真实夹具）。回退：revert 本 commit。
+
+### 批X2-2：详情作者点按统一「可路由 pageId」门控
+
+- **漏接线实点**：`ThreadPreviewPost`（详情「评论回复」楼中楼 sheet 行）头像+作者行从未接 `user()`——真机「正文作者行点按无反应」即此；补 `user` 参，头像与作者标签分别挂 `openUser`，门控 `post.author.id != 0`。
+- **门控口径统一**（与批W-2 `pageId.isNotEmpty()` 同义）：X2-1 后 `Member.id != 0` ⇔ 有可路由 pageId（euid/puid 任一下发即非零，双缺归 0）。`TopicTopBar` 作者行、`TopicScreen` 标题下作者行、`TopicPost` 回复作者行三处已接点同步补 `author.id != 0`/`post.author.id != 0`——双缺作者不再误路由昵称进 UserScreen（不接错页），Discourse 真 id>0 行为不变。
+- 单测沿用 X2-1 桥接断言（`member username carries pageId`、`member ids are namespaced`——id=0 ⇔ 双缺 ⇔ 不可点契约由测试钉死）。回退：revert 本 commit。

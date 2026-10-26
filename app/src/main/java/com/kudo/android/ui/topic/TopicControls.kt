@@ -69,7 +69,7 @@ internal fun TopicTopBar(
         TopBarIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "返回", back, enabled = enabled)
         if (author == null) Text("话题详情", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
         else Row(Modifier.weight(1f).heightIn(min = 48.dp)
-            .clickable(enabled = enabled, role = Role.Button) { user(author.username) }.testTag("topic-author"),
+            .clickable(enabled = enabled && author.id != 0, role = Role.Button) { user(author.username) }.testTag("topic-author"),
             verticalAlignment = Alignment.CenterVertically) {
             Avatar(author, 32.dp, presentation = AvatarPresentation.PUBLIC)
             Column(Modifier.weight(1f).padding(start = 10.dp, end = 8.dp)) {

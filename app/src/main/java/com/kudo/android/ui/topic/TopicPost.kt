@@ -57,7 +57,7 @@ internal fun TopicPost(post: Post, detail: TopicDetail, state: TopicState, enabl
         } else {
             if (post.number != 1) Box(Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Row(Modifier.weight(1f).clickable(enabled = enabled) { user(post.author.username) }, verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.weight(1f).clickable(enabled = enabled && post.author.id != 0) { user(post.author.username) }, verticalAlignment = Alignment.CenterVertically) {
                     Avatar(post.author, 32.dp, presentation = AvatarPresentation.PUBLIC)
                     Column(Modifier.weight(1f).padding(start = 10.dp)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -291,16 +291,24 @@ private fun ReplyPreviewImages(images: List<ArticleBlock.Image>, postId: Int, la
 
 @Composable
 internal fun ThreadPreviewPost(post: Post, enabled: Boolean, image: (String) -> Unit,
-    openLink: (String) -> Unit, navigate: (Int) -> Unit, authorLabel: String, state: TopicState,
-    like: (Post) -> Unit, reply: (Post) -> Unit, choose: (Post) -> Unit,
+    openLink: (String) -> Unit, navigate: (Int) -> Unit, user: (String) -> Unit, authorLabel: String,
+    state: TopicState, like: (Post) -> Unit, reply: (Post) -> Unit, choose: (Post) -> Unit,
     quote: ((Post, String) -> Unit)? = null) {
     val hidden = post.author.username.lowercase(Locale.ROOT) in LocalIgnoredUsers.current
+    // 批X2-2：作者行（头像+昵称）与详情顶栏同口径——id!=0 即有可路由 pageId 才可点，
+    // euid/puid 双缺不接错页。
+    val openUser: (() -> Unit)? = if (post.author.id != 0) ({ user(post.author.username) }) else null
     Row(Modifier.fillMaxWidth().padding(vertical = 12.dp).testTag("thread-preview-post-${post.number}"),
         horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-        Box(Modifier.padding(top = 10.dp)) { Avatar(post.author, 28.dp, presentation = AvatarPresentation.PUBLIC) }
+        Box(Modifier.padding(top = 10.dp)
+            .then(if (openUser != null) Modifier.clickable(enabled = enabled) { openUser() } else Modifier)) {
+            Avatar(post.author, 28.dp, presentation = AvatarPresentation.PUBLIC)
+        }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(authorLabel, Modifier.weight(1f), style = MaterialTheme.typography.labelLarge,
+                Text(authorLabel, Modifier.weight(1f)
+                    .then(if (openUser != null) Modifier.clickable(enabled = enabled) { openUser() } else Modifier),
+                    style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text("#${post.number}", Modifier.testTag("thread-floor-${post.number}"), maxLines = 1,
                     style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
