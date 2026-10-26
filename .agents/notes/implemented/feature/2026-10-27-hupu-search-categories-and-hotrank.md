@@ -1,4 +1,6 @@
-# 批Z：搜索分类与热榜深层核验（2026-10-27 匿名实测）
+# Agent Note: 批Z 搜索分类接入与热榜行/空态对齐——search2 三匿名类（帖子/版块/用户），热帖榜官方meta
+
+Status: implemented
 
 ## Problem
 
