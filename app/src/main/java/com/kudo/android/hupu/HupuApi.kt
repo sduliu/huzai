@@ -1,5 +1,6 @@
 package com.kudo.android.hupu
 
+import android.util.Log
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -14,6 +15,7 @@ import java.util.concurrent.atomic.AtomicLong
  */
 object HupuApi {
 
+    private const val TAG = "HupuApi"
     private const val BASE = "https://bbs.hupu.com"
 
     const val DESKTOP_UA =
@@ -390,13 +392,17 @@ object HupuApi {
 
             try {
                 client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) return@use null
+                    if (!response.isSuccessful) {
+                        Log.w(TAG, "fetchHtml $path http ${response.code}")
+                        return@use null
+                    }
                     val html = response.body?.string() ?: return@use null
                     if (html.length < 50_000) {
                         // 壳页/错误页保护——但低互动帖子（正文短+回复少）详情页天然只有 40~50KB：
                         // 小体积不再直接拒绝，而是检查是否带 SSR 数据载体（__NEXT_DATA__ / $$data），
                         // 有数据就放行（实测 replies=3 的帖子 45KB 数据完整可解析），无数据才是壳页
                         if (!html.contains("__NEXT_DATA__") && !html.contains("window.\$\$data=")) {
+                            Log.w(TAG, "fetchHtml $path shell body ${html.length}B")
                             return@use null
                         }
                     }
@@ -404,6 +410,7 @@ object HupuApi {
                     html
                 }
             } catch (e: Exception) {
+                Log.w(TAG, "fetchHtml $path ${e.javaClass.simpleName}: ${e.message}")
                 null
             }
         }
