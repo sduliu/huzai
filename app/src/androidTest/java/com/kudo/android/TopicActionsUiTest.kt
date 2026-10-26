@@ -92,7 +92,7 @@ class TopicActionsUiTest {
 
     @Test fun feedAndTitleRowsHaveNoMenuAndKeepTopicAndAuthorActions() {
         var current by mutableStateOf(topic)
-        var settings by mutableStateOf(DisplaySettings(theme = ThemeMode.LIGHT, compactPinnedTopics = false))
+        var settings by mutableStateOf(DisplaySettings(theme = ThemeMode.LIGHT))
         var menuOpens = 0
         var topicOpens = 0
         var authorOpens = 0
@@ -122,7 +122,7 @@ class TopicActionsUiTest {
             compose.runOnIdle { assertEquals(2, topicOpens); assertEquals(2, authorOpens) }
             if (pinned) capture("topic-list-no-actions-light.png")
         }
-        compose.runOnIdle { settings = DisplaySettings(theme = ThemeMode.DARK, fontScale = 1.3f, compactPinnedTopics = false) }
+        compose.runOnIdle { settings = DisplaySettings(theme = ThemeMode.DARK, fontScale = 1.3f) }
         compose.onAllNodesWithContentDescription("主题操作").assertCountEquals(0)
         capture("topic-list-no-actions-dark-large.png")
     }

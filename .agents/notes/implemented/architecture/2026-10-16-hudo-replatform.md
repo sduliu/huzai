@@ -418,3 +418,16 @@ Muse 找不到内嵌视频帖是「样本难找」而非链路不通。用 2026-
 - **字段来源**：`HupuMatchParser` `subscribeInfo`→`HupuSubscribe(show=subScribeTitle非空或showSubscribe, subscribed=didSubscribe, title=subScribeTitle, desc=subScribeDesc)`，官方字段名与注释对齐。
 - **测试**：`scheduleSubscribe_mapsOfficialFieldsAndNullsWhenAbsent`（真字段 fixture：未赛带 info→show/title/desc/didSubscribe=false；无 info 行与已赛空 info 行→null）。
 - 真机点按验证仍归 Muse（同 G2 设备约束）；对话框语义与官方订阅动作刻意脱钩——订阅是登录写接口，排除项。
+
+## 批H：androidTest 编译修复（源码漂移 + R8 缺类）
+
+Muse 验收发现 `assembleDebugAndroidTest` 全量编译被陈旧测试阻断。逐文件处置（2026-10-26）：
+
+- `FallbackImagesUiTest`：`KudoTheme` 签名要求 `settings: DisplaySettings` 无默认——3 处补 `KudoTheme(DisplaySettings())`（与 CommunityDirectoryUiTest 同款写法）。
+- `TopicActionsUiTest`：2 处 `DisplaySettings(..., compactPinnedTopics = false)` 删该参数（字段已随 `1771f08` 移除，测试不依赖它）。
+- `CommunityDirectoryUiTest`：删 `embeddedDirectoryConsumesInnerSwipesAndReturnsEdgeSwipesToHome`——依赖 `FeedScreen.categoryContent` 嵌入槽，该槽随 Phase1 移动端首页重构移除（首页不再 feed+内嵌目录），集成对象本身不存在；其余 7 测直挂 `CommunityDirectoryScreen` 不受影响。文件内留注释说明。
+- `CompactPinnedTopicsUiTest`：删 3 测（compactRows/disablingCompact/preferencesDefault——测试 `compactPinnedTopics` 字段、CompactPinnedTopicRow 的 `topic-pinned-*` tag、「置顶贴精简显示」开关，全部随 `1771f08` 移除）；保留 `missingCategoryUsesFallback...`（独立用例）+ fixture/capture。
+- R8：`debug.isMinifyEnabled=true` 使 test APK 也走 shrink，androidx.test/okhttp3.tls 引用的编译期注解（errorprone/animal-sniffer）按缺失类报错 → `app/proguard-androidTest.pro` + `testProguardFiles`（只作用 test 变体，主 APK 规则不动）。
+- 原则：不动主代码迁就测试；移除用例=特性已删无对齐对象，非掩盖失败。
+
+产物：`app-debug-androidTest.apk`（`com.huzai.kudo.test`，debug 签名）；Muse 执行 `adb install -r -t <test.apk> && adb shell am instrument -w -e class com.kudo.android.FallbackImagesUiTest com.huzai.kudo.test/androidx.test.runner.AndroidJUnitRunner`。

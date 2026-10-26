@@ -43,21 +43,9 @@ class CommunityDirectoryUiTest {
         compose.runOnIdle { assertEquals(0, loads) }
     }
 
-    @Test fun embeddedDirectoryConsumesInnerSwipesAndReturnsEdgeSwipesToHome() {
-        var feed by mutableStateOf(com.kudo.android.ui.feed.FeedState(filter = "latest", loading = false))
-        compose.setContent { KudoTheme(DisplaySettings()) {
-            com.kudo.android.ui.feed.FeedScreen(feed, null, { feed = feed.copy(filter = it) }, {}, {}, {}, {}, {}, {}, {},
-                categoryContent = { CommunityDirectoryScreen(state(), {}, {}, {}, {}, {}, {}, inHome = true) })
-        } }
-        compose.onNodeWithText("类别").performClick()
-        compose.onNodeWithTag("directory-pager").performTouchInput { swipeLeft(durationMillis = 600) }
-        compose.onNodeWithText("标签").assertIsSelected()
-        compose.onNodeWithTag("directory-tag-公告").assertIsDisplayed()
-        compose.onNodeWithTag("directory-pager").performTouchInput { swipeRight(durationMillis = 600) }
-        compose.onNodeWithTag("category-directory-list").assertIsDisplayed()
-        compose.onNodeWithTag("directory-pager").performTouchInput { swipeRight(durationMillis = 600) }
-        compose.onNodeWithText("排行榜").assertIsSelected()
-    }
+    // 批H-1：embeddedDirectoryConsumesInnerSwipesAndReturnsEdgeSwipesToHome 移除——
+    // 其依赖的 FeedScreen.categoryContent 嵌入槽已随 Phase1 移动端首页重构删除
+    // （首页不再是 feed+内嵌目录形态），该集成行为本身已不存在，无对齐对象。
 
     @Test fun directoryTabsUseTheSelectedMaterialBar() {
         compose.setContent { KudoTheme(DisplaySettings(theme = ThemeMode.DARK, glass = GlassMode.LIQUID)) {
