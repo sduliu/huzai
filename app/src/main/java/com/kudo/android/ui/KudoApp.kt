@@ -197,6 +197,10 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                             }
                         }
                         LaunchedEffect(refreshEpoch) { feed.refreshIfRequested(refreshEpoch) }
+                        // 批N-2：详情页「版块名 >」→ 切到专区 Tab 由 ZonePage 打开版块流
+                        LaunchedEffect(com.kudo.android.hupu.HupuUiSignals.zoneBoardRequest) {
+                            if (com.kudo.android.hupu.HupuUiSignals.zoneBoardRequest != null) selected = 1
+                        }
                         // 关注/频道变化 → 「综合」按关注重新过滤（只作废该页缓存，其他频道页不受影响）
                         LaunchedEffect(com.kudo.android.hupu.HupuPrefs.homeChannelsVersion,
                             com.kudo.android.hupu.HupuPrefs.favoriteTopicsVersion) {

@@ -2,6 +2,7 @@ package com.kudo.android.hupu
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 /**
@@ -23,6 +24,23 @@ object HupuUiSignals {
      *  切入时据此做一次补偿重试，避免看到残留的失败态。 */
     var scoreTabShown by mutableIntStateOf(0)
         private set
+
+    /**
+     * 批N-2：详情页作者行「版块名 >」→ 打开对应专区版块流。
+     * 版块流盖入页宿主在 ZonePage（底栏 Tab 1）；详情页在首页 Tab 里，
+     * 跨页导航借信号总线：发起方置值 → KudoApp 切到专区 Tab → ZonePage 消费并打开。
+     */
+    var zoneBoardRequest by mutableStateOf<HupuTopicInfo?>(null)
+
+    fun requestZoneBoard(topic: HupuTopicInfo) {
+        zoneBoardRequest = topic
+    }
+
+    fun consumeZoneBoard(): HupuTopicInfo? {
+        val t = zoneBoardRequest
+        zoneBoardRequest = null
+        return t
+    }
 
     fun tapHome() {
         homeTabTap++

@@ -69,6 +69,7 @@ import com.kudo.android.hupu.HupuThread
 import com.kudo.android.hupu.HupuThreadDetail
 import com.kudo.android.hupu.HupuRepository
 import com.kudo.android.hupu.HupuTopicInfo
+import com.kudo.android.hupu.HupuUiSignals
 import com.kudo.android.hupu.HupuTopicPage
 import com.kudo.android.hupu.pickTopicSortKey
 import com.kudo.android.hupu.SortTab
@@ -190,6 +191,12 @@ fun ZonePage(modifier: Modifier = Modifier) {
     fun closeTopic() {
         // 先播返回动画（overlay 滑回右侧），动画结束后真正移除
         overlayClosing = true
+    }
+
+    // 批N-2：跨页「版块名 >」导航——详情页置信号 → KudoApp 切到本 Tab → 这里消费开版块流
+    LaunchedEffect(HupuUiSignals.zoneBoardRequest) {
+        val t = HupuUiSignals.consumeZoneBoard() ?: return@LaunchedEffect
+        openTopic(t)
     }
 
     // ---------- 帖子详情三级页（盖入式；从话题流内点帖进入） ----------

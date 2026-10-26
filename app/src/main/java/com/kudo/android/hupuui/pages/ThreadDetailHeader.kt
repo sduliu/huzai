@@ -40,6 +40,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.ThumbUp
@@ -171,6 +172,8 @@ import androidx.compose.ui.text.TextRange
 import com.kudo.android.hupu.HupuAccount
 import com.kudo.android.hupu.HupuSticker
 import com.kudo.android.hupu.HupuAuthor
+import com.kudo.android.hupu.HupuTopicInfo
+import com.kudo.android.hupu.HupuUiSignals
 import kotlinx.coroutines.launch
 import com.kudo.android.hupuui.glass.liquidElevation
 import com.kudo.android.hupuui.components.LiquidBackButton
@@ -316,41 +319,83 @@ internal fun MainPost(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         val fs = remember(HupuPrefs.fontScaleVersion) { HupuPrefs.loadFontScale() }
-        d.thread.author?.let { a ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .then(if (a.euid.isNotEmpty()) Modifier.clickable { onOpenUser(a.euid) } else Modifier),
-            ) {
-                // 作者头像（对齐评分页形态；无头像时隐藏）
-                normalizeCover(a.url)?.let { avatar ->
-                    HupuAvatarImage(
-                        model = avatar,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                }
-                Text(
-                    a.name,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-        }
-
+        // 批N-2：官方排布——大号粗体标题在上，作者行（头像+昵称+发布时间+右侧版块链接）其次
         Text(
             d.thread.title,
-            fontSize = (17 * fs).sp,
+            fontSize = (20 * fs).sp,
             fontWeight = FontWeight.Bold,
-            lineHeight = (24 * fs).sp,
+            lineHeight = (27 * fs).sp,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(bottom = 8.dp),
         )
+
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            d.thread.author?.let { a ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .weight(1f)
+                        .then(if (a.euid.isNotEmpty()) Modifier.clickable { onOpenUser(a.euid) } else Modifier),
+                ) {
+                    normalizeCover(a.url)?.let { avatar ->
+                        HupuAvatarImage(
+                            model = avatar,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(
+                        a.name,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (d.thread.createdAtText.isNotBlank()) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            d.thread.createdAtText,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                    }
+                }
+            } ?: Spacer(Modifier.weight(1f))
+            // 官方作者行右侧版块链接「版块名 >」→ 跳对应专区版块流
+            d.thread.topic?.takeIf { it.name.isNotBlank() }?.let { topic ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable {
+                        HupuUiSignals.requestZoneBoard(
+                            HupuTopicInfo(
+                                topicId = topic.topicId,
+                                name = topic.name,
+                                url = topic.url.ifEmpty { "/${topic.topicId}" },
+                            ),
+                        )
+                    },
+                ) {
+                    Text(
+                        topic.name,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                    Icon(
+                        Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+        }
 
         // 1.178: 结构化正文（赛事战报等）——官方存的是 JSON 描述符而非 HTML，
         // 识别后渲染成卡片并「点开进 WebView」，避免把这段 JSON 当文本原样显示
@@ -367,6 +412,9 @@ internal fun MainPost(
                 onImageClick = onImageClick,
                 vote = d.vote,
                 onToast = onToast,
+                // 批N-2：官方正文 17sp、行距宽松
+                bodyFontSp = 17f,
+                bodyLineHeightSp = 28f,
             )
             if (d.vote != null && !voteInline) VoteCard(d.vote, onToast)
         }
@@ -379,21 +427,20 @@ internal fun MainPost(
                 onToggleFullscreen = onToggleFullscreen,
             )
         }
-        // 1.189: 元信息行——「推荐 / 收藏」已上移到常驻操作条（滚到评论区也能操作），
-        // 这里改显示「发布时间 · 发布于地 · 浏览数」，凑齐三条，与官方网页版口径一致。
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            val metas = buildList {
-                if (d.thread.createdAtText.isNotBlank()) add(d.thread.createdAtText)
-                if (d.thread.location.isNotBlank()) add("发布于${d.thread.location}")
-                add("浏览 ${formatCount(d.thread.read)}")
-            }
-            metas.forEachIndexed { i, s ->
-                if (i > 0) {
-                    Spacer(Modifier.width(6.dp))
-                    Text("·", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.width(6.dp))
+        // 批N-2：文末 meta 行对齐官方——「发布于{地} 阅读 {数}」；
+        // 发布时间已上移到作者行，不再重复。字段缺失的段不显示（无发布地则只有阅读数）。
+        val metas = buildList {
+            if (d.thread.location.isNotBlank()) add("发布于${d.thread.location}")
+            if (d.thread.read > 0) add("阅读 ${formatCount(d.thread.read)}")
+        }
+        if (metas.isNotEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                metas.forEachIndexed { i, s ->
+                    if (i > 0) {
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(s, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Text(s, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

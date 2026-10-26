@@ -79,7 +79,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -180,6 +182,9 @@ internal sealed class HtmlBlock {
 
 /** 文本内联样式区间（剥标签后坐标） */
 internal data class HtmlSpan(val start: Int, val end: Int, val bold: Boolean, val link: String?)
+
+/** 批N-2：官方正文话题词/链接色（虎扑 App 蓝链色，与主题色解耦——官方固定蓝） */
+internal val HUPU_LINK_BLUE = Color(0xFF3B82F6)
 
 /**
  * HTML → 块列表（保序）：<img> 与投票占位 <span data-type="vote"> 提为独立块，
@@ -406,12 +411,15 @@ internal fun HtmlContent(
     onToast: (String) -> Unit = {},
     /**
      * 评论/楼中楼语境：图片以缩略尺寸呈现（≈官方 1/3 屏宽，上限 160dp×200dp），
-     * 表情/贴纸不再放大到近满宽；点图仍可全屏看原图。主楼正文保持原样（传 false）。
+     * 表情/贴纸不再放大到近满宽；点图仍可看全屏原图。主楼正文保持原样（传 false）。
      */
     compactImages: Boolean = false,
+    /** 批N-2：主楼正文按官方 17sp/28sp（宽松行距）；回复语境保持默认 15sp/24sp */
+    bodyFontSp: Float = 15f,
+    bodyLineHeightSp: Float = 24f,
 ) {
     val onSurface = MaterialTheme.colorScheme.onSurface
-    val primary = MaterialTheme.colorScheme.primary
+    val linkBlue = HUPU_LINK_BLUE
     val fs = remember(HupuPrefs.fontScaleVersion) { HupuPrefs.loadFontScale() }
     val blocks = remember(html) { parseHtmlBlocks(html) }
     // 1.186: 本条消息内的全部图片（与正文渲染同序）——全屏查看时可在其中左右切换
@@ -489,15 +497,24 @@ internal fun HtmlContent(
                             buildAnnotatedString {
                                 append(b.text)
                                 for (sp in b.spans) {
-                                    val style = SpanStyle(
-                                        fontWeight = if (sp.bold) FontWeight.Bold else null,
-                                        color = if (sp.link != null) primary else onSurface,
-                                    )
-                                    addStyle(style, sp.start, sp.end)
+                                    if (sp.link != null) {
+                                        // 批N-2：话题词/链接按官方样式蓝色可点（经 LocalUriHandler 打开）
+                                        addLink(
+                                            LinkAnnotation.Url(sp.link, TextLinkStyles(SpanStyle(color = linkBlue))),
+                                            sp.start, sp.end,
+                                        )
+                                        if (sp.bold) addStyle(SpanStyle(fontWeight = FontWeight.Bold), sp.start, sp.end)
+                                    } else {
+                                        val style = SpanStyle(
+                                            fontWeight = if (sp.bold) FontWeight.Bold else null,
+                                            color = onSurface,
+                                        )
+                                        addStyle(style, sp.start, sp.end)
+                                    }
                                 }
                             }
                         }
-                        Text(annotated, fontSize = (15 * fs).sp, lineHeight = (24 * fs).sp)
+                        Text(annotated, fontSize = (bodyFontSp * fs).sp, lineHeight = (bodyLineHeightSp * fs).sp)
                     } else {
                         // Hupu emoji tokens: plain runs keep their spans (coords shifted to
                         // segment-local), tokens become inline image content (20sp square).
@@ -513,13 +530,21 @@ internal fun HtmlContent(
                                             val s2 = (sp.start - base).coerceAtLeast(0)
                                             val e2 = (sp.end - base).coerceAtMost(seg.text.length)
                                             if (e2 > s2) {
-                                                addStyle(
-                                                    SpanStyle(
-                                                        fontWeight = if (sp.bold) FontWeight.Bold else null,
-                                                        color = if (sp.link != null) primary else onSurface,
-                                                    ),
-                                                    s2, e2,
-                                                )
+                                                if (sp.link != null) {
+                                                    addLink(
+                                                        LinkAnnotation.Url(sp.link, TextLinkStyles(SpanStyle(color = linkBlue))),
+                                                        s2, e2,
+                                                    )
+                                                    if (sp.bold) addStyle(SpanStyle(fontWeight = FontWeight.Bold), s2, e2)
+                                                } else {
+                                                    addStyle(
+                                                        SpanStyle(
+                                                            fontWeight = if (sp.bold) FontWeight.Bold else null,
+                                                            color = onSurface,
+                                                        ),
+                                                        s2, e2,
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -527,7 +552,7 @@ internal fun HtmlContent(
                             }
                         }
                         val inline = rememberEmojiInline(emojiSegs, 20f * fs)
-                        Text(annotated, fontSize = (15 * fs).sp, lineHeight = (24 * fs).sp, inlineContent = inline)
+                        Text(annotated, fontSize = (bodyFontSp * fs).sp, lineHeight = (bodyLineHeightSp * fs).sp, inlineContent = inline)
                     }
                 }
             }

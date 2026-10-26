@@ -525,3 +525,10 @@ Muse 要求核查「层级稀疏 + 快捷行项数」——先查代码与接口
 ## 批N-1b：神回复预览块无匿名源（不做）
 
 官方信息流卡的灰底神回复块（回复者+亮了[N]+引用正文+「去看 N 条亮回复」）字段 `lightReplyResult{replyUserName,pid,totalCount,content}` **仅存在于 `api/v2/bbs/walkingStreet/threads`**——该接口固定只下发步行街主干道（topicId 参数实测被忽略），接不进首页综合流。res[]、`threads?tid=`、`bbs-thread/{tid}`、detail SSR、`reply/list` 实测均无同义字段；本地按「最亮回复」推导语义不等价（totalCount=亮回复总数非列表可算）且每卡一次全量回复请求不可行。结论：不做，等官方接口面变化。
+
+## 批N-2：详情页头部按官方复刻——标题→作者行→正文→文末meta
+
+- **排布**：原「作者行→标题→正文」改为官方「标题(20sp粗体/lh27)→作者行(头像+昵称+发布时间+右侧「版块名 >」)→正文→文末meta」。作者行并入发布时间后，meta 行改为官方口径「发布于{地} 阅读 {数}」（字段缺失段不显示、全缺整行不渲染）。
+- **版块链接**：`HupuUiSignals.zoneBoardRequest` 信号总线——详情页置 `HupuTopicInfo` → KudoApp `LaunchedEffect` 切底栏 Tab 1 → ZonePage 消费并 `openTopic`（复用既有盖入版块流，零新页面）。版块 url 缺失时回落 `/{topicId}` 数字路径。
+- **正文**：`HtmlContent` 加 `bodyFontSp/bodyLineHeightSp` 参数（默认 15/24 保回复语境），主楼传 17/28（官方 17-18sp 宽松行距）。
+- **话题词/链接**：span.link 从「主题色不可点」改为 `addLink(LinkAnnotation.Url)` + 固定蓝 `HUPU_LINK_BLUE=0xFF3B82F6`（官方蓝链色，与主题色解耦）——点击经 LocalUriHandler 开系统浏览器（v1；官方为应用内打开，内嵌路由留待后续）。bold+link 共存时 bold 样式叠加。
