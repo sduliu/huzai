@@ -2,6 +2,7 @@ package com.kudo.android.hupuui.pages
 
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.BackEventCompat
+import com.kudo.android.hupu.pageId
 import kotlin.coroutines.cancellation.CancellationException
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
@@ -455,8 +456,8 @@ internal fun ReplyRow(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = r.author?.takeIf { it.euid.isNotEmpty() }
-                ?.let { a -> Modifier.clickable { onOpenUser(a.euid) } } ?: Modifier,
+            modifier = r.author?.takeIf { it.pageId.isNotEmpty() }
+                ?.let { a -> Modifier.clickable { onOpenUser(a.pageId) } } ?: Modifier,
         ) {
                 // 头像（无头像时隐藏不占位）
                 r.author?.let { a ->

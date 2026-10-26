@@ -13,6 +13,12 @@ data class HupuAuthor(
     val euid: String = "",
 )
 
+/** 批W-2：用户主页路由 id——euid 优先，部分帖（如官方账号帖）SSR 只下发 puid；
+ *  m.hupu.com/user/{puid} 实测同返回完整 SSR，可安全回落。"0" 为占位脏值。
+ *  注意不把 puid 写进 euid 字段：登录态 PC getUserInfo 接口要真 euid 命名空间。 */
+val HupuAuthor.pageId: String
+    get() = euid.takeIf { it.isNotEmpty() } ?: puid.takeIf { it.isNotEmpty() && it != "0" } ?: ""
+
 data class HupuTopic(
     val topicId: String = "",
     val name: String = "",

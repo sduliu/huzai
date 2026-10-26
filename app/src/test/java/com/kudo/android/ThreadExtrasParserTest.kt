@@ -1,6 +1,8 @@
 package com.kudo.android
 
+import com.kudo.android.hupu.HupuAuthor
 import com.kudo.android.hupu.HupuParser
+import com.kudo.android.hupu.pageId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -50,5 +52,15 @@ class ThreadExtrasParserTest {
         assertEquals(0L, HupuParser.parseThreadCreatedAtMs("""{"code":400,"data":{}}"""))
         assertEquals(0L, HupuParser.parseThreadCreatedAtMs("""{"data":{"thread":{}},"code":200}"""))
         assertEquals(0L, HupuParser.parseThreadCreatedAtMs("not-json"))
+    }
+
+    /** 批W-2：作者主页路由 id——euid 优先；官方账号帖 SSR 只下发 puid 时回落 puid
+     *  （m.hupu.com/user/{puid} 实测同样返回完整 SSR）；"0" 为占位脏值不路由。 */
+    @Test
+    fun `author pageId prefers euid falls back puid`() {
+        assertEquals("e1", HupuAuthor(puid = "p1", euid = "e1").pageId)
+        assertEquals("p1", HupuAuthor(puid = "p1", euid = "").pageId)
+        assertEquals("", HupuAuthor(puid = "0", euid = "").pageId)
+        assertEquals("", HupuAuthor().pageId)
     }
 }

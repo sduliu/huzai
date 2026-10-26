@@ -1012,3 +1012,10 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **修**：BoardMatchRow 右位同口径——`subscribe.show && NOTSTARTED` → 🔔+「预约」蓝字 + 只读弹窗（subScribeTitle/Desc）；进行中/已结束/无字段行保持状态字。
 - **soccer 边界**：国际足球走 m.hupu.com/soccer SSR——match 对象字段表无 subscribe 键（8 个 match-api businessId 候选全空），`subscribe=null` → 保留「未开始」，不伪造预约位。新 pin 测试 `soccerSchedule_notStartedRow_hasNoSubscribeField`。
 - 回退：revert 本 commit。
+
+### 批W-2：作者主页点按——euid 缺失帖（官方账号帖）补 puid 回落
+
+- **定位**：帖详情作者行接线存在且唯一（`MainPost`/`ReplyRow`/`ThreadDetailFloor` 父子行共用 `author.euid.isNotEmpty()` 门控）——官方账号帖（赛场小助手类）SSR `author` 只下发 `puid`、无 `euid` → 行不可点，非第二条无接线头布局。
+- **实证**：抽样 14 帖 SSR——`虎扑篮球资讯`（puid=56098302）与 `JRs评选`（puid=59548906）等官方资讯号均带 euid 可跳；euid 缺失场景按字段契约处理（author.euid 空）。puid 直达已验证：`m.hupu.com/user/59548906` 返回完整 SSR（昵称/帖10/回20）。
+- **修**：新增 `HupuAuthor.pageId`（euid 优先、puid 回落、"0" 脏值滤除）→ 四处点按门控统一换用。**不把 puid 写进 euid 字段**——登录态 PC `getUserInfo?euid=` 要真 euid 命名空间；puid 路由在登录态 PC 调用失败后会自动落 SSR，语义安全。
+- 单测：`author pageId prefers euid falls back puid`（ThreadExtrasParserTest）。回退：revert 本 commit。

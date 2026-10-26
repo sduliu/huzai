@@ -3,6 +3,7 @@ import com.kudo.android.hupuui.player.VideoHost
 import com.kudo.android.hupuui.player.VideoPlayer
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.BackEventCompat
+import com.kudo.android.hupu.pageId
 import kotlin.coroutines.cancellation.CancellationException
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
@@ -335,7 +336,7 @@ internal fun MainPost(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .weight(1f)
-                        .then(if (a.euid.isNotEmpty()) Modifier.clickable { onOpenUser(a.euid) } else Modifier),
+                        .then(if (a.pageId.isNotEmpty()) Modifier.clickable { onOpenUser(a.pageId) } else Modifier),
                 ) {
                     normalizeCover(a.url)?.let { avatar ->
                         HupuAvatarImage(
