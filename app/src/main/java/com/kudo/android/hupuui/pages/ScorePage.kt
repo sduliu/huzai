@@ -616,11 +616,17 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
         }
 
     // 批U-1：篮球详情头数据（matchInfo）——businessType=basketball 的 matchId 直达，无 join
+    // 批U-3：同场球员统计（playerMatchStats）——评分卡数据行（姓名 join）
+    val matchPlayerStats = remember { mutableStateMapOf<String, com.kudo.android.hupu.HupuMatchPlayerStats>() }
     LaunchedEffect(openedMatch?.matchId) {
         val m = openedMatch ?: return@LaunchedEffect
         if (m.businessType != "basketball") return@LaunchedEffect
-        if (matchInfos.containsKey(m.matchId)) return@LaunchedEffect
-        repo.matchInfo(m.matchId)?.let { matchInfos[m.matchId] = it }
+        if (!matchInfos.containsKey(m.matchId)) {
+            repo.matchInfo(m.matchId)?.let { matchInfos[m.matchId] = it }
+        }
+        if (!matchPlayerStats.containsKey(m.matchId)) {
+            repo.matchPlayerStats(m.matchId)?.let { matchPlayerStats[m.matchId] = it }
+        }
     }
 
     // 当前打开的比赛：树+分组都就绪后才关 loading——内容与分类条同帧出现，不跳动；
@@ -1104,6 +1110,8 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
                 scoreBizType = om.scoreBizType,
                 scoreBizNo = om.scoreBizNo,
                 hupuRepo = repo,
+                // 批U-3：评分卡数据行（playerMatchStats 按姓名 join）
+                playerStats = matchPlayerStats[om.matchId],
                 onLiveTick = {
                     // 1.198：实时记分板 —— 静默刷新（**不动 detailLoading**，否则会闪骨架）
                     val no = om.scoreBizNo

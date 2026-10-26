@@ -30,6 +30,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarHalf
+import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -130,6 +133,8 @@ fun MatchDetailOverlay(
     scoreBizNo: String? = null,
     /** 批U-2：讨论 tab 数据源（匿名 comments 拉取用） */
     hupuRepo: HupuRepository? = null,
+    /** 批U-3：篮球球员统计（playerMatchStats）——评分卡数据行按姓名 join */
+    playerStats: com.kudo.android.hupu.HupuMatchPlayerStats? = null,
     /** 记分板点队名/队标 → 盖出球队页（memberId/name/logo） */
     onOpenTeam: (String, String, String?) -> Unit = { _, _, _ -> },
 ) {
@@ -285,7 +290,7 @@ fun MatchDetailOverlay(
                                 if (t == null) {
                                     ErrorRetry { onRefresh() }
                                 } else {
-                                    TreeContent(t, currentRound?.bizId, teams = teams, groups = groups, groupMembers = groupMembers, selectedGroup = selectedGroup, onGroupChange = { selectedGroup = it }, onSelectRound = { selectedRoundId = it }, onOpenPlayer = onOpenPlayer)
+                                    TreeContent(t, currentRound?.bizId, teams = teams, groups = groups, groupMembers = groupMembers, selectedGroup = selectedGroup, onGroupChange = { selectedGroup = it }, onSelectRound = { selectedRoundId = it }, onOpenPlayer = onOpenPlayer, basketball = isBasketball, playerStats = playerStats)
                                 }
                             }
                         }
@@ -327,7 +332,14 @@ private fun TreeContent(
     onGroupChange: (String) -> Unit,
     onSelectRound: (String) -> Unit,
     onOpenPlayer: (HupuScoreItem) -> Unit,
+    /** 批U-3：篮球场 → 官方球员卡形态（星级/数据行/蓝分/原始计数/橙引言） */
+    basketball: Boolean = false,
+    playerStats: com.kudo.android.hupu.HupuMatchPlayerStats? = null,
 ) {
+    // 批U-3：姓名 → 数据行索引（playerMatchStats 与评分树同名中文姓名 join；重名取首个）
+    val statsByName = remember(playerStats) {
+        playerStats?.let { (it.home + it.away).associateBy { s -> s.name } }.orEmpty()
+    }
     Column(Modifier.fillMaxSize()) {
         // 1.198：记分板与 1.201 的顶层分类条都已上提到本组件之外（页面级固定头部）
         // 对局横滑条（第1局…第N局，正序）——仅 MOBA 三层结构显示；
@@ -433,7 +445,11 @@ private fun TreeContent(
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(players, key = { it.bizId }) { p ->
-                        PlayerScoreRow(p, onClick = { onOpenPlayer(p) })
+                        if (basketball) {
+                            BasketballRatingRow(p, stat = statsByName[p.name], onClick = { onOpenPlayer(p) })
+                        } else {
+                            PlayerScoreRow(p, onClick = { onOpenPlayer(p) })
+                        }
                     }
                 }
             }
@@ -1416,6 +1432,115 @@ private fun MatchDiscussTab(
             items(comments, key = { it.commentId }) { c ->
                 CommentRow(c)
             }
+        }
+    }
+}
+
+/**
+ * 批U-3：官方篮球球员评分卡（虎扑评分 tab 行）。
+ *
+ * 形态：头像+姓名+星级(评分/2→5星)+数据行(分/篮板/助攻) | 蓝色大分 + 「N JRs评分」原始计数；
+ * 下方橙色引言块（最热评论）。与通用评分行（绿/橙/红分 + N人）刻意区分——按官方屏复刻。
+ */
+@Composable
+private fun BasketballRatingRow(
+    p: HupuScoreItem,
+    stat: com.kudo.android.hupu.HupuMatchPlayerStat?,
+    onClick: () -> Unit,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable { onClick() }
+            .padding(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.Top) {
+            HeroBadgeAvatar(avatar = p.image, heroIcon = null, size = 44.dp)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
+                Text(
+                    p.name,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                // 星级：scoreAvg(10制) → 5 星（半星按 0.5 进位）
+                RatingStars(p.scoreAvg)
+                // 数据行：playerMatchStats join 命中显示「34分 5篮板 4助攻」；缺省不占位
+                stat?.let { s ->
+                    val line = buildList {
+                        if (s.pts.isNotBlank()) add("${s.pts}分")
+                        if (s.reb.isNotBlank()) add("${s.reb}篮板")
+                        if (s.asts.isNotBlank()) add("${s.asts}助攻")
+                    }.joinToString(" ")
+                    if (line.isNotBlank()) {
+                        Text(
+                            line,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.width(10.dp))
+            // 蓝色大分 + 「9087JRs评分」原始计数（详情页口径非万制）
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    p.scoreAvg,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MatchJrsBlue,
+                )
+                Text(
+                    "${p.scorePersonCount}JRs评分",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        // 橙色引言块：最热评论（官方橙底圆角块）
+        if (p.hotComment.isNotBlank()) {
+            Text(
+                "「${p.hotComment}」",
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                color = Color(0xFF9A3412),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFFFF3E0))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            )
+        }
+    }
+}
+
+/** 星级行：10 制评分 → 5 星（9.6→★★★★✰ 半星）。琥珀色同官方。 */
+@Composable
+private fun RatingStars(scoreAvg: String) {
+    val v = (scoreAvg.toDoubleOrNull() ?: 0.0).coerceIn(0.0, 10.0) / 2.0
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        repeat(5) { i ->
+            val icon = when {
+                v >= i + 1 -> Icons.Rounded.Star
+                v > i -> Icons.Rounded.StarHalf
+                else -> Icons.Rounded.StarBorder
+            }
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = Color(0xFFF5A524),
+                modifier = Modifier.size(14.dp),
+            )
         }
     }
 }

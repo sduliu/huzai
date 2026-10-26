@@ -925,3 +925,9 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **Tab 口径**：战报=匿名无结构化源（量取表）→ 空态「本场暂无战报」，不编数据；虎扑评分=原评分树内容；统计=NbaStatsBody(BOX)（nbaQuery 缺失场→空态）；讨论=`primarySingleRow` 评论挂评分对象（scoreBizType/scoreBizNo）——实测近期场 canComment=false/commentCount=0 → 空态「本场讨论暂未开放」，有数据走 `CommentRow` 渲染；直播=排除项不接。
 - **文字实录 tab 从篮球场 Tab 条移除**（官方集合不含）——pbp 数据仍将由统计 tab 走势图复用（批U-4）；非篮球场保留。回退：revert 本 commit。
 - **数据统计 pill 疑点结论**：旧 chip 链路（clickable→nbaTab→NbaStatsBody）代码路径正常，Muse 坐标命中疑为主因；篮球场已整体换成文本 Tab 条，命中域更大，顺带消解。
+
+### 批U-3：虎扑评分 tab 官方球员卡
+
+- **BasketballRatingRow**（仅篮球场启用，其他赛事仍走 PlayerScoreRow）：头像44dp + 姓名15sp SemiBold + **星级行**（scoreAvg/2→5星，半星进位，琥珀 #F5A524）+ **数据行**（`{pts}分 {reb}篮板 {asts}助攻` 12sp 灰，playerMatchStats 按中文姓名 join——两端姓名同命名空间，重名取首个）| **蓝色大分** 22sp Bold `MatchJrsBlue` + **「{原始计数}JRs评分」** 11sp 灰（详情页口径=原始计数，与频道卡万制刻意分屏）+ **橙色引言块**（`「热评」` #9A3412 字 / #FFF3E0 底 8dp 圆角）。
+- **数据链**：`playerMatchStats?matchId=`（basketballapi）——ScorePage 与 matchInfo 同 effect 拉取，缓存 `matchPlayerStats[matchId]`。
+- 回退：revert 本 commit（basketball 分支消失，全量回落 PlayerScoreRow）。
