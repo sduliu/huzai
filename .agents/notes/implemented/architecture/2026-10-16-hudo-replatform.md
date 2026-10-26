@@ -966,3 +966,10 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **对照**：球员级 `basketball_item` 同端点返回真实数据（例 228733 昆滕-波斯特 commentCount=55、亮评 lightCount=50）——端点/解析/渲染链路健康；`CommentRow` 同款模型在选手评分详情页生产渲染。
 - **结论**：官方把比赛级讨论挂在评分对象上，但该面当前服务端统一关闭——「本场讨论暂未开放」空态是官方口径如实呈现，非渲染 bug；官方开放后现有链路零改动渲染。
 - **闭环证据**：`MatchDiscussCommentTest` 3 例用真实球员级载荷断言 CommentRow 全字段映射（头像/昵称/内容/日期/点亮/IP/打分/subjectId）。
+
+### 批V-2：赛程行文案抽查（三类真实数据核实）+ 预约行形态修
+
+- **已结束带评分行**（NBA 实测）：`matchStatusDesc`="已结束" + `scoreCountText` 服务端直发「2.0万人评分/4.3万人评分」万制人评分格式——渲染与官方一致，`hupuWanScoreText` 归一化仅对非标准文案（soccer `pv` 裸数"9223"→"9223人评分"）兜底，无需改。
+- **未开始预约行**（NBA NOTSTARTED 实测）：`subscribeInfo.showSubscribe=true`、`scoreCountText=null`——官方右列=「🔔预约」单入口；酷DO 原渲染「未开始」状态字 + 填充胶囊 chip。修：预约位改铃铛图标+「预约」蓝字（Icons.Outlined.Notifications 12dp），`subscribable` 时隐藏「未开始」；订阅仍只读弹窗（写接口登录态不接）。
+- **进行中行**（CBA 实测）："进行中" 蓝字保留；INPROGRESS+subscribable 组合仍显状态字。
+- **不同联赛行**：NBA/CBA(basketball)/epl(football)/lol 共用 MatchRow，文案同口径；soccer `pv` 裸数经 `hupuWanScoreText` 归一。

@@ -24,7 +24,10 @@ import com.kudo.android.hupuui.components.animateChipCenterTo
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -199,12 +202,17 @@ internal fun MatchRow(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
             }
         }
         // 右列：状态 + 评分人数
+        val subscribable = m.subscribe?.show == true
         Column(horizontalAlignment = Alignment.End) {
-            Text(
-                m.statusDesc, fontSize = 11.sp,
-                color = if (m.status == "INPROGRESS") MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            // 批V-2：官方未开始行右列=「🔔预约」单入口（订阅位），不再重复显示「未开始」状态字；
+            // 进行中仍显示状态蓝字。
+            if (!subscribable || m.status == "INPROGRESS") {
+                Text(
+                    m.statusDesc, fontSize = 11.sp,
+                    color = if (m.status == "INPROGRESS") MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             // 批U-5：官方赛程行右侧评分文案为万制「N万人评分」——"9223评分"→"9223人评分"、
             // "15.6万人评分"→"15.6万人评分"；非计数文案原样显示。
             val countText = com.kudo.android.hupu.hupuWanScoreText(m.scoreCountText)
@@ -217,19 +225,25 @@ internal fun MatchRow(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
             // 订阅是写接口（需登录态），这里只做展示占位，不伪造已约态。
             // 批F-2/批G-3：点 chip 弹只读对话框，标题/正文=官方 subScribeTitle/subScribeDesc
             // 真实字段，不发任何订阅/写请求（匿名可达范围只读）。
-            if (m.subscribe?.show == true) {
-                Spacer(Modifier.height(3.dp))
+            // 批V-2：官方形态=铃铛图标+「预约」蓝字（非填充胶囊）。
+            if (subscribable) {
                 var showSubscribe by remember { mutableStateOf(false) }
-                Text(
-                    "预约",
-                    fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.primary,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
+                        .clip(RoundedCornerShape(4.dp))
                         .clickable { showSubscribe = true }
-                        .padding(horizontal = 8.dp, vertical = 2.dp),
-                )
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                ) {
+                    Icon(
+                        Icons.Outlined.Notifications,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(12.dp),
+                    )
+                    Spacer(Modifier.width(3.dp))
+                    Text("预约", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
+                }
                 if (showSubscribe) {
                     AlertDialog(
                         onDismissRequest = { showSubscribe = false },
