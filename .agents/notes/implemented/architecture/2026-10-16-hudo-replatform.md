@@ -702,3 +702,19 @@ Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage
 - **死参清理**：`NavigationAction` 枚举、`DisplaySettings.navigationAction`、`navigation_action` pref 读写全删（`DisplaySettings` 调用点全具名参数，删中间位参安全；存量 pref 键无害残留）。SettingsScreen「底栏中间按钮」行与 dialog 分支同删。
 - **通知落点**：`IncomingNotification` 的 tab 回调 `{selected=3}→{0}`——通知路由盖入后底层 Tab 落首页（原语义=消息 Tab 已不存在）。
 - **androidTest 适配**：`NavigationActionUiTest` 整删（测的是被删功能）;`CommunityUiTest`/`NavigationTapUiTest`/`NavigationMaterialUiTest`/`HomeRefreshUiTest`/`NotificationUiTest`/`DeepLinkUiTest` 按 3 项语义重写断言与手势坐标（槽位 fraction 映射 n/3，索引 4→2/3→1，`published` 计数删除）；徽章测试因徽标迁「我的」而继续有效。
+
+## 批R-0：话题聚合页空白定性——topicId/tagId 命名空间错配
+
+**实测证据（Resin 代理，匿名 GET，2026-10-26）**：
+| 探测 | 结果 |
+|---|---|
+| `bbs.hupu.com/643295837.html` SSR `detail.thread.topic` | `{topicId:"502", cateId:"8", cateName:"NBA", type:1, name:"篮球资讯", url:"/502", fid:"4860"}`——Muse 看到的 chip 本体 |
+| `m.hupu.com/api/v2/bbs/tagThreads?tagId=502&tagType=&page=1`（批P 现行路径） | `{"code":200,"data":{"threadList":[],"nextPage":false}}`——**空**，即真机空白根因 |
+| `tagThreads?tagId=41333`（`threadKeywordData` CATEGORY tagId 对照） | `threadList` 有数据——证明 tagThreads 的 `tagId` 属于 `threadKeywordData` tagId 命名空间，与 `thread.topic.topicId` **不同名** |
+| `bbs.hupu.com/502` SSR | `$$data.topic.{topic,threads,tabs}` 完整命中 `parseTopicPage` 形状：50 条/页×20 页、排序 tabs（最新回复/最新发布/24小时榜） |
+| `bbs.hupu.com/502-2` | `current:2`、50 条——`topicPage(url,page)→"{url}-{page}"` 分页规则兼容 |
+| `bbs.hupu.com/topic`（184 足球话题区 `url:"/topic"` 特例） | 同样返回完整 `topicPage`（50 条×20 页）——`topic.url` 是通用落点 |
+
+**根因**：`HupuThread.topic.topicId` 是**话题区页 id**（SSR `topic.url` 直接给出 `/{id}` 路径），批P-2 把它错接进 **tagThreads 的 `tagId`** 命名空间（该空间属于 `threadKeywordData.tagMap[].tagId`）。接口返回 `code:200 + threadList:[]`，页面呈现空态。
+
+**修复方向（批R-1）**：chip `id` 从 `HupuIds.id("tagpage:{topicId}")` 改为 `HupuIds.boardId(topic.url)`（`board:` 键）→ `topics()` 自动走 `topicPage(url)` 专区话题页通道，分页/排序 tab 数据齐备；`topic.url` 空时回落 `"/{topicId}"`。正文 `?tagId=`/`/tag/{id}` 链接的 `tagpage:` 通道**保留**——那才是 tagId 命名空间的正确用户。
