@@ -251,7 +251,9 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                                         }, statusBarStyle = { darkStatusIcons = it })
                                 }
                             }
-                            GlassNavigation(selected, {
+                            // 批Nfix-4：专区详情盖入期间隐藏主导航药丸——详情通栏底栏与
+                            // 药丸同底边重叠（批N-3 缺陷）；官方详情页本无底栏导航。
+                            if (!com.kudo.android.hupu.HupuUiSignals.zoneDetailOpen) GlassNavigation(selected, {
                                 selected = it
                                 if (it == 0 && state.forUser(account.user).hasUpdates) feed.refreshFromNavigation()
                             }, { if (display.navigationAction == NavigationAction.SEARCH) nav.navigate("search") else editor() }, backdrop, display.glass, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(20.dp).widthIn(max = 530.dp).fillMaxWidth(), homeHasUpdates = state.forUser(account.user).hasUpdates, action = display.navigationAction, unreadCount = account.unreadCount)

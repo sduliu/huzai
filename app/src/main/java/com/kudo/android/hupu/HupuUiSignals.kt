@@ -32,6 +32,13 @@ object HupuUiSignals {
      */
     var zoneBoardRequest by mutableStateOf<HupuTopicInfo?>(null)
 
+    /**
+     * 批Nfix-4：专区盖入详情页打开时隐藏主导航药丸。
+     * 详情盖入层（ThreadDetailOverlay）渲染在 GlassNavigation 下层——两者同在底边会重叠；
+     * 官方详情是推入页本无底栏导航。ZonePage 在详情可见期间置 true，KudoApp 据此跳过药丸。
+     */
+    var zoneDetailOpen by mutableStateOf(false)
+
     fun requestZoneBoard(topic: HupuTopicInfo) {
         zoneBoardRequest = topic
     }

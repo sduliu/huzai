@@ -269,6 +269,15 @@ fun ZonePage(modifier: Modifier = Modifier) {
         }
     }
 
+    // 批Nfix-4：详情盖入期间隐藏主导航药丸（详情通栏底栏与药丸同底边会重叠；
+    // 官方详情为推入页本无底栏导航）。本可组合销毁时兜底复位。
+    LaunchedEffect(openedThread != null) {
+        HupuUiSignals.zoneDetailOpen = openedThread != null
+    }
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose { HupuUiSignals.zoneDetailOpen = false }
+    }
+
     val scope = rememberCoroutineScope()
     val current = categories?.find { it.cateId == selectedCateId }
 
