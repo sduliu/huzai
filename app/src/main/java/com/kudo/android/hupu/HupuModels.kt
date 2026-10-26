@@ -844,6 +844,67 @@ data class HupuQuarterScore(
     val away: List<String>,
 )
 
+/**
+ * 批U-1：篮球比赛详情头（basketballapi/matchInfo?matchId= 的 result 子集）。
+ *
+ * 只收详情页要用的字段；`homeRank/awayRank/homeArea/awayArea` 官方在旧完赛场返回 null——
+ * 渲染层按「有才显示」处理（排名行整体缺省时省略，不画占位）。
+ */
+data class HupuMatchInfo(
+    val matchId: String,
+    val matchStatus: String,            // COMPLETED / INPROGRESS / NOTSTARTED
+    val matchStatusChinese: String,     // 「已结束」官方中文态
+    val matchTime: String,              // "2026-10-24 04:00:00"
+    /** 开赛毫秒时间戳（chinaStartTime——官方「中国时间」字段，详情头日期文案按它格式化） */
+    val chinaStartTime: Long = 0L,
+    val homeScore: String,
+    val awayScore: String,
+    val homeTeamName: String,
+    val awayTeamName: String,
+    val homeTeamLogo: String?,
+    val awayTeamLogo: String?,
+    /** 官方队色（日间 hex 无前缀，如 "204224"）；走势图/队标底色可复用 */
+    val homeTeamDayColor: String = "",
+    val awayTeamDayColor: String = "",
+    /** 排名（官方在部分场次返回 null——有才显示） */
+    val homeRank: String = "",
+    val awayRank: String = "",
+    /** 分区（「西部」/「东部」；足球可能为联赛分组名） */
+    val homeArea: String = "",
+    val awayArea: String = "",
+    /** 到场人数（0/空不显） */
+    val attendance: Long = 0L,
+    /** 耗时（"2:27"；空不显） */
+    val costTime: String = "",
+    /** 官方评分人数文案（"3.6万评分"） */
+    val scoreText: String = "",
+    /** 赛季（"2026-2027"） */
+    val season: String = "",
+)
+
+/** 批U-3：篮球单场球员统计一行（basketballapi/playerMatchStats 的 homePlayers/awayPlayers 一项）。 */
+data class HupuMatchPlayerStat(
+    val playerId: String,
+    val name: String,
+    val logoUrl: String?,
+    val position: String,   // G/F/C
+    val starter: Boolean,
+    val mins: String,       // "31:34"
+    val pts: String,
+    val reb: String,
+    val asts: String,
+    /** 球员评分（userScoreAvg 10制 / userScoreCount 原始计数——详情页口径非万制） */
+    val userScoreAvg: String = "",
+    val userScoreCount: Long = 0L,
+)
+
+/** 批U-3：单场球员统计整版（主客两队 + 官方 sortList 列序）。 */
+data class HupuMatchPlayerStats(
+    val matchId: String,
+    val home: List<HupuMatchPlayerStat>,
+    val away: List<HupuMatchPlayerStat>,
+)
+
 /** ============ 球队页（nba.hupu.com/teams|schedule/{slug} SSR） ============ */
 
 /** 阵容一行：号码 / 姓名 / 位置 / 年龄 / 身高 / 体重 */

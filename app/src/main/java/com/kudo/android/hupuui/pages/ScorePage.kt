@@ -175,6 +175,8 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
     var detailClosing by remember { mutableStateOf(false) }
     var detailLoading by remember { mutableStateOf(false) }
     val matchTrees = remember { mutableStateMapOf<String, HupuScoreTree>() }
+    // 批U-1：篮球详情头（basketballapi/matchInfo，key=matchId；仅 businessType=basketball 场拉取）
+    val matchInfos = remember { mutableStateMapOf<String, com.kudo.android.hupu.HupuMatchInfo>() }
     // 服务端分组（getSubGroups）：flat 结构的「全部/队名/趣评」分类条数据源（官方所有赛事通用）
     val matchGroups = remember { mutableStateMapOf<String, List<HupuScoreGroup>>() }
     // 分组成员缓存（groupAndSubNodes，按 rootNodeId → groupId 键）
@@ -612,6 +614,14 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
             }
             matchGroups[key] = resolved
         }
+
+    // 批U-1：篮球详情头数据（matchInfo）——businessType=basketball 的 matchId 直达，无 join
+    LaunchedEffect(openedMatch?.matchId) {
+        val m = openedMatch ?: return@LaunchedEffect
+        if (m.businessType != "basketball") return@LaunchedEffect
+        if (matchInfos.containsKey(m.matchId)) return@LaunchedEffect
+        repo.matchInfo(m.matchId)?.let { matchInfos[m.matchId] = it }
+    }
 
     // 当前打开的比赛：树+分组都就绪后才关 loading——内容与分类条同帧出现，不跳动；
     // 二次进入（此前提前 return 导致分组丢失的 bug）也走同一入口补齐分组
@@ -1088,6 +1098,8 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
                         live = liveMatch,
                     )
                 } else null,
+                // 批U-1：matchInfo 到位 → 深色官方头（未到位走浅色记分板兜底）
+                basketballInfo = matchInfos[om.matchId],
                 onLiveTick = {
                     // 1.198：实时记分板 —— 静默刷新（**不动 detailLoading**，否则会闪骨架）
                     val no = om.scoreBizNo

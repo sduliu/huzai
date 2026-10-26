@@ -910,3 +910,11 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 **官方详情页结构（任务文本口径）**：深色头（队标/大比分/已结束/日期时间/客·主排名行/分享钮）→ Tab `战报/虎扑评分/统计/讨论/直播`（直播排除）→ 虎扑评分=球队切换+球员卡（头像/姓名/星级/数据行/蓝色大分/`{原始计数}JRs评分`/橙引言块）→ 统计=节次表（`第N节`列头+队标）+走势折线图。酷DO 现状差异：浅色卡头、Tab 命名 评分/数据统计/文字实录、绿色分+N人、列头 1/2/3/4 无队标、无走势图。
 
 **文案格式屏级口径**：频道卡=万制「N万JRs评分」蓝（批T-4 已落）；详情页球员卡=原始计数「9087JRs评分」——**两口径分屏保留，不全局统一**。
+
+### 批U-1：比赛详情官方深色头（basketballapi/matchInfo 新源）
+
+- **新匿名源**：`basketballapi/matchInfo?matchId=` ——赛程卡 `matchId`（businessType=basketball）直达，无 join；字段：`matchStatusChinese`（官方状态文案）/`chinaStartTime`（北京开赛毫秒戳，日期文案按系统时区格式化「10月26日 01:00」）/主客队名+队标+队色 `homeTeamDayColor`/`homeRank`+`homeArea`（官方在部分场次返 null→不显示，不编名次）/`score`（官方评分文案）。`liveUrl`/`ad_inside_pop` 属直播/广告位，已排除不接。
+- **MatchDarkHeader**：深色 `#161C28` 头——右上系统分享钮（ACTION_SEND 纯文本「客 132-125 主（已结束）」，无登录动作）→ 客左主右（官方口径，与浅色记分板主左客右相反，刻意按官方）→ 中央 26sp Bold 大比分 + 状态 + 日期 → 队名下方「客/西部第4名」式排名行（双字段齐有才显示，缺省补位保持队名同高）。
+- **接线**：`ScorePage` 按 `openedMatch.matchId`+`businessType==basketball` 拉取缓存于 `matchInfos`；到位后替换 `ScoreboardBanner`（未到位/非篮球场仍走浅色板，零回归）。
+- **模型**：`HupuMatchInfo`/`HupuMatchPlayerStat`/`HupuMatchPlayerStats` 新模型（后者为批U-3 球员统计备用）；API `HupuDataApi.fetchMatchInfo/fetchMatchPlayerStats`；解析 `HupuDataParser.parseMatchInfo/parseMatchPlayerStats`；仓储 `HupuRepository.matchInfo/matchPlayerStats`。
+- 回退：revert 本 commit（深色头自动消失，浅色板顶回）。

@@ -255,3 +255,52 @@ class HupuDataParserTest {
         assertEquals(0L, hupuScoreCount("进行中"))
     }
 }
+
+class HupuMatchDetailParserTest {
+    @Test fun matchInfo_parsesHeaderFields() {
+        // 批U-1：真实 matchInfo 响应子集（NBA matchId 1537808021718040576 实测）
+        val json = """{"success":true,"result":{"matchId":"1537808021718040576",
+            "matchStatus":"COMPLETED","matchStatusChinese":"已结束",
+            "matchTime":"2026-10-24 04:00:00","chinaStartTime":1792785600000,
+            "homeScore":125,"awayScore":132,"homeTeamName":"雄鹿","awayTeamName":"公牛",
+            "homeTeamLogo":"h.png","awayTeamLogo":"a.png",
+            "homeTeamDayColor":"204224","awayTeamDayColor":"FA0808",
+            "homeRank":null,"awayRank":null,"homeArea":null,"awayArea":null,
+            "attendance":16354,"costTime":"2:27","score":"3.6万评分","season":"2026-2027",
+            "liveUrl":"huputiyu://bball/live?matchId=1","ad_inside_pop":{"is_ad":1}}}"""
+        val m = com.kudo.android.hupu.HupuDataParser.parseMatchInfo(json)!!
+        assertEquals("已结束", m.matchStatusChinese)
+        assertEquals("125", m.homeScore)
+        assertEquals("132", m.awayScore)
+        assertEquals("雄鹿", m.homeTeamName)
+        assertEquals("204224", m.homeTeamDayColor)
+        assertEquals("", m.homeRank)          // JSON null → 空串（不编名次）
+        assertEquals("", m.homeArea)
+        assertEquals(16354L, m.attendance)
+        assertEquals("3.6万评分", m.scoreText)
+        assertEquals(1792785600000L, m.chinaStartTime)
+    }
+
+    @Test fun matchInfo_rejectsBadPayloads() {
+        assertNull(com.kudo.android.hupu.HupuDataParser.parseMatchInfo("""{"success":false,"result":null}"""))
+        assertNull(com.kudo.android.hupu.HupuDataParser.parseMatchInfo("""{"result":{}}"""))
+        assertNull(com.kudo.android.hupu.HupuDataParser.parseMatchInfo("not-json"))
+    }
+
+    @Test fun matchPlayerStats_parsesBothTeams() {
+        // 批U-3：真实 playerMatchStats 响应子集
+        val json = """{"success":true,"result":{"matchId":"1537808021718040576",
+            "homePlayers":[{"playerId":"1","name":"泰勒-希罗","logoUrl":"p.png","position":"G",
+              "starter":1,"mins":"31:34","pts":34,"reb":5,"asts":4,"userScoreAvg":9.6,"userScoreCount":7223}],
+            "awayPlayers":[{"playerId":"2","name":"约什-吉迪","position":"G","starter":1,
+              "mins":"30:00","pts":20,"reb":6,"asts":11,"userScoreAvg":8.1,"userScoreCount":3000}]}}"""
+        val s = com.kudo.android.hupu.HupuDataParser.parseMatchPlayerStats(json)!!
+        assertEquals(1, s.home.size)
+        assertEquals("泰勒-希罗", s.home[0].name)
+        assertEquals(34, s.home[0].pts.toInt())
+        assertTrue(s.home[0].starter)
+        assertEquals(7223L, s.home[0].userScoreCount)
+        assertEquals("约什-吉迪", s.away[0].name)
+        assertNull(com.kudo.android.hupu.HupuDataParser.parseMatchPlayerStats("""{"result":{}}"""))
+    }
+}

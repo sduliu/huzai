@@ -345,6 +345,84 @@ object HupuDataParser {
         }
     }
 
+    /** 批U-1：basketballapi/matchInfo → 比赛详情头字段。 */
+    fun parseMatchInfo(json: String): HupuMatchInfo? {
+        return try {
+            val r = JSONObject(json).optJSONObject("result") ?: return null
+            if (r.optString("matchId").isEmpty()) return null
+            fun str(key: String): String =
+                r.optString(key).takeUnless { it == "null" } ?: ""
+            // rank/area 官方在部分场次给 JSON null（optString→"null" 字面量，先判空）
+            fun opt(key: String): String {
+                val v = r.opt(key)
+                return when (v) {
+                    null, JSONObject.NULL -> ""
+                    is Number -> v.toString()
+                    else -> v.toString()
+                }
+            }
+            HupuMatchInfo(
+                matchId = str("matchId"),
+                matchStatus = str("matchStatus"),
+                matchStatusChinese = str("matchStatusChinese"),
+                matchTime = str("matchTime"),
+                chinaStartTime = r.optLong("chinaStartTime", 0L),
+                homeScore = opt("homeScore"),
+                awayScore = opt("awayScore"),
+                homeTeamName = str("homeTeamName"),
+                awayTeamName = str("awayTeamName"),
+                homeTeamLogo = str("homeTeamLogo").ifEmpty { null },
+                awayTeamLogo = str("awayTeamLogo").ifEmpty { null },
+                homeTeamDayColor = str("homeTeamDayColor"),
+                awayTeamDayColor = str("awayTeamDayColor"),
+                homeRank = opt("homeRank"),
+                awayRank = opt("awayRank"),
+                homeArea = str("homeArea"),
+                awayArea = str("awayArea"),
+                attendance = r.optLong("attendance", 0L),
+                costTime = str("costTime"),
+                scoreText = str("score"),
+                season = str("season"),
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** 批U-3：basketballapi/playerMatchStats → 主客两队数据行。 */
+    fun parseMatchPlayerStats(json: String): HupuMatchPlayerStats? {
+        return try {
+            val r = JSONObject(json).optJSONObject("result") ?: return null
+            fun player(o: JSONObject) = HupuMatchPlayerStat(
+                playerId = o.optString("playerId"),
+                name = o.optString("name"),
+                logoUrl = o.optString("logoUrl").takeUnless { it == "null" || it.isEmpty() },
+                position = o.optString("position"),
+                starter = o.optInt("starter", 0) == 1,
+                mins = o.optString("mins"),
+                pts = o.opt("pts")?.toString() ?: "",
+                reb = o.opt("reb")?.toString() ?: "",
+                asts = o.opt("asts")?.toString() ?: "",
+                userScoreAvg = o.opt("userScoreAvg")?.toString()?.takeUnless { it == "null" } ?: "",
+                userScoreCount = o.optLong("userScoreCount", 0L),
+            )
+            fun team(key: String): List<HupuMatchPlayerStat> =
+                r.optJSONArray(key)?.let { a ->
+                    (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let(::player) }
+                } ?: emptyList()
+            val home = team("homePlayers")
+            val away = team("awayPlayers")
+            if (home.isEmpty() && away.isEmpty()) return null
+            HupuMatchPlayerStats(
+                matchId = r.optString("matchId"),
+                home = home,
+                away = away,
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private fun divName(key: String): String = when (key.lowercase()) {
         "atlantic" -> "大西洋分区"
         "central" -> "中部分区"

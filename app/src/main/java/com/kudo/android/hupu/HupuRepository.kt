@@ -586,6 +586,18 @@ class HupuRepository {
         return withContext(Dispatchers.Default) { HupuDataParser.parseQuarterStats(json) }
     }
 
+    /** 批U-1：篮球比赛详情头（basketballapi/matchInfo，匿名 GET）。 */
+    suspend fun matchInfo(matchId: String, refresh: Boolean = false): HupuMatchInfo? {
+        val json = HupuDataApi.fetchMatchInfo(matchId, forceNetwork = refresh) ?: return null
+        return withContext(Dispatchers.Default) { HupuDataParser.parseMatchInfo(json) }
+    }
+
+    /** 批U-3：篮球单场球员统计（basketballapi/playerMatchStats，匿名 GET）。 */
+    suspend fun matchPlayerStats(matchId: String, refresh: Boolean = false): HupuMatchPlayerStats? {
+        val json = HupuDataApi.fetchMatchPlayerStats(matchId, forceNetwork = refresh) ?: return null
+        return withContext(Dispatchers.Default) { HupuDataParser.parseMatchPlayerStats(json) }
+    }
+
     /** board：NBA 积分榜（nba.hupu.com/standings SSR 表格）。失败返回 null。 */
     suspend fun nbaStandings(refresh: Boolean = false): HupuStandings? {
         val html = HupuBoardApi.fetchNbaStandingsHtml(forceNetwork = refresh) ?: return null

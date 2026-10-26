@@ -183,4 +183,24 @@ object HupuDataApi {
             "$GAMES_BASE/basketballapi/teamMatchQuarterStats?matchId=$matchId",
             "quarter-stats-$matchId", forceNetwork, "https://m.hupu.com/",
         )
+
+    /**
+     * 批U-1：比赛详情头（basketballapi/matchInfo）——状态中文/时间/排名分区/队色/评分文案。
+     * 仅 businessType=basketball 的 matchId 有效。
+     */
+    suspend fun fetchMatchInfo(matchId: String, forceNetwork: Boolean = false): String? =
+        get(
+            "$GAMES_BASE/basketballapi/matchInfo?matchId=$matchId",
+            "match-info-$matchId", forceNetwork, "https://m.hupu.com/",
+        )
+
+    /**
+     * 批U-3：单场球员统计（basketballapi/playerMatchStats）——主客两队全场数据行。
+     * 仅 businessType=basketball 的 matchId 有效。
+     */
+    suspend fun fetchMatchPlayerStats(matchId: String, forceNetwork: Boolean = false): String? =
+        get(
+            "$GAMES_BASE/basketballapi/playerMatchStats?matchId=$matchId",
+            "match-player-stats-$matchId", forceNetwork, "https://m.hupu.com/",
+        )
 }
