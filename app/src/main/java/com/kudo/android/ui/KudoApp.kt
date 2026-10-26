@@ -247,7 +247,12 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                                                 openSearch = { q -> nav.navigate("search?query=${Uri.encode(q)}") },
                                                 openRatings = { nav.navigate("score/common") })
                                         })
-                                    1 -> com.kudo.android.hupuui.pages.ZonePage()
+                                    // 批R-2：专区详情 HtmlContent 的 LinkAnnotation.Url 走 LocalUriHandler——
+                                    // 此前无自定义 handler 会直跳系统浏览器；接入 openLink 让站内链接
+                                    // （帖/版块/用户/tag）与 @用户走应用内分发，外链仍回落既有分流。
+                                    1 -> CompositionLocalProvider(androidx.compose.ui.platform.LocalUriHandler provides object : androidx.compose.ui.platform.UriHandler {
+                                        override fun openUri(uri: String) = openLink(uri)
+                                    }) { com.kudo.android.hupuui.pages.ZonePage() }
                                     2 -> ProfileScreen(account.user, ::login, { nav.navigate("settings") }, { nav.navigate("bookmarks") }, { account.user?.username?.let(::user) }, repository = app.repository, about = { nav.navigate("about") }, downloads = { nav.navigate("downloads") },
                                         destination = { destination ->
                                             when (destination) {

@@ -718,3 +718,15 @@ Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage
 **根因**：`HupuThread.topic.topicId` 是**话题区页 id**（SSR `topic.url` 直接给出 `/{id}` 路径），批P-2 把它错接进 **tagThreads 的 `tagId`** 命名空间（该空间属于 `threadKeywordData.tagMap[].tagId`）。接口返回 `code:200 + threadList:[]`，页面呈现空态。
 
 **修复方向（批R-1）**：chip `id` 从 `HupuIds.id("tagpage:{topicId}")` 改为 `HupuIds.boardId(topic.url)`（`board:` 键）→ `topics()` 自动走 `topicPage(url)` 专区话题页通道，分页/排序 tab 数据齐备；`topic.url` 空时回落 `"/{topicId}"`。正文 `?tagId=`/`/tag/{id}` 链接的 `tagpage:` 通道**保留**——那才是 tagId 命名空间的正确用户。
+
+## 批R-2：正文站内蓝链可达性核查与专区路径接线补齐
+
+**四条分发的端到端结论（代码路径 + 匿名实测）**：
+| 目的地 | 分类器输入（实测形态） | openLink 路由 | 匿名数据源 | 结论 |
+|---|---|---|---|---|
+| Thread | `/{tid}.html`、`/all-nba/{tid}.html`、`m.hupu.com/bbs/{tid}[.html]` | `topic/{HupuIds.topicId(tid)}` | `detail.thread` SSR | ✅ 可达 |
+| Board | `/502`、`/topic`、`/all-gambia`、`m.hupu.com/bbs/{board}` 单段 | `category/{boardId(url)}` | `topicPage` $$data（/502 实测 50×20 页） | ✅ 可达 |
+| User | `my.hupu.com/{euid}`（@mention `class="u"` 真实标记）、`m.hupu.com/user/{euid}` | `user/{euid}` | `m.hupu.com/user/{euid}` SSR `userInfoData`+`threadList`（euid=22230928576422 匿名实测有数据） | ✅ 可达 |
+| Tag | `/tag/{id}`、`?tagId=`、`huputiyu://bbs/subject/{id}` | `tag/`→`tagpage:{tagId}`→`tagThreads` | `tagThreads?tagId=41333` 实测有数据 | ✅ 可达（tagId 命名空间正确） |
+
+**发现并修复的真实缺口**：专区路径（`hupuui` 详情，`HtmlContent` 供 ThreadDetailHeader/Floor/Reply 用）的 `LinkAnnotation.Url` 依赖 ambient `LocalUriHandler`——全应用无自定义 provider，点按直跳**系统浏览器**，四类分发在该渲染器不可达。修复：KudoApp 的 `ZonePage()` 挂载点外包 `LocalUriHandler provides {openLink}`，专区下所有正文链接/话题词/@用户随即走 `openLink`→`HupuLink` 分发；首页 RichContent 路径自供 `linkHandler` 不受影响（本就可达）。外链行为不变：非虎扑域仍由 `openLink` 落 `fallbackUrl→openContentLink`。
