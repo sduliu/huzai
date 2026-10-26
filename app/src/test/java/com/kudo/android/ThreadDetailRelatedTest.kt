@@ -4,6 +4,7 @@ import com.kudo.android.hupu.HupuParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -122,6 +123,33 @@ class ThreadDetailRelatedTest {
         assertNotNull(d)
         assertTrue(d!!.hot.isEmpty())
         assertTrue(d.latest.isEmpty())
+    }
+
+    @Test
+    fun `error SSR page returns null so repository evicts poisoned cache`() {
+        // 批X-1 实证：bbs.hupu.com 对不存在/未同步 tid 回 HTTP 200 + ~11KB 错误 SSR
+        //（detail={"lights":[]}，detailErrorInfo.code=4044 在 pageProps 级）。
+        // 该页含 __NEXT_DATA__ 会过壳页门槛被缓存 30 分钟成死链——
+        // 解析必须返回 null 触发 loadThreadDetail 的剔除+强制重拉。
+        val html = "<html><body><script id=\"__NEXT_DATA__\" type=\"application/json\">" +
+            "{\"props\":{\"pageProps\":{" +
+            "\"detail\":{\"lights\":[]}," +
+            "\"detailErrorInfo\":{\"code\":4044,\"message\":\"您访问的帖子不存在！\"}" +
+            "}}}</script></body></html>"
+        assertNull(HupuParser.parseThreadDetail(html))
+    }
+
+    @Test
+    fun `pageProps level detailErrorInfo code 200 does not block good detail`() {
+        // 实测正常页 detailErrorInfo 同样在 pageProps 级且 code=200——两级读取不得误判。
+        val html = "<html><body><script id=\"__NEXT_DATA__\" type=\"application/json\">" +
+            "{\"props\":{\"pageProps\":{" +
+            "\"detailErrorInfo\":{\"code\":200,\"message\":\"成功\"}," +
+            "\"detail\":$baseDetail" +
+            "}}}</script></body></html>"
+        val d = HupuParser.parseThreadDetail(html)
+        assertNotNull(d)
+        assertEquals("主帖标题", d!!.thread.title)
     }
 
     @Test

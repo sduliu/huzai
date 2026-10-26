@@ -1019,3 +1019,16 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **实证**：抽样 14 帖 SSR——`虎扑篮球资讯`（puid=56098302）与 `JRs评选`（puid=59548906）等官方资讯号均带 euid 可跳；euid 缺失场景按字段契约处理（author.euid 空）。puid 直达已验证：`m.hupu.com/user/59548906` 返回完整 SSR（昵称/帖10/回20）。
 - **修**：新增 `HupuAuthor.pageId`（euid 优先、puid 回落、"0" 脏值滤除）→ 四处点按门控统一换用。**不把 puid 写进 euid 字段**——登录态 PC `getUserInfo?euid=` 要真 euid 命名空间；puid 路由在登录态 PC 调用失败后会自动落 SSR，语义安全。
 - 单测：`author pageId prefers euid falls back puid`（ThreadExtrasParserTest）。回退：revert 本 commit。
+
+## 批X：批W 验收死链回归 + 作者主页补验
+
+### 批X-1：频道资讯死链根因——错误 SSR 页毒化详情缓存（30min TTL 内恒死）
+
+- **死链条目实证**（newsList?tagCode=nba 当前流原样载荷）：四行均为**合法帖**——`组织防守同样在线…`（nid=23425022, tid=643319700, `kanqiu://bbs/topic/643319700`, type=LINK/linkType=POST）、`预测谁能赢…`（tid=643318613, IMG_TEXT）、`三分雨…`（tid=643318582）、`战无不胜…`（tid=643318532）。`tid` 字段服务端直发，TID_IN_LINK 抽取与详情 `HupuIds.tid` 解码全程同一命名空间——**路由/抽取无回归**，四 tid 的 `bbs.hupu.com/{tid}.html` 现网 200 且 SSR detail 完整。
+- **根因**：`bbs.hupu.com` 对不存在/未同步 tid **回 HTTP 200 + ~11KB 错误 SSR**（`detail={"lights":[]}`、`pageProps.detailErrorInfo.code=4044`、无 `thread`）。该页含 `__NEXT_DATA__` → 过 `fetchHtml` 壳页门槛 → **写入详情缓存（TTL 30 分钟）**；`parseThreadDetail` 返回 null → NOT_FOUND。毒化条目在 TTL 内使该 tid **恒报「内容不存在」**——流言板新帖在 PC 站 SSR 生成滞后窗口被点按即中招，「4连死」= 四行各自缓存了滞后错误页。
+- **修**（三处，同根因）：
+  1. `HupuCache.remove(path)` 定向剔除（内存+磁盘，不清全库）；
+  2. `loadThreadDetail`/`threadReplies`：解析返回 null → 剔除缓存 + `forceNetwork` 重拉一次 + 重解析——毒化恢复即时、仍失败才是真的不存在；
+  3. `parseThreadDetail` 的 `detailErrorInfo` 改读 pageProps 级（真实位置，detail 级兜底保留），`code` 缺省按成功、显式非 200 才判失败。
+- **不接**：`api/v2/bbs-thread/{tid}` 移动接口实测含完整 t_detail（可作滞后窗口兜底源），但回复流/related 结构不同、整合面大——本批只修缓存毒化，回退=revert 本 commit。
+- 单测：`error SSR page returns null`（真实 4044 载荷断言）、`pageProps level detailErrorInfo code 200`（不误判好页）、`HupuCacheTest.remove`。

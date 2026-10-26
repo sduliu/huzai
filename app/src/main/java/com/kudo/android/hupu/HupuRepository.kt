@@ -173,7 +173,15 @@ class HupuRepository {
             // 1.123: 强刷失败降级磁盘缓存（TTL 内）——断网/服务器抖动时详情页仍可打开
             ?: if (refresh) HupuCache.get("/$tid.html") else null
         if (h == null) return null
-        val det = withContext(Dispatchers.Default) { HupuParser.parseThreadDetail(h) }
+        var det = withContext(Dispatchers.Default) { HupuParser.parseThreadDetail(h) }
+        if (det == null) {
+            // 批X-1：错误页 SSR（detailErrorInfo≠200，如 4044/未同步壳页）也带 __NEXT_DATA__ 会过壳页
+            // 门槛被缓存，毒化条目让该 tid 在 TTL 内恒报「内容不存在」。剔除后强制走网重试一次——
+            // 仍失败才是真不存在（如实 NOT_FOUND，不兜移动接口）。
+            HupuCache.remove("/$tid.html")
+            det = HupuApi.fetchHtml("/$tid.html", forceNetwork = true)
+                ?.let { withContext(Dispatchers.Default) { HupuParser.parseThreadDetail(it) } }
+        }
         // 1.223z: 详情加载成功 → 回写浏览记录，用**真实版块名**补齐。
         // 通知中心/回帖列表等入口首次写入时拿不到版块名，这里在数据到手后自愈。
         det?.thread?.let { t ->
@@ -208,8 +216,16 @@ class HupuRepository {
     /** 帖子回复翻页 */
     suspend fun threadReplies(tid: String, page: Int): HupuThreadDetail? {
         if (page <= 1) return threadDetail(tid)
-        val html = HupuApi.fetchHtml("/$tid-$page.html") ?: return null
-        return withContext(Dispatchers.Default) { HupuParser.parseThreadDetail(html) }
+        val path = "/$tid-$page.html"
+        val html = HupuApi.fetchHtml(path) ?: return null
+        var det = withContext(Dispatchers.Default) { HupuParser.parseThreadDetail(html) }
+        if (det == null) {
+            // 批X-1：与详情同机制——翻页错误 SSR 毒化缓存时剔除并重拉一次
+            HupuCache.remove(path)
+            det = HupuApi.fetchHtml(path, forceNetwork = true)
+                ?.let { withContext(Dispatchers.Default) { HupuParser.parseThreadDetail(it) } }
+        }
+        return det
     }
 
     /** 1.185: 方向感知——是否还有更多回复 */

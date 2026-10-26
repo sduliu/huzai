@@ -69,6 +69,12 @@ object HupuCache {
         } catch (e: Exception) { /* 磁盘满等，忽略 */ }
     }
 
+    /** 定向剔除单条缓存（详情页解析失败时清毒化条目，不波及同目录其他缓存） */
+    fun remove(path: String) {
+        synchronized(memory) { memory.remove(path.replace('/', '_')) }
+        fileFor(path)?.delete()
+    }
+
     /** 清空全部缓存（调试用） */
     fun clear() {
         synchronized(memory) { memory.clear() }

@@ -277,12 +277,16 @@ object HupuParser {
 
     fun parseThreadDetail(html: String): HupuThreadDetail? {
         val next = extractNextData(html) ?: return null
-        val detail = next.optJSONObject("props")
-            ?.optJSONObject("pageProps")
-            ?.optJSONObject("detail") ?: return null
+        val pageProps = next.optJSONObject("props")
+            ?.optJSONObject("pageProps") ?: return null
+        val detail = pageProps.optJSONObject("detail") ?: return null
 
-        val errCode = detail.optJSONObject("detailErrorInfo")?.optInt("code") ?: 200
-        if (errCode != 200) return null
+        // 批X-1：真实错误页 detailErrorInfo 在 pageProps 级（与 detail 平级，
+        // 实测 4044 页 detail={"lights":[]}）——两级都读，code 缺省按成功处理，
+        // 显式非 200 才判失败。
+        val errObj = pageProps.optJSONObject("detailErrorInfo")
+            ?: detail.optJSONObject("detailErrorInfo")
+        if (errObj != null && errObj.optInt("code", 200) != 200) return null
 
         val th = detail.optJSONObject("thread") ?: return null
         // 0 回复帖子的 replies/list 可能缺失：回退空列表（帖子本体仍可展示）
