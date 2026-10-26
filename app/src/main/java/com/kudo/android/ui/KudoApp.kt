@@ -39,6 +39,8 @@ import androidx.navigation.navArgument
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kudo.android.data.*
+import com.kudo.android.hupu.HupuDestination
+import com.kudo.android.hupu.HupuLink
 import com.kudo.android.ui.account.*
 import com.kudo.android.ui.components.*
 import com.kudo.android.ui.editor.*
@@ -140,6 +142,17 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                 return
             }
             if (appLinks.open(url, display.externalLinkMode)) return
+            // 批P-2：虎扑站内链接优先应用内打开（正文话题词/站内链）；归不进目的地的走既有分流
+            when (val dest = HupuLink.destination(url)) {
+                is HupuDestination.Thread -> { topic(HupuIds.topicId(dest.tid)); return }
+                is HupuDestination.Board -> { nav.navigate("category/${HupuIds.boardId(dest.boardUrl)}"); return }
+                is HupuDestination.User -> { user(dest.euid); return }
+                is HupuDestination.Tag -> {
+                    nav.navigate("tag/${Uri.encode("话题")}?id=${HupuIds.id("tagpage:${dest.tagId}")}") { launchSingleTop = true }
+                    return
+                }
+                null -> Unit
+            }
             val fallback = ExternalAppLinkPolicy.fallbackUrl(url) ?: return invalidLink()
             nav.openContentLink(fallback, { selected = 0 }, ::invalidLink)
         }

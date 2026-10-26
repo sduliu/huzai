@@ -148,6 +148,25 @@ fun com.kudo.android.hupu.HupuBoardNews.toTopic(): Topic = Topic(
     pinned = top,
 )
 
+/** tag 聚合页帖（m.hupu.com/tag/{id} + tagThreads API）→ feed 列表项。 */
+fun com.kudo.android.hupu.HupuTagThread.toTopic(): Topic = Topic(
+    id = HupuIds.topicId(tid),
+    title = title,
+    excerpt = summary,
+    // tagThreads 只下发 userName/header（无 euid）——username 置空防跳到错误用户页
+    author = Member(id = 0, username = "", name = userName, avatar = header),
+    categoryId = 0,
+    tags = emptyList(),
+    replies = replies,
+    views = 0,
+    likes = recommendCount,
+    image = pics.firstOrNull().orEmpty(),
+    images = pics,
+    bumpedAt = isoTime(0, time),
+    hasVideo = video.isNotBlank(),
+    shareNum = shareNum,
+)
+
 fun HupuReply.toPost(tid: String): Post = Post(
     id = HupuIds.postId(tid, pid, floor),
     number = floor,
@@ -211,6 +230,11 @@ fun HupuThreadDetail.toTopicDetail(): TopicDetail {
         closed = isLocked,
         location = thread.location,
         readCount = thread.read,
+        // 批P-2：官方「话题区」蓝字位（SSR thread.topic）→ 标签行；tagpage: 键经
+        // CommunityRepository.topics 走 tagThreads 聚合页；无 topicId 不上屏
+        tags = thread.topic?.takeIf { it.topicId.isNotBlank() && it.name.isNotBlank() }?.let {
+            listOf(TopicTag(name = it.name, slug = it.name, id = HupuIds.id("tagpage:${it.topicId}")))
+        } ?: emptyList(),
     )
 }
 

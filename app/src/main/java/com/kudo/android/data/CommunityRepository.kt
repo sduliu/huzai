@@ -45,6 +45,13 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
      */
     suspend fun topics(filter: String = "latest", categoryId: Int? = null, next: String? = null, refresh: Boolean = false): TopicPage {
         if (categoryId != null) {
+            // 批P-2：tagpage:{tagId} 键 → 官方 tag 聚合页流（m.hupu.com/api/v2/bbs/tagThreads）
+            HupuIds.key(categoryId)?.takeIf { it.startsWith("tagpage:") }?.let { key ->
+                val tagId = key.removePrefix("tagpage:")
+                val page = next?.removePrefix("p")?.toIntOrNull() ?: 1
+                val p = hupu.tagThreads(tagId, page) ?: return TopicPage(emptyList(), null)
+                return TopicPage(p.threads.map { it.toTopic() }, if (p.nextPage) "p${page + 1}" else null)
+            }
             val url = HupuIds.boardUrl(categoryId) ?: return TopicPage(emptyList(), null)
             val page = next?.removePrefix("p")?.toIntOrNull() ?: 1
             // 两类板块页：话题页（topicPage）/板块页（board）——解析失败自动回落

@@ -634,3 +634,16 @@ Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage
 - **共享蓝常量**：`HUPU_LINK_BLUE = 0xFF3B82F6` 上移到 `hupuui/theme/Color.kt`（原 `ThreadDetailHtml.kt` internal 定义删除、改 import——专区路径渲染零变化，仅常量归位）。理由：任务要求样式常量集中一处，双渲染器（RichContent/ThreadDetailHtml）共用。
 - **`RichContent` `<a>` 分支**：`HupuLink.destination(href)` 命中 → `LinkAnnotation.Url(dest.url)` + `SpanStyle(color=HUPU_LINK_BLUE)` **无下划线**——官方话题词形态；未命中走原路（`contentUrl` 可解 → 主题色+下划线；不可解 → 裸文本）。`dest.url` 已归一化为绝对 URL，LocalUriHandler→openLink 拿到的是合法绝对地址。
 - 测试 `HupuLinkTest` 8/8：帖（前缀/翻页/移动/相对）、版块、用户、tag 三种形态、外链/伪协议/多段不可判定负例。
+
+## 批P-2：话题词应用内打开——openLink 站内分发 + tagpage 信息流 + 话题区标签位
+
+**路由取舍（DECISIONS 同步）**：`openLink` 在 `appLinks` 之后、`fallbackUrl` 之前插 `HupuLink.destination` 分发——
+- Thread → `topic/{HupuIds.topicId(tid)}`（本端详情）
+- Board → `category/{HupuIds.boardId(boardUrl)}`（版块流，topicPage/board 自动回落）
+- User → `user/{euid}`（用户主页，euid 直喂 `repository.user`）
+- Tag → `tag/{slug}?id={HupuIds.id("tagpage:$tagId")}`（复用 tag 路由；见下）
+- null（外链/多段不可判定/伪协议）→ 原 `fallbackUrl → openContentLink` 分流（应用内 WebView/invalidLink），零回归。
+
+**tagpage 信息流通道**：`tag/{slug}?id={id}` 路由的 `FeedViewModel(tagId)` → `tagTopics → topics(filter, categoryId=id)` 原本只认 `board:` 键；`topics()` categoryId 分支首查 `HupuIds.key(id)` 的 `tagpage:` 前缀 → `hupu.tagThreads(tagId, page)`（批F-4 已验匿名接口，`code=200` 实测）→ `HupuTagThread.toTopic()` 新桥接（userName/header 有、euid 无 → Member.username 置空防误跳用户页）→ cursor `p{N}` 走 nextPage。tagThreads 无 filter 语义——TagFeedScreen 各 Tab 同源（如实记差）。
+
+**话题区标签位**：`thread.topic`（SSR 字段：topicId/name/url，实测 `184/足球话题区//topic`、`60/影视区//ent`）→ `toTopicDetail().tags`：`TopicTag(name, slug=name, id=HupuIds.id("tagpage:$topicId"))` → 详情头部既有 FlowRow 上屏；`TopicTagChip` 加 `accent` 参数（详情页传 `HUPU_LINK_BLUE`：蓝字+10% 蓝底——官方话题词为蓝字可点，chip 化是本端标签行既有形态）；topicId 空则不产出（不可路由不显示）。官方深链 `huputiyu://bbs/subject/{topicId}` 与 `m.hupu.com/tag/{id}` 同目的地，分类器已并案。

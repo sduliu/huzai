@@ -291,7 +291,7 @@ fun TopicScreen(state: TopicState, glass: GlassMode, back: () -> Unit, retry: ()
                                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                                         verticalArrangement = Arrangement.spacedBy(5.dp),
                                         itemVerticalAlignment = Alignment.CenterVertically) {
-                                        detail.tags.forEach { tag -> TopicTagChip(tag, onClick = { openTag(tag) }) }
+                                        detail.tags.forEach { tag -> TopicTagChip(tag, onClick = { openTag(tag) }, accent = com.kudo.android.hupuui.theme.HUPU_LINK_BLUE) }
                                     }
                                 }
                                 if (detail.closed) Text("话题已关闭", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)

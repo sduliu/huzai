@@ -117,14 +117,16 @@ internal fun TopicAuthorMetadata(time: String, category: Category?, edited: Bool
 private fun MetadataSeparator() { Text("·", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline) }
 
 @Composable
-internal fun TopicTagChip(tag: TopicTag, onClick: (() -> Unit)? = null) {
+internal fun TopicTagChip(tag: TopicTag, onClick: (() -> Unit)? = null, accent: androidx.compose.ui.graphics.Color? = null) {
     val style = tag.iconStyle(LocalTopicPresentation.current.tagIcons)
-    Row(Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surfaceVariant)
+    Row(Modifier.clip(RoundedCornerShape(50)).background(
+            accent?.copy(alpha = 0.10f) ?: MaterialTheme.colorScheme.surfaceVariant)
         .then(if (onClick == null) Modifier else Modifier.clickable(role = Role.Button, onClick = onClick))
         .testTag("topic-tag-${tag.name}").padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         style?.let { Icon(CategoryIcons.get(it.icon), "标签图标：${tag.name}", Modifier.size(13.dp), iconColor(it.color)) }
-        Text(tag.name, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Text(tag.name, style = MaterialTheme.typography.labelMedium,
+            color = accent ?: MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
