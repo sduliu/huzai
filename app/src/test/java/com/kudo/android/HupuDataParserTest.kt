@@ -351,3 +351,73 @@ class WanScoreTextTest {
         assertEquals("", com.kudo.android.hupu.hupuWanScoreText(""))
     }
 }
+
+/**
+ * 批V-1：讨论 tab 数据源闭环——比赛级 primarySingleRow 抽样全空（canComment=false），
+ * 但球员级同端点返回真实评论。用真实球员级响应证明 parseComments/parseHottestComments
+ * 映射出 CommentRow 消费的全部字段（头像/昵称/内容/日期/点亮/IP/打分），比赛级开放即同款渲染。
+ */
+class MatchDiscussCommentTest {
+    // 真实 primarySingleRow 响应子集（basketball_item/228733 2026-10-26 实测）
+    private val listJson = """{"code":1,"data":{"comments":[{
+        "commentKey":{"subjectId":"374201009","commentId":"2996903733"},
+        "subjectId":"374201009","commentId":"2996903733",
+        "commentUserId":110603213,"commentUserName":"库里没哨",
+        "commentUserHeadImg":"https://i2.hoopchina.com.cn/user/420/x.png",
+        "commentContent":"加油","commentContentImages":null,
+        "commentDate":"10-09","lightCount":0,"score":10,"hasLight":false,
+        "publishTime":1791540807955,"ipLocation":"天津",
+        "subCommentCount":0,"descendantCount":0,"subCommentList":[],
+        "parentCommentId":"0"
+    }],"commentCount":55,"cursor":{"publishTime":1791274778281},"hasMore":true}}"""
+
+    private val hottestJson = """{"code":1,"data":[{
+        "commentKey":{"subjectId":"374201009","commentId":"2994024799"},
+        "subjectId":"374201009","commentId":"2994024799",
+        "commentUserId":118941231,"commentUserName":"晚安1j1",
+        "commentUserHeadImg":"https://i1.hoopchina.com.cn/user/default/tiger1.png",
+        "commentContent":"爱来自金州","commentContentImages":null,
+        "commentDate":"10-06","lightCount":50,"score":10,
+        "publishTime":1791269264405,"ipLocation":"浙江",
+        "subCommentCount":0,"descendantCount":0,"subCommentList":null,
+        "parentCommentId":"0"
+    }]}"""
+
+    @Test fun parseComments_mapsOfficialRowFields() {
+        val st = HupuMatchParser.parseComments(listJson)!!
+        assertEquals(55L, st.commentCount)
+        assertEquals(1791274778281L, st.cursor)
+        assertTrue(st.hasMore)
+        val c = st.comments.single()
+        assertEquals("2996903733", c.commentId)
+        assertEquals("库里没哨", c.userName)
+        assertEquals("https://i2.hoopchina.com.cn/user/420/x.png", c.userHead)
+        assertEquals("110603213", c.userId)
+        assertEquals("加油", c.content)
+        assertEquals("10-09", c.date)
+        assertEquals("天津", c.ipLocation)
+        assertEquals(0L, c.lightCount)
+        assertEquals(10, c.score)
+        assertEquals("374201009", c.subjectId)
+    }
+
+    @Test fun parseHottestComments_mapsLightedRow() {
+        val list = HupuMatchParser.parseHottestComments(hottestJson)
+        val c = list.single()
+        assertEquals("晚安1j1", c.userName)
+        assertEquals("爱来自金州", c.content)
+        assertEquals(50L, c.lightCount)
+        assertEquals("浙江", c.ipLocation)
+        assertEquals("2994024799", c.commentId)
+    }
+
+    @Test fun parseComments_emptyMatchPayloadYieldsEmptyState() {
+        // 比赛级真实响应形态（commentCount=0/comments=[]）→ 空列表 → UI 空态
+        val st = HupuMatchParser.parseComments(
+            """{"code":1,"data":{"comments":[],"commentCount":0,"cursor":null,"hasMore":false}}"""
+        )!!
+        assertTrue(st.comments.isEmpty())
+        assertEquals(0L, st.commentCount)
+        assertFalse(st.hasMore)
+    }
+}

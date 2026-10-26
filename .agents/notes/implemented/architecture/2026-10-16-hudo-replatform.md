@@ -957,3 +957,12 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 | 批T 频道结构 | ⚠️ 有意改动 | U-0b/c：资讯胶囊官方化 + 🔥 按 likes>=50 门控；其余频道结构零 diff |
 | 比分卡/详情页 | ⚠️ 有意改动 | 即本批目标（U-1~U-5），逐节见上 |
 - FallbackImages*/proguard*/release 变体零触碰；PlayerScoreRow 保留为非篮球路径。
+
+## 批V：批U 窄欠账扫尾
+
+### 批V-1：讨论 tab 有内容用例——抽样结论：比赛级评论区是服务端关闭面
+
+- **抽样范围**：`primarySingleRow` 比赛级共 39 探针——NBA 12（季前赛/常规赛 bizNo 8205~8328）+ NBA earliest 2 + LOL 5 + LPL lol_match 3 + football_match 5+1 + kog_match 3 + CBA basketball_match 3 + common_sports_first 4（CS2/VAL）；另扫 NBA 全赛程 203 场 `matchInfo.openChat`——**全部 0 评论 / `openChat=false` / 评分对象 `canComment=false`**（含 latest+earliest 两种游标序）。
+- **对照**：球员级 `basketball_item` 同端点返回真实数据（例 228733 昆滕-波斯特 commentCount=55、亮评 lightCount=50）——端点/解析/渲染链路健康；`CommentRow` 同款模型在选手评分详情页生产渲染。
+- **结论**：官方把比赛级讨论挂在评分对象上，但该面当前服务端统一关闭——「本场讨论暂未开放」空态是官方口径如实呈现，非渲染 bug；官方开放后现有链路零改动渲染。
+- **闭环证据**：`MatchDiscussCommentTest` 3 例用真实球员级载荷断言 CommentRow 全字段映射（头像/昵称/内容/日期/点亮/IP/打分/subjectId）。
