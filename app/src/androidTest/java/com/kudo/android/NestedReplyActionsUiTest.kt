@@ -67,7 +67,7 @@ class NestedReplyActionsUiTest {
     @Test fun discussionUsesTheSameHeartAsTheOriginalFloor() {
         compose.setContent { KudoTheme(DisplaySettings()) { Column {
             TopicReactionButton(nested, true, null, {}, Modifier.testTag("original-heart"))
-            ThreadPreviewPost(nested, true, {}, {}, {}, "丙 回复 乙", initial, {}, {}, {})
+            ThreadPreviewPost(nested, true, {}, {}, {}, {}, "丙 回复 乙", initial, {}, {}, {})
         } } }
         val original = buttonPixels(compose.onNodeWithTag("original-heart"))
         val discussion = buttonPixels(compose.onNodeWithTag("thread-like-4"))
