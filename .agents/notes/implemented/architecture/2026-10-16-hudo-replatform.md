@@ -980,3 +980,9 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **enType 探测全表**：nba(9)/cba(7) 有原生 kind；epl/fifa 仅「赛程」、soccer/laliga FETCH_SOURCE_ERROR、电竞系全 h5（无 native kind）——回落逻辑本身正确。
 - **根因**：`produceState` 只取一次 `leagueDataTabs`；瞬时失败或被缓存的错误 JSON（合法 JSON 会缓存 10min）→ 空集 → 整场渲染「积分榜」兜底。服务端同 URL 实测稳定返回，属设备侧取数失败。
 - **修**：空结果 `forceNetwork` 重试一次（cacheKey 直打网络）；`dataKinds` 改可空——取数中不渲染第二位，消「积分榜→数据」标签翻转。
+
+### 批V-4：走势图坐标轴补齐（官方同款轴标）
+
+- **纵轴**：数值标签步长按量级自适应（`yStep=ceil(maxScore/5/10)*10`，150→30、90→20、50→10，≤6 标），末刻度必标；标签 TextMeasurer 画在 Canvas 左缘 26dp 留白区，9sp onSurfaceVariant——不写死 0-150。
+- **横轴**：节次刻度「第1节/第2节/第3节/第4节」各 12min 节中线标注 + 节界竖线（axis 25% 透明度）；加时按 `maxMin>48` 每 5min 一个「加时/加时N」。
+- 双折线/图例/数据源（playbyplay 推导）零改动。回退：revert 本 commit。

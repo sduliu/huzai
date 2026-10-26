@@ -46,6 +46,7 @@ import com.kudo.android.hupuui.components.HupuIconImage
 import com.kudo.android.hupuui.components.normalizeCover
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -1108,7 +1109,10 @@ internal fun trendPoints(plays: List<NbaPlay>): List<TrendPoint> {
     return if (out.size > 2) out else emptyList()
 }
 
-/** 走势折线图：纵轴比分（0..max，按 10 取整），横轴比赛分钟（0..48+OT），两队双色折线。 */
+/**
+ * 走势折线图（批V-4 补轴标）：纵轴比分（0..自适应上界，标签步长按量级取 10/20/30…，
+ * 目标 ≤6 个标签），横轴比赛分钟（0..48+OT，节次刻度「第N节/加时」居中标注），两队双色折线。
+ */
 @Composable
 private fun NbaScoreTrendChart(
     plays: List<NbaPlay>,
@@ -1123,6 +1127,11 @@ private fun NbaScoreTrendChart(
     val homeC = parseTeamColor(homeColor) ?: MaterialTheme.colorScheme.tertiary
     val grid = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
     val axis = MaterialTheme.colorScheme.onSurfaceVariant
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val labelStyle = androidx.compose.ui.text.TextStyle(
+        fontSize = 9.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 
     Column(
         Modifier
@@ -1140,22 +1149,40 @@ private fun NbaScoreTrendChart(
         )
         val maxScore = (pts.maxOf { maxOf(it.away, it.home) } / 10 + 1) * 10
         val maxMin = pts.last().minute.coerceAtLeast(48f)
+        // 纵轴标签步长：目标 ≤6 个刻度（150→30、90→20、50→10）
+        val yStep = ((maxScore / 5 + 9) / 10) * 10
+        // 横轴节次：第1~4节各 12min，之后每个加时 5min
+        val otCount = ((maxMin - 48f) / 5f).toInt().coerceAtLeast(0)
+        val xLabels = buildList {
+            for (q in 1..4) add(Triple("第${q}节", (q - 1) * 12f, q * 12f))
+            for (o in 1..otCount) add(Triple(if (o == 1) "加时" else "加时$o", 48f + (o - 1) * 5f, 48f + o * 5f))
+        }
+        val labelPad = with(LocalDensity.current) { 26.dp.toPx() }
         androidx.compose.foundation.Canvas(
             Modifier
                 .fillMaxWidth()
                 .height(180.dp)
-                .padding(start = 28.dp, end = 8.dp, top = 8.dp, bottom = 20.dp)
+                .padding(start = 30.dp, end = 8.dp, top = 8.dp, bottom = 18.dp)
         ) {
             val w = size.width
             val h = size.height
             fun xp(min: Float) = (min / maxMin) * w
             fun yp(score: Float) = h - (score / maxScore) * h
-            // 纵轴网格（每 10 分一条）+ 左侧分值标签由外部 Composable 画不了——画在 Canvas 内
-            var s = 0
-            while (s <= maxScore) {
+            // 纵轴网格+左侧分值标签（末刻度必标）
+            val yMarks = buildList { var v = 0; while (v < maxScore) { add(v); v += yStep }; if (last() != maxScore) add(maxScore) }
+            for (s in yMarks) {
                 val y = yp(s.toFloat())
                 drawLine(grid, androidx.compose.ui.geometry.Offset(0f, y), androidx.compose.ui.geometry.Offset(w, y), strokeWidth = 1f)
-                s += 10
+                val tl = measurer.measure("$s", labelStyle)
+                drawText(tl, topLeft = androidx.compose.ui.geometry.Offset(-labelPad + (labelPad - tl.size.width) / 2f, y - tl.size.height / 2f))
+            }
+            // 横轴节次刻度：节中线标签 + 节界短竖线
+            for ((name, a, b) in xLabels) {
+                val mid = xp((a + b) / 2f)
+                val tl = measurer.measure(name, labelStyle)
+                drawText(tl, topLeft = androidx.compose.ui.geometry.Offset(mid - tl.size.width / 2f, h + 4f))
+                val bx = xp(b)
+                if (bx <= w) drawLine(axis.copy(alpha = 0.25f), androidx.compose.ui.geometry.Offset(bx, 0f), androidx.compose.ui.geometry.Offset(bx, h), strokeWidth = 1f)
             }
             fun path(sel: (TrendPoint) -> Int): androidx.compose.ui.graphics.Path {
                 val path = androidx.compose.ui.graphics.Path()
