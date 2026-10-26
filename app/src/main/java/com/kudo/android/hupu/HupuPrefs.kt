@@ -29,6 +29,8 @@ object HupuPrefs {
     private const val KEY_BLACKLIST = "blacklist_v1"
     private const val KEY_THREAD_AUTHORS = "thread_authors_v1"
     private const val KEY_FAVORITE_TOPICS = "favorite_topics_v1"
+    private const val KEY_ZONE_CATEGORIES = "zone_categories_v1"
+    private const val KEY_ZONE_CATEGORIES_AT = "zone_categories_at_v1"
     private const val KEY_REFRESH_MODE = "refresh_mode_v1"
 
     /** 主页频道数量上限：横滑条是高频快捷入口，超过会滑不过来 */
@@ -227,6 +229,27 @@ object HupuPrefs {
         prefs.edit().putString(KEY_FAVORITE_TOPICS, encodeFavoriteTopicsJson(list)).apply()
         favoriteTopicsVersion++
     }
+
+    // ---------- 批Q-1：专区目录持久化缓存（SWR——先进缓存立即上屏、后台刷新自然替换） ----------
+    /**
+     * 目录级低频变更数据：冷启动直接吃盘（不限龄——每次进专区都会后台重取合回，
+     * 过期风险只体现在「短暂停留旧目录」，不会冒充最新：内容随刷新完成即替换）。
+     * savedAt 存档仅用于排查，不做硬失效门槛。
+     */
+    fun loadZoneCategories(): List<HupuCategory> {
+        val json = prefs.getString(KEY_ZONE_CATEGORIES, null) ?: return emptyList()
+        return decodeZoneCategoriesJson(json)
+    }
+
+    fun saveZoneCategories(list: List<HupuCategory>) {
+        prefs.edit()
+            .putString(KEY_ZONE_CATEGORIES, encodeZoneCategoriesJson(list))
+            .putLong(KEY_ZONE_CATEGORIES_AT, System.currentTimeMillis())
+            .apply()
+    }
+
+    /** 最近一次成功落盘时间（排查用；0=从未缓存） */
+    fun zoneCategoriesSavedAt(): Long = prefs.getLong(KEY_ZONE_CATEGORIES_AT, 0L)
 
     /** 1.2xx: 收藏切换结果——区分「已满」，以便如实提示而不是静默挤掉最早的收藏 */
     enum class FavoriteToggle { ADDED, REMOVED, LIMIT }
@@ -1232,6 +1255,64 @@ internal fun decodeFavoriteTopicsJson(json: String): List<HupuTopicInfo> {
                 url = url,
                 hotText = o.optString("hotText"),
                 logo = o.optString("logo").ifEmpty { null },
+            )
+        }
+    }.getOrDefault(emptyList())
+}
+
+/** 批Q-1：专区目录纯 JSON 编解码（便于单测，不依赖 Android） */
+internal fun encodeZoneCategoriesJson(list: List<HupuCategory>): String {
+    val arr = JSONArray()
+    list.forEach { c ->
+        val o = JSONObject()
+        o.put("cateId", c.cateId)
+        o.put("name", c.name)
+        c.logo?.let { o.put("logo", it) }
+        val ts = JSONArray()
+        c.topics.forEach { t ->
+            val to = JSONObject()
+            to.put("topicId", t.topicId)
+            to.put("name", t.name)
+            to.put("url", t.url)
+            if (t.desc.isNotEmpty()) to.put("desc", t.desc)
+            if (t.hotText.isNotEmpty()) to.put("hotText", t.hotText)
+            t.logo?.let { to.put("logo", it) }
+            ts.put(to)
+        }
+        o.put("topics", ts)
+        arr.put(o)
+    }
+    return arr.toString()
+}
+
+/** 纯 JSON 解码：坏数据/空串返回空列表；无 cateId 的大类与无 url 的话题丢弃 */
+internal fun decodeZoneCategoriesJson(json: String): List<HupuCategory> {
+    return runCatching {
+        val arr = JSONArray(json)
+        (0 until arr.length()).mapNotNull { i ->
+            val o = arr.optJSONObject(i) ?: return@mapNotNull null
+            val cateId = o.optString("cateId")
+            if (cateId.isEmpty()) return@mapNotNull null
+            val topics = (o.optJSONArray("topics") ?: JSONArray()).let { ts ->
+                (0 until ts.length()).mapNotNull { j ->
+                    val to = ts.optJSONObject(j) ?: return@mapNotNull null
+                    val url = to.optString("url")
+                    if (url.isEmpty()) return@mapNotNull null
+                    HupuTopicInfo(
+                        topicId = to.optString("topicId"),
+                        name = to.optString("name"),
+                        url = url,
+                        desc = to.optString("desc"),
+                        hotText = to.optString("hotText"),
+                        logo = to.optString("logo").ifEmpty { null },
+                    )
+                }
+            }
+            HupuCategory(
+                cateId = cateId,
+                name = o.optString("name"),
+                logo = o.optString("logo").ifEmpty { null },
+                topics = topics,
             )
         }
     }.getOrDefault(emptyList())

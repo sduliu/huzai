@@ -683,3 +683,12 @@ Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage
 | 版块「立即发布」FAB | `ZonePage.kt:827` | 保留——发帖唯一入口（任务指定） |
 | 专区搜索 boardSearchOpen | `ZonePage.kt:116` | 不动 |
 | `editor()` 其他入口 | 版块页 createTopic FAB、草稿续写 | 不动 |
+
+## 批Q-1：专区目录持久化 SWR——冷启动立即上屏
+
+- **`HupuPrefs` 新增 `zone_categories_v1` JSON 存储**：`loadZoneCategories()/saveZoneCategories()/zoneCategoriesSavedAt()`；codec `encode/decodeZoneCategoriesJson`（internal 可单测；无 cateId 大类/无 url 话题丢弃，坏 JSON 空表）。
+- **写入点唯一**：`HupuRepository.categories()` 解析成功即落盘——`ZonePage` 与 `CommunityRepository.categories()` 共用通道自然受益。
+- **SWR 失效策略**：缓存**不设硬龄**——目录级低频变更；每次进专区 `LaunchedEffect(cateRefreshTick)` 先 `loadZoneCategories()` 同步上屏（`loading=false` 达标冷切 <2s），随后 `repo.categories(refresh=tick>0)` 原通道后台合回自然替换；下拉刷新 tick>0 → `refresh=true→forceNetwork` 强制网络、不读缓存；`savedAt` 仅排查用不作文末展示（不伪造新鲜度）。
+- **不绕节流**：`fetchHtml` 全局 1s 节流/10min HTML 缓存均不动——冷启动首屏不再依赖该通道，排队影响降级为后台刷新延迟。
+- ZonePage 改动仅 `LaunchedEffect` 内 6 行播种；骨架仅在没有盘缓存时出现（同原语义）。
+- 测试：`ZoneCategoriesCodecTest` 3/3（roundTrip/坏条目丢弃/坏 JSON）。

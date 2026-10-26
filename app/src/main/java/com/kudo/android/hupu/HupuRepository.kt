@@ -84,7 +84,10 @@ class HupuRepository {
     /** 全站版块/话题导航树（取自任一 /all-* 页） */
     suspend fun categories(refresh: Boolean = false): List<HupuCategory> {
         val html = HupuApi.fetchHtml("/all-gambia", forceNetwork = refresh) ?: return emptyList()
-        return withContext(Dispatchers.Default) { HupuParser.parseCategories(html) }
+        val list = withContext(Dispatchers.Default) { HupuParser.parseCategories(html) }
+        // 批Q-1：目录解析结果持久化（SWR——专区冷启动先吃盘立即上屏，本通道后台合回）
+        if (list.isNotEmpty()) HupuPrefs.saveZoneCategories(list)
+        return list
     }
 
     /**

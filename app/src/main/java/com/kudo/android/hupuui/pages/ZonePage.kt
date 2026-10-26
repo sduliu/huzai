@@ -145,7 +145,17 @@ fun ZonePage(modifier: Modifier = Modifier) {
 
     // 大类加载（与首页共享 /all-gambia 缓存，进过首页后秒开）
     LaunchedEffect(cateRefreshTick) {
-        loading = cateRefreshTick == 0
+        // 批Q-1：目录 SWR——冷启动先吃 HupuPrefs 持久化目录立即上屏（不再骨架等网络），
+        // 随后原通道（fetchHtml 缓存/网络）后台刷新合回自然替换；
+        // 下拉刷新（tick>0）不读缓存直接强制网络。
+        if (cateRefreshTick == 0 && categories == null) {
+            val cached = HupuPrefs.loadZoneCategories()
+            if (cached.isNotEmpty()) {
+                categories = cached
+                if (cached.none { it.cateId == selectedCateId }) selectedCateId = cached.first().cateId
+            }
+        }
+        loading = cateRefreshTick == 0 && categories == null
         // 1.133: 与首页/评分页一致的容错——空结果递增退避重试，避免首屏偶发失败后长期空态
         var list = repo.categories(refresh = cateRefreshTick > 0)
         var tries = 0
