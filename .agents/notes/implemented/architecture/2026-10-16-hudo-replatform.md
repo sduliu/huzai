@@ -387,3 +387,14 @@ Muse 找不到内嵌视频帖是「样本难找」而非链路不通。用 2026-
 - 缺口（如实）：热榜 31-50 名（`search/hotTagList` 为 App 内路由，无匿名 HTTP 端点）；`aggregationType/competitionType` 分类筛选（官方页未提供 tab，字段已透传未渲）；tag 关注数交互（写接口不碰）。
 
 测试：HotRankParserTest 5 例（hot 解析与空回落、tagPage 头部+帖行+picList、tagThreads 分页 code 门槛与非 JSON）。
+
+## 批G-1：视频帖列表可达性（hasVideo 全链标识）
+
+闭环路径核实：批 E 已证详情两条链都挂播放器（hupuui `ThreadDetailHeader` hasVideo&&video→VideoPlayer；feed `toTopicDetail` 前置 `<video>`→RichVideoBlock），真机找不到的根源是**列表无视频标识**。真实样本 `/tmp/b-lol.html`：46 帖中 9 帖 `hasVideo:true`（常见量），官方 SSR 标题行挂 `iconshipin2` 视频角标——官方形态实证，本批对齐而非自创。
+
+- `Topic` 末位加 `hasVideo`（位置参数安全）；`toTopic()` 桥入。
+- `FeedUi` 新增 `VideoPlayBadge`（图区居中 ▶ 黑透圆钮，`testTag("video-badge")`+cd「视频」供 uiautomator 定位）与 `VideoTagChip`（无图帖「视频」chip，`testTag("video-tag")`）。
+- 三处列表接标识：hupuui `FeedItem`（≥3 图首格/单图叠 ▶，无图底行 chip）、`FlatPostRow`（计数行前置 chip）、feed 壳 `TopicCard`（同两态）。
+- 详情链零改动；外链视频仍走链接不出块；`NestedThreadOverlay` 复用 ThreadDetailOverlay 自动继承。
+- 测试 `VideoMarkerTest`：toTopic hasVideo 透传 + 视频帖 cover 保留（角标依赖图块存在）。
+- 记录：搜索结果 `HupuSearchItem` 是另一模型未带视频字段——搜索列表不标，记缺口不伪造。

@@ -127,6 +127,7 @@ fun HupuThread.toTopic(): Topic = Topic(
     image = cover.orEmpty(),
     images = covers,
     bumpedAt = isoTime(createdAt, createdAtText),
+    hasVideo = hasVideo,
 )
 
 /** 板块资讯 → feed 列表项（tid→Int id，点击走 topic 详情）。 */

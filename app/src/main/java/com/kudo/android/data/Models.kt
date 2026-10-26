@@ -34,6 +34,8 @@ data class Topic(
     val unseen: Boolean = false, val unreadPosts: Int = 0,
     /** 信息流多图（虎扑 res[].source[] 全量，≥3 渲染三图行）；空则回落 image 单图 */
     val images: List<String> = emptyList(),
+    /** 批G-1：视频帖标识（HupuThread.hasVideo 桥入；列表卡图区 ▶ 角标/无图时「视频」chip） */
+    val hasVideo: Boolean = false,
 )
 data class TopicPage(val topics: List<Topic>, val next: String?, val tag: TopicTag? = null)
 

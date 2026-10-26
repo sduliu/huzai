@@ -59,6 +59,8 @@ import com.kudo.android.hupuui.theme.isAppDarkTheme
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -79,6 +81,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -257,6 +260,44 @@ internal fun formatCount(n: Int): String = when {
 internal val META_LIGHT_GOLD = Color(0xFFF5B301)
 
 /**
+ * 批G-1：视频帖列表标识——图区居中 ▶ 圆钮（官方视频缩略图同款），
+ * 叠在卡片图块上（单图/三图行首格）；testTag+contentDescription 供真机定位。
+ */
+@Composable
+internal fun VideoPlayBadge(modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .size(42.dp)
+            .clip(CircleShape)
+            .background(Color.Black.copy(alpha = 0.45f))
+            .testTag("video-badge"),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Rounded.PlayArrow,
+            contentDescription = "视频",
+            tint = Color.White,
+            modifier = Modifier.size(26.dp),
+        )
+    }
+}
+
+/** 批G-1：无图视频帖的「视频」chip（底行/平铺行内，与版块 chip 同族） */
+@Composable
+internal fun VideoTagChip() {
+    Text(
+        "视频",
+        fontSize = 11.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .testTag("video-tag"),
+    )
+}
+
+/**
  * 官方信息流大卡（批C-5 排布复刻）：平卡全宽无圆角，自上而下——
  *   作者行（有 author 才渲染：头像+昵称+时间，SSR res[] 无作者字段的流不显示）→
  *   标题 16sp/Medium/2行 → 摘要 → 图区（≥3 图三图行 4:3；1~2 图全宽 16:9）→
@@ -315,32 +356,47 @@ internal fun FeedItem(thread: HupuThread, showImage: Boolean, onOpen: (HupuThrea
             Spacer(Modifier.height(8.dp))
             if (covers.size >= 3) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    covers.take(3).forEach { c ->
-                        HupuThumbImage(
-                            model = thumbnailUrl(c, 240),
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .weight(1f)
-                                .aspectRatio(4f / 3f)
-                                .clip(RoundedCornerShape(6.dp)),
-                        )
+                    covers.take(3).forEachIndexed { i, c ->
+                        Box(Modifier.weight(1f)) {
+                            HupuThumbImage(
+                                model = thumbnailUrl(c, 240),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(4f / 3f)
+                                    .clip(RoundedCornerShape(6.dp)),
+                            )
+                            // 批G-1：视频帖三图行首格叠 ▶ 标识（官方视频缩略图同款）
+                            if (thread.hasVideo && i == 0) {
+                                VideoPlayBadge(Modifier.align(Alignment.Center))
+                            }
+                        }
                     }
                 }
             } else {
-                HupuThumbImage(
-                    model = thumbnailUrl(covers.first(), 640),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(16f / 9f)
-                        .clip(RoundedCornerShape(8.dp)),
-                )
+                Box {
+                    HupuThumbImage(
+                        model = thumbnailUrl(covers.first(), 640),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9f)
+                            .clip(RoundedCornerShape(8.dp)),
+                    )
+                    // 批G-1：视频帖单图叠 ▶ 标识
+                    if (thread.hasVideo) VideoPlayBadge(Modifier.align(Alignment.Center))
+                }
             }
         }
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // 批G-1：无图视频帖在底行给「视频」chip（列表可辨识，官方视频帖有同类标记）
+            if (thread.hasVideo && covers.isEmpty()) {
+                VideoTagChip()
+                Spacer(Modifier.width(6.dp))
+            }
             // 版块 chip（官方底部左侧版块徽标语义；无版块名时不占空间）
             thread.topic?.name?.takeIf { it.isNotBlank() }?.let { board ->
                 Text(
@@ -384,10 +440,17 @@ private fun FlatPostRow(thread: HupuThread, onOpen: (HupuThread) -> Unit) {
             lineHeight = 20.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
         )
         Spacer(Modifier.height(5.dp))
-        Text(
-            "${formatCount(thread.replies)} 回复 · ${formatCount(thread.lights)} 推荐",
-            fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // 批G-1：平铺行无图区——视频帖在计数行前置「视频」chip
+            if (thread.hasVideo) {
+                VideoTagChip()
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(
+                "${formatCount(thread.replies)} 回复 · ${formatCount(thread.lights)} 推荐",
+                fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         Spacer(Modifier.height(11.dp))
         Box(Modifier.fillMaxWidth().height(0.5.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
     }

@@ -171,11 +171,28 @@ fun TopicCard(topic: Topic, category: Category?, onClick: () -> Unit, onUser: (S
             color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         when {
             images.size >= 3 -> Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                images.take(3).forEachIndexed { i, url -> TopicFeedImage(topic.id, i, url, Modifier.weight(1f).aspectRatio(4f / 3f)) }
+                images.take(3).forEachIndexed { i, url ->
+                    // 批G-1：视频帖三图行首格叠 ▶ 标识
+                    Box(Modifier.weight(1f)) {
+                        TopicFeedImage(topic.id, i, url, Modifier.fillMaxWidth().aspectRatio(4f / 3f))
+                        if (topic.hasVideo && i == 0) {
+                            com.kudo.android.hupuui.components.VideoPlayBadge(Modifier.align(Alignment.Center))
+                        }
+                    }
+                }
             }
-            images.isNotEmpty() -> TopicFeedImage(topic.id, 0, images.first(), Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+            images.isNotEmpty() -> Box {
+                TopicFeedImage(topic.id, 0, images.first(), Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+                // 批G-1：视频帖单图叠 ▶ 标识
+                if (topic.hasVideo) com.kudo.android.hupuui.components.VideoPlayBadge(Modifier.align(Alignment.Center))
+            }
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            // 批G-1：无图视频帖底行给「视频」chip
+            if (topic.hasVideo && images.isEmpty()) {
+                com.kudo.android.hupuui.components.VideoTagChip()
+                Spacer(Modifier.width(6.dp))
+            }
             val board = resolvedCategory?.name?.takeIf { it.isNotBlank() }
                 ?: topic.tagDetails.firstOrNull()?.name?.takeIf { it.isNotBlank() }
             if (resolvedCategory != null) Box(Modifier.clip(RoundedCornerShape(4.dp))
