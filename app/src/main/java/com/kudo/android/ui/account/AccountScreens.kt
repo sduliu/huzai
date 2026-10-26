@@ -83,33 +83,80 @@ fun ProfileScreen(user: Member?, login: () -> Unit, settings: () -> Unit, bookma
     downloads: () -> Unit = {},
     statusBarStyle: (Boolean?) -> Unit = {}) {
     if (user == null) {
-        GuestProfileScreen(login, settings, about, downloads)
+        GuestProfileScreen(login, settings, about, downloads, destination)
         return
     }
     key(user.id, user.username) { MemberProfileScreen(user, repository, settings, about, profile, destination, downloads, statusBarStyle) }
 }
 
 @Composable
-private fun GuestProfileScreen(login: () -> Unit, settings: () -> Unit, about: () -> Unit, downloads: () -> Unit) {
+private fun GuestProfileScreen(login: () -> Unit, settings: () -> Unit, about: () -> Unit, downloads: () -> Unit,
+    destination: (AccountDestination) -> Unit) {
     val scroll = rememberLazyListState()
-    Column(Modifier.fillMaxSize().statusBarsPadding().semantics { paneTitle = "我的" }.testTag("guest-profile")) {
-        LazyColumn(state = scroll, modifier = Modifier.quickScrollTarget(scroll), contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 16.dp, bottom = 112.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            item { GuestIdentityHeader(login) }
-            item { GuestLoginPanel("登录后参与社区讨论", login) }
-            item {
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surface)) {
-                    GuestMenuRow(Icons.Rounded.Palette, "设置", "主题、字号与液态玻璃", settings)
-                    HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                    GuestMenuRow(Icons.Rounded.Download, "下载管理", "查看文件下载进度和历史", downloads)
-                    HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                    GuestMenuRow(Icons.Rounded.Info, "关于虎Do", "一个用心的 虎扑第三方客户端", about, value = BuildConfig.VERSION_NAME)
+    // 批AA-2：浏览历史盖入页挂载（epoch 键控——与 hupuui ProfilePage 同款；
+    // 退场动画中的旧实例被直接替换，点击不会被吞）
+    var historyEpoch by remember { mutableIntStateOf(0) }
+    // 盖入期间隐藏主导航药丸（复用 HupuUiSignals.zoneDetailOpen 通道——不透明全屏页与底栏药丸不共存）
+    DisposableEffect(historyEpoch > 0) {
+        if (historyEpoch > 0) com.kudo.android.hupu.HupuUiSignals.zoneDetailOpen = true
+        onDispose { com.kudo.android.hupu.HupuUiSignals.zoneDetailOpen = false }
+    }
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().statusBarsPadding().semantics { paneTitle = "我的" }.testTag("guest-profile")) {
+            LazyColumn(state = scroll, modifier = Modifier.quickScrollTarget(scroll), contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 16.dp, bottom = 112.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                item { GuestIdentityHeader(login) }
+                item { GuestLoginPanel("登录后参与社区讨论", login) }
+                item {
+                    // 快捷宫格（镜像 MemberProfileScreen）：浏览历史走本地 HupuPrefs 记录（匿名可用），
+                    // 其余为社区账号数据 → 目标页自带显式登录提示
+                    BoxWithConstraints(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surface).padding(horizontal = 4.dp, vertical = 12.dp)) {
+                        val columns = if (maxWidth < 300.dp) 2 else 4
+                        listOf(AccountDestination.TOPICS, AccountDestination.BOOKMARKS, AccountDestination.LIKES, AccountDestination.HISTORY)
+                            .chunked(columns).forEach { entries ->
+                                Row(Modifier.fillMaxWidth()) { entries.forEach { entry ->
+                                    val (icon, color) = destinationIcon(entry)
+                                    Column(Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) {
+                                        if (entry == AccountDestination.HISTORY) historyEpoch++ else destination(entry)
+                                    }.padding(vertical = 7.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                        Icon(icon, null, Modifier.size(25.dp), tint = color)
+                                        Text(entry.title, fontSize = 12.sp, lineHeight = 18.sp, textAlign = TextAlign.Center)
+                                    }
+                                } }
+                            }
+                    }
+                }
+                item {
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surface)) {
+                        listOf(AccountDestination.DRAFTS, AccountDestination.MESSAGES, AccountDestination.CHAT,
+                            AccountDestination.PENDING, AccountDestination.BADGES, AccountDestination.TRUST).forEachIndexed { i, entry ->
+                            if (i > 0) HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                            val (icon, color) = destinationIcon(entry)
+                            CompactAccountRow(icon, color, entry.title, { destination(entry) }, value = "需登录")
+                        }
+                    }
+                }
+                item {
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surface)) {
+                        GuestMenuRow(Icons.Rounded.Palette, "设置", "主题、字号与液态玻璃", settings)
+                        HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                        GuestMenuRow(Icons.Rounded.Download, "下载管理", "查看文件下载进度和历史", downloads)
+                        HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                        GuestMenuRow(Icons.Rounded.Info, "关于虎Do", "一个用心的 虎扑第三方客户端", about, value = BuildConfig.VERSION_NAME)
+                    }
+                }
+                item {
+                    Text("真诚 · 友善 · 团结 · 专业", Modifier.fillMaxWidth().padding(18.dp),
+                        style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            item {
-                Text("真诚 · 友善 · 团结 · 专业", Modifier.fillMaxWidth().padding(18.dp),
-                    style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (historyEpoch > 0) {
+            androidx.compose.runtime.key(historyEpoch) {
+                com.kudo.android.hupuui.pages.HistoryPage(onClose = { historyEpoch = 0 })
             }
         }
     }

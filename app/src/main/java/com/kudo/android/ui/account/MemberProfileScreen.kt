@@ -223,7 +223,7 @@ internal fun CompactAccountRow(icon: ImageVector, color: Color, title: String, c
     }
 }
 
-private fun destinationIcon(entry: AccountDestination): Pair<ImageVector, Color> = when (entry) {
+internal fun destinationIcon(entry: AccountDestination): Pair<ImageVector, Color> = when (entry) {
     AccountDestination.TOPICS -> Icons.Rounded.Article to Color(0xFF2196F3)
     AccountDestination.BOOKMARKS -> Icons.Rounded.BookmarkBorder to Color(0xFFFF9800)
     AccountDestination.DRAFTS -> Icons.Rounded.EditNote to Color(0xFF26A69A)
