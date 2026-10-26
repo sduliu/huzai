@@ -62,6 +62,10 @@ data class HupuReply(
      * 但楼中楼里同样能看到，造成重复；真一级评论（回复楼主/主题）**没有** quote 键。
      */
     val quotePid: String = "",
+    /** 批F-3：客户端来源（reply.client：ANDROID/IPHONE；官方楼层「来自」标签） */
+    val client: String = "",
+    /** 批F-3：官方折叠态（isDelete/isHidden/hidePost>0/isAudit 任一）→ 楼层显示占位，不渲正文 */
+    val hidden: Boolean = false,
 ) {
     /** 1.128：是否为子回复（最外层应过滤，只留真一级评论）。 */
     val isSubReply: Boolean get() = quotePid.isNotEmpty()
@@ -147,6 +151,10 @@ data class HupuThreadDetail(
     val replyTotalPages: Int,
     /** 1.185: 回复展示方向（true=最新在前，倒序分页）；默认 false=正序 */
     val descReplies: Boolean = false,
+    /** 批F-3：官方详情 detail.hot（同区热帖，相关推荐卡数据） */
+    val hot: List<HupuThread> = emptyList(),
+    /** 批F-3：官方详情 detail.latest（同区最新帖） */
+    val latest: List<HupuThread> = emptyList(),
     val isLocked: Boolean = false,
     /** 1.119: 正文里的投票（无投票帖为 null） */
     val vote: HupuVote? = null,

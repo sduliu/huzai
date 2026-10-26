@@ -363,3 +363,16 @@ Muse 找不到内嵌视频帖是「样本难找」而非链路不通。用 2026-
 - **带 key 行三 bizType 均可点**：basketball_match / common_sports_first（土超等 48 行，getSelfByBizKey 匿名实测 200）/ football_match（epl 已赛 101 行带 key 直接开，无 key 行走 footballScoreNo 换取链）。
 - **可改进点**：预约 chip（批B-2 占位）现可点——弹官方订阅文案「预约提醒：{subScribeDesc/Title}」（真实字段只读展示，HuzaiToast，不伪造订阅态、不写接口）。
 - **未接**：CANCELLED 与个别 COMPLETED 无 key 行（网球 14 场/乒羽 1 场）——服务端同样无评分页，只能展示，记入缺口。
+
+## 批F-3：详情页楼层区对照补齐（相关推荐/客户端标签/隐藏占位）
+
+对照官方详情 JSON（detail 根键：breadCrumb/desc/hot/isRecommended/keywords/latest/lights/replies/thread/title/user/visibleRange）逐项核对：
+
+- **相关推荐/最新发帖（新接）**：`detail.hot`/`detail.latest` 为同区帖摘要数组（tid/title/cover/lights/replies/url/topic，与 threadFrom 同 schema）——此前未解析未渲。现 `HupuThreadDetail.hot/latest` 落模型；详情 LazyColumn 主楼与回复数行之间插「相关推荐」「最新发帖」卡（各取前 4 行：标题 1 行 + 点亮·回复计数，formatCount）。
+- **嵌套详情页**：点推荐行 → `NestedThreadOverlay` 自包含盖入页（数据/翻页/排序/楼层缓存全自理——宿主 detail 是单槽 tid 键控状态，共用回调链会互相污染）；逐层叠加、返回逐层弹出（后注册的 PredictiveBackHandler 天然优先），`pageZIndex` 参数让嵌套层（40f+i）压过宿主楼层 sheet（3f+depth），递归打开下级推荐免费获得。
+- **客户端标签（新接）**：reply.client（ANDROID/IPHONE）→ 元信息行「来自Android/来自iPhone」。
+- **隐藏楼层（新接）**：reply isDelete/isHidden/hidePost>0/isAudit 任一 → `hidden`，占位「该回复已被删除或隐藏」不渲正文。
+- **已覆盖无需改**：图片查看（ImageViewer zIndex10）、点亮/回复/楼中楼/排序/只看楼主、引用楼、投票、锁定态、用户主页。
+- **仍记缺口（无字段不伪造）**：神回复预览卡（detail 根无对应字段）、转发数（thread 无 share/repost 字段）、楼层序号角标（官方有 #N，我方无——reply JSON 无楼层序号字段，翻页合并后更无法推导，不接）。
+
+测试：ThreadDetailRelatedTest 4 例（hot/latest 解析与空回落、client/hidden 各 flag）。

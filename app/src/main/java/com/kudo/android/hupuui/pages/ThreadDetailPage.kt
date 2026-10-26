@@ -128,6 +128,8 @@ import com.kudo.android.hupu.HupuPrefs
 import com.kudo.android.hupu.isLocalStickerUrl
 import com.kudo.android.hupu.HupuFloorReplies
 import com.kudo.android.hupu.HupuReply
+import com.kudo.android.hupu.HupuRepository
+import com.kudo.android.hupu.HupuThread
 import com.kudo.android.hupu.HupuSubReply
 import com.kudo.android.hupu.HupuThreadDetail
 import com.kudo.android.hupu.HupuVote
@@ -222,6 +224,8 @@ fun ThreadDetailOverlay(
     floorLoadingMore: Set<String> = emptySet(),
     onOpenFloor: (HupuReply) -> Unit = {},
     onFloorLoadMore: (String, HupuFloorReplies) -> Unit = { _, _ -> },
+    /** 批F-3：根层 zIndex——相关推荐打开的嵌套详情页需压过宿主自身的楼层 sheet（3f+），取 40f 起 */
+    pageZIndex: Float = 2f,
 ) {
     val progress = remember { Animatable(0f) }
     // 1.223r: 入场/退场共用同一个 closing 键控 effect —— 退场途中再次打开（含**同一个帖子**）
@@ -287,6 +291,8 @@ fun ThreadDetailOverlay(
     // 用户主页（盖入式三级页：详情 → 用户主页）；退场动画由页内 closing 流程自治
     // \u7528\u6237\u4e3b\u9875\u6808\uff1a\u5c42\u5c42\u53e0\u52a0\uff08\u6bcf\u5c42\u72ec\u7acb\u7ec4\u5408\uff0c\u8fd4\u56de\u9010\u5c42\u5f39\u51fa\uff09
     val userPageStack = remember { androidx.compose.runtime.mutableStateListOf<String>() }
+    // 批F-3：相关推荐 → 嵌套详情栈（点「相关推荐/最新发帖」行盖入新详情页，逐层返回）
+    val innerThreads = remember { androidx.compose.runtime.mutableStateListOf<HupuThread>() }
     var videoFullscreen by remember { mutableStateOf(false) }
     // 1.2xx：全屏 overlay 在屏幕外完成出画后才"推入可见区"；
     // 在推入之前，小窗的视频继续留在原地显示 —— 避免这段预热期露出黑占位。
@@ -878,7 +884,7 @@ fun ThreadDetailOverlay(
     Box(
         Modifier
             .fillMaxSize()
-            .zIndex(2f)
+            .zIndex(pageZIndex)
             .then(
                 if (pageAnimating) {
                     Modifier.graphicsLayer { translationX = (1f - progress.value) * size.width }
@@ -1044,6 +1050,44 @@ fun ThreadDetailOverlay(
                                         onToast = { com.kudo.android.hupuui.components.HuzaiToast.show(it) },
                                         onOpenEmbed = { embedPage = it },
                                     )
+                                }
+                                // 批F-3：官方详情 detail.hot（同区热帖）/detail.latest（同区最新）
+                                // → 主楼与回复之间的「相关推荐/最新发帖」卡；点行进嵌套详情页。
+                                if (d.hot.isNotEmpty() || d.latest.isNotEmpty()) {
+                                    item(key = "related") {
+                                        Column(
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(MaterialTheme.colorScheme.surface)
+                                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                                        ) {
+                                            if (d.hot.isNotEmpty()) {
+                                                Text(
+                                                    "相关推荐",
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.padding(top = 6.dp, bottom = 2.dp),
+                                                )
+                                                d.hot.take(4).forEach { t ->
+                                                    RelatedThreadRow(t) { innerThreads.add(t) }
+                                                }
+                                            }
+                                            if (d.latest.isNotEmpty()) {
+                                                Text(
+                                                    "最新发帖",
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.padding(top = 6.dp, bottom = 2.dp),
+                                                )
+                                                d.latest.take(4).forEach { t ->
+                                                    RelatedThreadRow(t) { innerThreads.add(t) }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
 item(key = "r-count") {
                                     // 1.201（真机反馈）：排序改为「默认 | 最新 | 热门」分段控件，与「只看楼主」独立开关
@@ -1632,6 +1676,19 @@ item(key = "r-count") {
                 )
             }
         }
+        // 批F-3：嵌套详情页（相关推荐点入）——自包含盖入页，数据/楼层自理；
+        // zIndex 40+i 压过宿主楼层 sheet（3f+depth）与用户主页，页面级全屏层（≥900）仍在更上。
+        innerThreads.forEachIndexed { i, it ->
+            // key 带下标：推荐链可能指回同 tid（互推帖），裸 tid 键会撞 key 闪退
+            androidx.compose.runtime.key("${it.tid}#$i") {
+                NestedThreadOverlay(
+                    thread = it,
+                    pageZIndex = 40f + i,
+                    // removeAt 按下标：同 tid 可重复入栈，remove(element) 会误删首个相等项
+                    onClosed = { if (i < innerThreads.size) innerThreads.removeAt(i) },
+                )
+            }
+        }
         // 图片全屏查看器（zIndex 10 盖过一切层级；点击图片任意处进入，单击/返回键/关闭按钮退出）
         imageViewer?.let { (urls, i) ->
             com.kudo.android.hupuui.components.ImageViewer(urls = urls, initialIndex = i) { imageViewer = null }
@@ -1655,4 +1712,131 @@ item(key = "r-count") {
             )
         }
     }
+}
+
+/** 批F-3：相关推荐/最新发帖 行——标题 1 行 + 点亮/回复计数（官方 detail.hot/latest 摘要字段） */
+@Composable
+private fun RelatedThreadRow(t: HupuThread, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { onClick() }
+            .padding(vertical = 7.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            t.title,
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            "${formatCount(t.lights)} 点亮 · ${formatCount(t.replies)} 回复",
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * 批F-3：相关推荐打开的嵌套详情页——宿主 detail 状态是单槽（openedThread/tid 键控），
+ * 嵌套页复用宿主回调链会相互污染（排序/翻页守卫按 openedThread.tid 比对），
+ * 故数据链/楼层缓存全部自理，仅渲染层复用 ThreadDetailOverlay。
+ * 嵌套页自身再含相关推荐 → 其内部 innerThreads 递归叠加（后注册的返回手势自然优先）。
+ */
+@Composable
+private fun NestedThreadOverlay(thread: HupuThread, pageZIndex: Float = 40f, onClosed: () -> Unit) {
+    val repo = remember { HupuRepository() }
+    val scope = rememberCoroutineScope()
+    var detail by remember { mutableStateOf<HupuThreadDetail?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var loadingMore by remember { mutableStateOf(false) }
+    var closing by remember { mutableStateOf(false) }
+    val floorStates = remember { androidx.compose.runtime.mutableStateMapOf<String, HupuFloorReplies>() }
+    val floorLoading = remember { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
+    val floorLoadingMore = remember { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() }
+    // 首拉按「默认排序」设置取方向；desc 键控只在真正换向时重拉
+    val wantDesc = HupuPrefs.loadDefaultReplySort() == 1
+    LaunchedEffect(thread.tid) {
+        loading = detail == null
+        repo.threadDetailDirected(thread.tid, wantDesc)?.let { detail = it }
+        loading = false
+    }
+    ThreadDetailOverlay(
+        tid = thread.tid,
+        titleText = thread.title,
+        detail = detail,
+        loading = loading,
+        loadingMore = loadingMore,
+        closing = closing,
+        onBack = { closing = true },
+        onClosed = onClosed,
+        onRefresh = {
+            scope.launch {
+                loading = true
+                val desc = detail?.descReplies == true
+                repo.threadDetailDirected(thread.tid, desc, refresh = true)?.let { nd ->
+                    detail = if (desc) nd else repo.mergeThreadDetail(detail, nd)
+                }
+                loading = false
+            }
+        },
+        onLoadMore = {
+            val cur = detail ?: return@ThreadDetailOverlay
+            if (!loadingMore && repo.hasMoreReplies(cur)) {
+                loadingMore = true
+                scope.launch {
+                    repo.threadRepliesNext(thread.tid, cur)?.let { next ->
+                        detail = next.copy(replies = (cur.replies + next.replies).distinctBy { it.pid })
+                    }
+                    loadingMore = false
+                }
+            }
+        },
+        onSortChanged = { desc ->
+            val cur = detail
+            if (cur != null && cur.descReplies != desc) {
+                scope.launch {
+                    repo.repliesDirected(thread.tid, cur, desc)?.let { detail = it }
+                }
+            }
+        },
+        floorStates = floorStates,
+        floorLoading = floorLoading.filterValues { it }.keys,
+        floorLoadingMore = floorLoadingMore.filterValues { it }.keys,
+        onOpenFloor = { r ->
+            if (!floorStates.containsKey(r.pid)) {
+                floorLoading[r.pid] = true
+                scope.launch {
+                    delay(300)
+                    if (floorStates.containsKey(r.pid)) {
+                        floorLoading[r.pid] = false
+                        return@launch
+                    }
+                    repo.floorReplies(thread.tid, r)?.let { floorStates[r.pid] = it }
+                    floorLoading[r.pid] = false
+                }
+            }
+        },
+        onFloorLoadMore = { pid, fr ->
+            if (floorLoadingMore[pid] != true && fr.hasMore) {
+                val lastPid = fr.subReplies.lastOrNull { it.depth == 0 }?.pid ?: return@ThreadDetailOverlay
+                floorLoadingMore[pid] = true
+                scope.launch {
+                    val next = repo.floorReplies(thread.tid, HupuReply(pid = pid), maxpid = lastPid)
+                    val cur = floorStates[pid]
+                    if (next != null && cur != null) {
+                        val merged = (cur.subReplies + next.subReplies).distinctBy { it.pid }
+                        floorStates[pid] = cur.copy(subReplies = merged, hasMore = next.hasMore)
+                    }
+                    floorLoadingMore[pid] = false
+                }
+            }
+        },
+        pageZIndex = pageZIndex,
+    )
 }

@@ -252,10 +252,19 @@ object HupuParser {
                     ?.optString("pid")
                     ?.takeIf { it.isNotEmpty() && it != "" }
                     ?: "",
+                client = o.optString("client"),
+                hidden = o.optBoolean("isDelete") || o.optBoolean("isHidden") ||
+                    o.optInt("hidePost", 0) > 0 || o.optBoolean("isAudit"),
             )
         }
 
         val thread = threadFrom(th)
+        fun relatedThreads(key: String): List<HupuThread> {
+            val arr = detail.optJSONArray(key) ?: return emptyList()
+            return (0 until arr.length()).mapNotNull { i ->
+                arr.optJSONObject(i)?.let { threadFrom(it) }?.takeIf { it.tid.isNotEmpty() }
+            }
+        }
         return HupuThreadDetail(
             thread = thread,
             contentHtml = th.optString("content"),
@@ -264,6 +273,8 @@ object HupuParser {
             replyPage = page,
             replyTotalPages = rep?.optInt("total", 1) ?: 1,
             isLocked = th.optBoolean("isLock", false),
+            hot = relatedThreads("hot"),
+            latest = relatedThreads("latest"),
             // 1.119: 投票从帖子 format 的 jsonV3 vote 节点解析（单选 radio / 多选 checkbox）
             vote = voteFromFormat(th.optString("format")),
         )

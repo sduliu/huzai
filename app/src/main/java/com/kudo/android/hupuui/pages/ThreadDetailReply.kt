@@ -494,7 +494,16 @@ internal fun ReplyRow(
                 )
             }
         }
-        HtmlContent(r.contentHtml, onImageClick = onImageClick, compactImages = true)
+        // 批F-3：官方删除/隐藏/审核中楼层 → 占位文案，不渲正文（isDelete/isHidden/hidePost/isAudit）
+        if (r.hidden) {
+            Text(
+                "该回复已被删除或隐藏",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            HtmlContent(r.contentHtml, onImageClick = onImageClick, compactImages = true)
+        }
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (r.location.isNotBlank()) {
                 Text(r.location, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -502,6 +511,19 @@ internal fun ReplyRow(
             }
             if (r.createdAtText.isNotBlank()) {
                 Text(r.createdAtText, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            // 批F-3：客户端来源（reply.client：ANDROID/IPHONE → 官方「来自」标签）
+            when (r.client.uppercase()) {
+                "ANDROID" -> "Android"
+                "IPHONE" -> "iPhone"
+                else -> null
+            }?.let { os ->
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "来自$os",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             Spacer(Modifier.weight(1f))
             // 点亮（登录后可点；点亮态红色爱心，计数本地 +1 展示）
