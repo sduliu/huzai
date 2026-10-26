@@ -298,7 +298,10 @@ fun MatchDetailOverlay(
                 }
             } else if (isBasketball) {
                 when (topTab) {
-                    // 战报：官方为编辑帖，匿名无结构化源（批U-0 量取表）——不编数据
+                    // 战报：官方为编辑帖，匿名无结构化源——不编数据。
+                    // 批U-0 量取 + 批Y 复探（2026-10-27）：matchInfo 无 report/article 字段、
+                    // score_tree 根节点 infoJson.link 空/linkNodes 空、
+                    // matchReport/matchNews/matchReportList/getMatchReport/matchDetail/matchArticleList 六端点全 404。
                     MatchTopTab.RECAP -> MatchTabEmpty("本场暂无战报")
                     MatchTopTab.RATING -> Unit // 已被 showRating 分支覆盖
                     MatchTopTab.STATS ->
