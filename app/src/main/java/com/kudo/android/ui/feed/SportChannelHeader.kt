@@ -163,12 +163,13 @@ fun SportChannelHeader(
                 onMyTeam()
             }
         }
-        // 「资讯」+ 推荐/最新切换（对齐官方频道资讯区）
+        // 「资讯」+ 推荐/最新切换（对齐官方频道资讯区：左大标题右分段胶囊）
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 "资讯",
-                style = MaterialTheme.typography.titleSmall,
+                fontSize = 17.sp,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = 4.dp),
             )
             Spacer(Modifier.weight(1f))
@@ -195,6 +196,66 @@ fun SportChannelHeader(
                 }
             }
         }
+    }
+}
+
+/**
+ * 批T-3：频道「资讯」帖行（官方形态）——左标题（2 行截断）+ 右缩略图 72×54，
+ * 标题下 meta：`🔥 {replies}回复  {lights}亮回复`；行底 0.5dp 分隔线。
+ * 数据源为 newsList（无图条目自然退化为纯文本行，与官方一致）。
+ */
+@Composable
+internal fun SportNewsRow(topic: com.kudo.android.data.Topic, onClick: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth()
+            .clickable(onClick = onClick, role = Role.Button)
+            .semantics(mergeDescendants = true) { contentDescription = topic.title }
+            .padding(horizontal = 12.dp)
+            .testTag("sport-news-${topic.id}"),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f).padding(end = if (topic.image.isNotBlank()) 10.dp else 0.dp)) {
+                Text(
+                    topic.title,
+                    fontSize = 16.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🔥", fontSize = 11.sp)
+                    Text(
+                        " ${topic.replies}回复",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "${topic.likes}亮回复",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (topic.image.isNotBlank()) {
+                com.kudo.android.hupuui.components.HupuIconImage(
+                    model = com.kudo.android.hupuui.components.normalizeCover(topic.image),
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.size(width = 96.dp, height = 72.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                )
+            }
+        }
+        Box(
+            Modifier.fillMaxWidth().height(0.5.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant)
+        )
     }
 }
 

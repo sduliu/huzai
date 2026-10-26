@@ -143,6 +143,7 @@ fun FeedScreen(state: FeedState, user: Member?, select: (String) -> Unit, refres
                             scrollBehavior.state.contentOffset = 0f
                         }, contentTopPadding = contentTopPadding,
                             sortLatest = sortLatest,
+                            sportNews = value.startsWith("sport:"),
                             headerContent = if (value.startsWith("sport:") && channelHeader != null)
                                 ({ channelHeader.invoke(value.removePrefix("sport:"), sortLatest) { sportLatest[value] = it } }) else null)
                 }
@@ -200,7 +201,9 @@ internal fun FeedPage(state: FeedState, active: Boolean, scrollToTop: () -> Unit
     expandHeader: suspend () -> Unit = { scrollToTop() }, contentTopPadding: Dp = 0.dp,
     headerContent: (@Composable () -> Unit)? = null,
     /** 赛事频道「最新」模式：客户端按 bumpedAt 倒序（推荐=服务端原序），置顶保持最前 */
-    sortLatest: Boolean = false) {
+    sortLatest: Boolean = false,
+    /** 批T-3：赛事频道资讯区帖行用官方扁平行（左题右图+🔥回复/亮回复），非大卡 */
+    sportNews: Boolean = false) {
     val ignored = com.kudo.android.ui.topic.LocalIgnoredUsers.current
     val visibleTopics = state.topics
         .filterNot { it.author?.username?.lowercase(java.util.Locale.ROOT) in ignored }
@@ -239,7 +242,8 @@ internal fun FeedPage(state: FeedState, active: Boolean, scrollToTop: () -> Unit
             }) {
             val traditional = listStyle == TopicListStyle.TITLE
             // 批D：平卡模式列表左右清 0、缝 10dp（官方平卡全宽贴边；sport-header 自带 horizontal=12）
-            LazyColumn(state = listState, contentPadding = if (traditional) PaddingValues(top = contentTopPadding, bottom = 112.dp) else PaddingValues(start = 0.dp, end = 0.dp, top = contentTopPadding + 8.dp, bottom = 112.dp), verticalArrangement = Arrangement.spacedBy(if (traditional) 0.dp else 10.dp), modifier = Modifier.fillMaxSize().then(if (nested != null) Modifier.nestedScroll(nested) else Modifier).testTag("feed-list-${state.filter}")
+            // 批T-3：sportNews 频道资讯用扁平行（自带行底分隔线）——贴边零间距
+            LazyColumn(state = listState, contentPadding = if (traditional || sportNews) PaddingValues(top = contentTopPadding, bottom = 112.dp) else PaddingValues(start = 0.dp, end = 0.dp, top = contentTopPadding + 8.dp, bottom = 112.dp), verticalArrangement = Arrangement.spacedBy(if (traditional || sportNews) 0.dp else 10.dp), modifier = Modifier.fillMaxSize().then(if (nested != null) Modifier.nestedScroll(nested) else Modifier).testTag("feed-list-${state.filter}")
                 .quickScrollTarget(listState, enabled = active, expandHeader = expandHeader)) {
                 if (headerContent != null) item(key = "sport-header", contentType = "header") { headerContent() }
                 if (state.loading && state.topics.isEmpty()) item { LoadingRow() }
@@ -247,7 +251,8 @@ internal fun FeedPage(state: FeedState, active: Boolean, scrollToTop: () -> Unit
                 if (!state.loading && state.error == null && visibleTopics.isEmpty()) item { EmptyState("暂时没有可显示话题", "换个分类，或者稍后再来看看。") }
                 items(visibleTopics, key = { "topic-${it.id}" }, contentType = { listStyle }) { topic ->
                     val category = state.categories.firstOrNull { it.id == topic.categoryId }
-                    if (traditional) TopicTitleRow(topic, category, { openTopic(topic.id) }, openUser)
+                    if (sportNews) SportNewsRow(topic) { openTopic(topic.id) }
+                    else if (traditional) TopicTitleRow(topic, category, { openTopic(topic.id) }, openUser)
                     else TopicCard(topic, category, { openTopic(topic.id) }, openUser)
                 }
                 if (state.loadingMore) item { LoadingRow() }

@@ -839,3 +839,10 @@ Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage
 - **主队**：官方为登录态聚合页，匿名源不可得——本批仅入口位（Shield 图标）+ Toast：未登录「登录后可用：主队是登录态功能」，已登录「主队功能将在登录批次补齐」（`onMyTeam` 回调 KudoApp 注入）。登录批次欠账。
 - **排除类空位处理**：AI工坊/NBA游戏/冠军经理/足球游戏（推广/游戏类）**不渲染占位**——幽灵灰位会被误读为故障，官方语义即广告位。回退：revert 本 commit 恢复条件渲染版。
 - 旧实现按 dataKind 逐项渲染（积分榜/球员榜/选秀/伤病各占一位，cba 可达 6 项）与官方 5 位语义不符，已弃。
+
+### 批T-3：资讯区——newsList 主源 + 官方扁平帖行
+
+- **数据源改判**：旧实现 `sport:` 频道走 `boardUrl` 板块帖流（nba=/vote 湿乎乎、soccer=/topic 足球话题区）——官方频道「资讯」实为 **newsList 新闻流**（OFF_nba3 帖=篮球资讯流同款：带缩略图、`l:50` 恰好对应官方「50亮回复」meta）。改判后优先级：`tagCode→boardNews`(n 游标分页） → `soccerSsr` → `boardUrl→topicPage`（板块帖流兜底） → `newsTopic`。
+- **推广滤除**：newsList 里 `LINK`/`SUBJECT` 类推广条目 tid 为空，`openableAsThread` 天然滤除（实测 fifa 流里「18连红专家精选」推广即被滤）。
+- **帖行形态**：新增 `SportNewsRow`——左标题 16sp Medium 两行截断 + 右 96×72 圆角缩略图 + meta `🔥{replies}回复  {lights}亮回复` + 行底 0.5dp 分隔线；`FeedPage.sportNews` 仅对 `sport:` 频道启用（大卡/传统行不受影响），LazyColumn 改零间距贴边。
+- **回退**：revert 本 commit 恢复 boardUrl 主源 + TopicCard 大卡；`boardUrl` 字段保留作 newsList 失败兜底，未删。

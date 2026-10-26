@@ -78,9 +78,27 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
         }
         if (filter.startsWith("sport:")) {
             val cfg = HUPU_BOARDS[filter.removePrefix("sport:")] ?: return TopicPage(emptyList(), null)
-            // 首页赛事频道 = 板块帖子流（湿乎乎/足球话题区），与比赛 Tab 的
-            // 资讯流分工；板块页无分页——p>1 时 topicPage 失败即终止，不再回落
-            // board() 重发首页内容。
+            // 批T-3：频道「资讯」主源 = newsList 新闻流（官方同款：带缩略图/回复数/亮回复数；
+            // 推广条目无 tid 被 openableAsThread 滤除）。newsList 与首页推荐流是两个独立源。
+            // n 游标翻页失败即终止；首页失败才回落板块帖流/SSR。
+            if (next == null || next.startsWith("n")) {
+                cfg.tagCode?.let { tag ->
+                    val (pre, anchor) = next?.removePrefix("n")?.split('|')?.let { it[0].toIntOrNull() to it.getOrNull(1).orEmpty() }
+                        ?: (0 to "")
+                    hupu.boardNews(tag, pre ?: 0, anchor, refresh)?.let { p ->
+                        val items = p.items.filter { it.openableAsThread }
+                        val cursor = if (p.nextPreCount > (pre ?: 0)) "n${p.nextPreCount}|${p.anchorNid}" else null
+                        return TopicPage(items.map { it.toTopic() }, cursor)
+                    }
+                    if (next != null) return TopicPage(emptyList(), null)
+                }
+                if (cfg.soccerSsr) {
+                    val items = hupu.soccerNews(refresh).filter { it.openableAsThread }
+                    if (items.isNotEmpty()) return TopicPage(items.map { it.toTopic() }, null)
+                }
+            }
+            // 回落：板块帖子流（newsList 不可用时的兜底；板块页无分页——
+            // p>1 时 topicPage 失败即终止，不再回落 board() 重发首页内容）。
             if (cfg.boardUrl.isNotEmpty()) {
                 val page = next?.removePrefix("p")?.toIntOrNull() ?: 1
                 hupu.topicPage(cfg.boardUrl, page, refresh)?.let { p ->
@@ -91,19 +109,7 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
                 hupu.board(cfg.boardUrl, refresh)?.let { b ->
                     return TopicPage(b.threads.map { it.toTopic() }, null)
                 }
-                // 板块拉空（网络失败等）→ 回退下方资讯流
-            }
-            if (cfg.soccerSsr) {
-                val items = hupu.soccerNews(refresh).filter { it.openableAsThread }
-                return TopicPage(items.map { it.toTopic() }, null)
-            }
-            cfg.tagCode?.let { tag ->
-                val (pre, anchor) = next?.removePrefix("n")?.split('|')?.let { it[0].toIntOrNull() to it.getOrNull(1).orEmpty() }
-                    ?: (0 to "")
-                val p = hupu.boardNews(tag, pre ?: 0, anchor, refresh) ?: return TopicPage(emptyList(), null)
-                val items = p.items.filter { it.openableAsThread }
-                val cursor = if (p.nextPreCount > (pre ?: 0)) "n${p.nextPreCount}|${p.anchorNid}" else null
-                return TopicPage(items.map { it.toTopic() }, cursor)
+                // 板块拉空（网络失败等）→ 回退下方资讯兜底
             }
             val page = next?.removePrefix("p")?.toIntOrNull() ?: 1
             val p = hupu.topicNews(cfg.newsTopic, page, refresh) ?: return TopicPage(emptyList(), null)
