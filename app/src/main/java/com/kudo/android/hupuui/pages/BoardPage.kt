@@ -92,6 +92,9 @@ import kotlinx.coroutines.launch
 import com.kudo.android.hupuui.components.HupuIconImage
 import com.kudo.android.hupuui.components.HupuThumbImage
 
+/** 批T-4：官方「JRs评分」蓝（与批S titleFont 官方蓝同值 0xFF3B82F6）。 */
+private val JrsBlue = androidx.compose.ui.graphics.Color(0xFF3B82F6)
+
 /**
  * board：赛事板块视图（官方板块形态的复刻）——**内嵌在「比赛」Tab 频道内容区**。
  *
@@ -953,8 +956,8 @@ internal fun BoardMatchCard(m: HupuMatch, onOpen: () -> Unit) {
     ) {
         Text(
             m.introduction.ifBlank { m.matchName },
-            fontSize = 11.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -972,8 +975,8 @@ internal fun BoardMatchCard(m: HupuMatch, onOpen: () -> Unit) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     m.home?.name.orEmpty(),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -985,13 +988,13 @@ internal fun BoardMatchCard(m: HupuMatch, onOpen: () -> Unit) {
                     model = normalizeCover(m.home?.logo),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(30.dp).clip(CircleShape),
+                    modifier = Modifier.size(40.dp).clip(CircleShape),
                 )
                 Text(
                     if (m.home?.baseScore?.isNotEmpty() == true &&
                         m.away?.baseScore?.isNotEmpty() == true
                     ) "${m.home?.baseScore} - ${m.away?.baseScore}" else "VS",
-                    fontSize = 20.sp,
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (m.status == "INPROGRESS") MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurface,
@@ -1002,13 +1005,13 @@ internal fun BoardMatchCard(m: HupuMatch, onOpen: () -> Unit) {
                     model = normalizeCover(m.away?.logo),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(30.dp).clip(CircleShape),
+                    modifier = Modifier.size(40.dp).clip(CircleShape),
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
                     m.away?.name.orEmpty(),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -1017,16 +1020,23 @@ internal fun BoardMatchCard(m: HupuMatch, onOpen: () -> Unit) {
             }
         }
         Spacer(Modifier.height(6.dp))
+        // 批T-4：官方底行规则——有评分→蓝「{万制}JRs评分」；无评分已结束→灰「已结束」；
+        // 未开始→开赛时间；进行中→状态文案。JRs 蓝与批S titleFont 官方蓝同值。
+        val jrsText = com.kudo.android.hupu.hupuJrsScoreText(m.scoreCountText)
         val bottomText = when {
             m.status == "NOTSTARTED" -> m.startTimeText
-            m.status == "COMPLETED" && m.scoreCountText.isNotBlank() -> m.scoreCountText
-            else -> m.statusDesc
+            m.status == "INPROGRESS" -> m.statusDesc.ifBlank { "进行中" }
+            jrsText.isNotEmpty() -> jrsText
+            else -> m.statusDesc.ifBlank { "已结束" }
         }
         Text(
             bottomText,
-            fontSize = 11.sp,
-            color = if (m.status == "INPROGRESS") MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp,
+            color = when {
+                m.status == "INPROGRESS" -> MaterialTheme.colorScheme.primary
+                jrsText.isNotEmpty() && m.status != "NOTSTARTED" -> JrsBlue
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            },
             maxLines = 1,
         )
     }

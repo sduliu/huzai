@@ -846,3 +846,10 @@ Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage
 - **推广滤除**：newsList 里 `LINK`/`SUBJECT` 类推广条目 tid 为空，`openableAsThread` 天然滤除（实测 fifa 流里「18连红专家精选」推广即被滤）。
 - **帖行形态**：新增 `SportNewsRow`——左标题 16sp Medium 两行截断 + 右 96×72 圆角缩略图 + meta `🔥{replies}回复  {lights}亮回复` + 行底 0.5dp 分隔线；`FeedPage.sportNews` 仅对 `sport:` 频道启用（大卡/传统行不受影响），LazyColumn 改零间距贴边。
 - **回退**：revert 本 commit 恢复 boardUrl 主源 + TopicCard 大卡；`boardUrl` 字段保留作 newsList 失败兜底，未删。
+
+### 批T-4：比分卡官方文案格式——JRs评分蓝字 + 已结束灰 + 轮次置顶
+
+- **底行规则**（官方实证）：`有评分→蓝「{万制原文}JRs评分」`（NBA `scoreCountText`/足球 `pv` 经 `hupuJrsScoreText` 归一：「人评分」→「JRs评分」，万制原文保留）；`无评分已结束→灰「已结束」`；`未开始→开赛时间`；`进行中→状态文案`（statusDesc，primary 色）。优先级：NOTSTARTED > INPROGRESS > JRs评分 > 其他已结束。
+- **JrsBlue=0xFF3B82F6**：与批S `titleFont` 官方蓝同值复用，不新开色板。
+- **字号对齐**：轮次 11→13sp 深字；队名 15→16sp SemiBold；队标 30→40dp；比分 20→24sp Bold；底行 11→12sp。
+- 注意 `scoreCountText`/`pv` 原文保留（不落 JRs 格式进模型）——归一化发生在渲染层，其他消费方（比赛详情等）用原文不受影响。回退：revert 本 commit。
