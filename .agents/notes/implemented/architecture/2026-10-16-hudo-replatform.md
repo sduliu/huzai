@@ -546,3 +546,23 @@ Muse 实测悬浮毛玻璃药丸滚动中途盖正文（批L-3 只修了末尾�
 ## 批N-4：首页顶栏搜索条官方化（纯样式）
 
 官方首页顶栏为「虎扑logo + 灰底搜索框（放大镜+提示）+ 红底『搜索』按钮」。原实现是右侧液态玻璃放大镜图标键——改为官方形态：灰底圆角长框（36dp×190dp，放大镜+「搜索」提示）+ 右端红底「搜索」胶囊（品牌红 `HUPU_RED=0xFFC01E2F`）。只改样式不改入口——点击仍开 `SearchPage` 盖入页，未接搜索词直填（功能不变）。宽 190dp 为固定视觉宽：PageHeader trailing 槽是自适应宽，标题「虎扑」+话题条下宽度受限，190dp 与官方条视觉比例接近且不与标题挤位。
+
+## 批Nfix-0：真实组件归属表（先核查再改——批N 返工前置）
+
+Muse 2026-10-26 真机验收：批N 的 N1/N4 改进了**无挂载点的死组件**，N2/N3 只覆盖版块路径详情。
+以下为代码核查（非猜测）得出的「用户路径 → 实际组件」映射，后续对齐工作一律以本表为准：
+
+| 用户路径 | 挂载链 | 实际渲染组件 |
+|---|---|---|
+| 首页信息流 | `KudoApp "root"` Tab0 → `FeedScreen` → `FeedPage` items | **`ui/components/Common.kt TopicCard`**（Discourse `Topic` 模型，经 `HupuBridge.toTopic()` 桥入；作者行代码已有但 `topic.author==null` 时整行不渲染） |
+| 首页顶栏 | `FeedScreen` 头部 Column | `FeedScreen.kt:147-184`（logo + 灰底搜索 pill + 「搜索」文字） |
+| 首页帖详情 | `NavHost "topic/{id}"` → `TopicViewModel`→`CommunityRepository.detail` | **`ui/topic/TopicScreen` + `TopicPost` + `TopicTopBar` + `TopicBottomBar`**（主楼 number==1 无作者行；底栏为液态按钮组浮层） |
+| 专区页 | `KudoApp` Tab1 | `hupuui/pages/ZonePage`（二级页 `TopicFeedOverlay` 版块流用 `FeedList`/`FeedItem`——活着） |
+| 版块/历史/消息帖详情 | `ZonePage:555` / `HistoryPage:358` / `MessagePage:637` | **`hupuui/pages/ThreadDetailOverlay`**（批N 的 N2/N3 已生效路径，保留不回退） |
+| 比赛 Tab | `KudoApp` Tab3 | `hupuui/pages/ScorePage` |
+| **死代码** | 全仓库仅 `HupuApi.kt:431` 一句注释提及，无任何调用方 | `hupuui/pages/HomePage.kt`——批N-1/N-4 在此做的改动不产生任何运行时效果，批Nfix-5 回退 |
+
+关键事实：
+- `CommunityRepository` 是本端唯一社区仓储——读路径（话题流/详情/搜索）全部桥到 `HupuRepository`，`Topic`/`TopicDetail`/`Post` 是通用渲染模型；虎扑字段经 `HupuBridge` 映射进该模型（`author→Member`、`lights→likes`、`createdAtText→bumpedAt`）。
+- `toMember()` 此前把 `Member.avatar` 置空——桥入作者头像全丢（影响所有用到作者头像的渲染位）。
+- 主导航药丸 `GlassNavigation` 渲染在 `"root"` composable 外层 Box（`KudoApp.kt:257`），ZonePage 的盖入详情在它**下层**——这是批N-3 通栏底栏与药丸重叠的成因；`NavHost` 目的地页面（topic/category 等）不经过 root composable，天然无药丸。
