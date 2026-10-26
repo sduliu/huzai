@@ -595,3 +595,11 @@ Muse 2026-10-26 真机验收：批N 的 N1/N4 改进了**无挂载点的死组�
 - 实现：`HupuUiSignals.zoneDetailOpen`（可观察 state）——ZonePage `LaunchedEffect(openedThread != null)` 置位 + `DisposableEffect` 兜底复位；KudoApp `if (!zoneDetailOpen) GlassNavigation(...)`。
 - 影响面：仅专区 Tab 详情盖入期间；版块流/搜索盖入层不动药丸（版块页 FAB 避让沿用批L-3）；`NavHost` 目的地详情（首页路径）本不经 root composable，不受影响。
 - `LocalQuickScrollBottomPadding`（navBars+88dp）在详情打开期间保留——列表末留白偏大但无害，不回改。
+
+## 批Nfix-5：死代码处理——HomePage.kt 批N 改动回退
+
+`hupuui/pages/HomePage.kt` 经核查为**死代码**（全仓库仅 `HupuApi.kt:431` 一句注释提及，无任何调用方；历史挂载点在虎仔移植 `1a8db37` 后未再接线）。批N-1/N-4 在其中做了作者补齐与搜索条改动——「看起来做了、实际没跑」。
+
+- **决定：回退**（`git checkout 94218d5^ -- HomePage.kt`，文件回到批N 前状态）。理由：死组件上留完整实现会误导后续批次以为首页管道走这里（批N 返工正是这么发生的）；若将来重新接线，批Nfix 已在真实组件上给出可对照实现。
+- **不回退的部分**：`FeedItem` 的 shareNum 显示位（`FeedUi.kt`——经 `FeedList` 在 `BoardPage`/`UserProfilePage` 活着，shareNum=-1 时不渲染，数据一旦补齐即自然生效）；`HupuThread.shareNum`/`threadCardHead`/`threadShareNum`（现由 `CommunityRepository.enrichTopics`/`detail()` 真实调用）；`HupuPrefs` 作者缓存格式（真实路径复用同一 store）。
+- 连带损失如实说明：HomePage 内 1.222 黑名单补作者逻辑同被回退——该页本就不可达，无运行时影响。
