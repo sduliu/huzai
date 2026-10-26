@@ -84,6 +84,12 @@ data class TopicDetail(
     val archived: Boolean = false,
     val lastReadPostNumber: Int? = null,
     val solutions: List<TopicSolution> = emptyList(),
+    /** 批Nfix-3：虎扑主楼发布地（IP 属地，文末 meta「发布于{地}」）；空=无字段不渲染 */
+    val location: String = "",
+    /** 批Nfix-3：虎扑主楼阅读数（文末 meta「阅读 {数}」）；0=无字段不渲染 */
+    val readCount: Int = 0,
+    /** 批Nfix-3：虎扑主帖转发数（底栏计数）；-1=未补齐，底栏只显图标 */
+    val shareNum: Int = -1,
 ) {
     val originalPost: Post? get() = posts.firstOrNull { it.number == 1 } ?: pinnedOriginal
     val resumePostNumber: Int? get() = lastReadPostNumber?.takeIf { it > 0 }

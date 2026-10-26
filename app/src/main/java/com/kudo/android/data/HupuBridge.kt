@@ -209,6 +209,8 @@ fun HupuThreadDetail.toTopicDetail(): TopicDetail {
         posts = posts,
         stream = stream,
         closed = isLocked,
+        location = thread.location,
+        readCount = thread.read,
     )
 }
 

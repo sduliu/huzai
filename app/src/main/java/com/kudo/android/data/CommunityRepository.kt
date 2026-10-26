@@ -242,11 +242,13 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
     suspend fun emojiGroups(): List<SiteEmojiGroup> = emptyList()
     suspend fun emojiUrls(): Map<String, String> = emptyMap()
 
-    suspend fun detail(id: Int, number: Int? = null, trackVisit: Boolean = false): TopicDetail {
+    suspend fun detail(id: Int, number: Int? = null, trackVisit: Boolean = false): TopicDetail = coroutineScope {
         val tid = HupuIds.tid(id) ?: throw ApiFailure(FailureKind.NOT_FOUND, "内容不存在或暂无权限")
+        // 批Nfix-3：转发数与详情并发取（bbs-thread，易变不落盘）；失败 -1 不影响正文
+        val share = async { hupu.threadShareNum(tid) }
         val detail = hupu.threadDetail(tid)
             ?: throw ApiFailure(FailureKind.NOT_FOUND, "内容不存在或暂无权限")
-        return detail.toTopicDetail()
+        detail.toTopicDetail().copy(shareNum = share.await() ?: -1)
     }
 
     suspend fun recordReading(batch: TopicReadingBatch) = Unit

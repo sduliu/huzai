@@ -133,6 +133,12 @@ internal fun TopicReactionButton(
     }
 }
 
+/**
+ * 批Nfix-3：帖子详情底部**通栏固定底栏**（官方形态，替代悬浮液态按钮组）。
+ * 内容对齐官方「页码 | 我来评论 | 点亮 | 评论 | 转发」+ 保留「收藏」（本端收藏主帖
+ * 的可达入口）。楼层编辑态整栏替换为 FloorNavigationBar（动画仅透明度交叉，不再
+ * 三段滑出）。正文滚动在栏顶硬切——滚动中途无半透明浮层盖内容。
+ */
 @Composable
 internal fun TopicBottomBar(
     state: TopicState, backdrop: Backdrop, glass: GlassMode, enabled: Boolean,
@@ -150,117 +156,88 @@ internal fun TopicBottomBar(
     val actions = LocalTopicActions.current
     val ownFirst = first?.let { state.viewerId != null && it.author.id == state.viewerId } == true
     val available = enabled && !floorEditing && !state.loading && first != null && first.id !in state.busy
-    BoxWithConstraints(modifier.navigationBarsPadding().then(if (floorEditing) Modifier.imePadding() else Modifier)
-        .padding(horizontal = 16.dp, vertical = 20.dp).fillMaxWidth()) {
-    val compact = maxWidth < 320.dp || (LocalDensity.current.fontScale > 1.2f && maxWidth < 360.dp) || (detail.highestPostNumber >= 10000 && maxWidth < 380.dp)
     val replying = state.replyingUsers
     val floor = currentFloor.coerceIn(1, detail.highestPostNumber)
-    val fullWidth = maxWidth
     val transition = updateTransition(floorEditing, label = "floor-controls")
     val expansion by transition.animateFloat(transitionSpec = { tween(280, easing = FastOutSlowInEasing) }, label = "expansion") {
         if (it) 1f else 0f
     }
-    Layout(content = {
-        Box(Modifier.graphicsLayer { alpha = 1f - expansion }
-            .then(if (floorEditing) Modifier.clearAndSetSemantics {} else Modifier)) {
-            LiquidButton(onClick = reply, enabled = enabled && !floorEditing && !detail.closed, backdrop = backdrop, mode = glass,
-                surfaceColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f),
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                contentPadding = PaddingValues(horizontal = if (compact) 14.dp else 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.Start),
-                modifier = Modifier.testTag("topic-reply").semantics {
-                    contentDescription = "写回复"
-                    if (replying.isNotEmpty()) stateDescription = "${replying.size}人正在回复"
-                }) {
-                if (compact) {
-                    Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Outlined.DriveFileRenameOutline, null,
-                            Modifier.size(20.dp).alpha(if (replying.isEmpty()) 1f else 0f).testTag("topic-reply-icon"))
-                        if (replying.isNotEmpty()) ReplyingAvatars(replying, true, Modifier.requiredSize(40.dp, 20.dp))
+    Surface(modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().then(if (floorEditing) Modifier.imePadding() else Modifier)) {
+            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+            Box(Modifier.fillMaxWidth()) {
+                // ---------- 常态栏（编辑态淡出） ----------
+                Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)
+                    .graphicsLayer { alpha = 1f - expansion }
+                    .then(if (floorEditing) Modifier.clearAndSetSemantics {} else Modifier),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    // 页码（官方最左「1/2430」，点击开楼层跳转）
+                    if (floorEnabled) Text("$floor / ${detail.highestPostNumber}",
+                        Modifier.clip(RoundedCornerShape(4.dp))
+                            .clickable(enabled = enabled && !floorEditing && !state.loading, role = Role.Button) { floors() }
+                            .padding(horizontal = 4.dp, vertical = 10.dp).testTag("topic-floor-index")
+                            .semantics {
+                                contentDescription = "楼层索引，当前第 $floor 楼，共 ${detail.highestPostNumber} 楼"
+                                progressBarRangeInfo = ProgressBarRangeInfo(floor.toFloat(), 1f..detail.highestPostNumber.toFloat())
+                            },
+                        style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1, softWrap = false)
+                    Spacer(Modifier.width(8.dp))
+                    // 「我来评论」灰底输入样式框（官方中间项，点击开回复编辑器）
+                    Box(Modifier.weight(1f).heightIn(min = 36.dp).clip(RoundedCornerShape(18.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .7f))
+                        .clickable(enabled = enabled && !floorEditing && !detail.closed, role = Role.Button) { reply() }
+                        .padding(horizontal = 14.dp).testTag("topic-reply").semantics {
+                            contentDescription = "我来评论"
+                            if (replying.isNotEmpty()) stateDescription = "${replying.size}人正在回复"
+                        }, contentAlignment = Alignment.CenterStart) {
+                        if (replying.isEmpty()) Text("我来评论", Modifier.testTag("topic-reply-icon"),
+                            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                        else ReplyingAvatars(replying, false, Modifier)
                     }
-                } else {
-                    Icon(Icons.Outlined.DriveFileRenameOutline, null, Modifier.size(20.dp).testTag("topic-reply-icon"))
-                    Box(Modifier.heightIn(min = 24.dp), contentAlignment = Alignment.Center) {
-                        Text("写回复", if (replying.isEmpty()) Modifier else Modifier.alpha(0f).clearAndSetSemantics {},
-                            style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Normal, maxLines = 1)
-                        if (replying.isNotEmpty()) ReplyingAvatars(replying, false, Modifier.matchParentSize())
-                    }
-                }
-            }
-        }
-        Box(Modifier.testTag("floor-control-slot").graphicsLayer {
-            clip = transition.isRunning
-            shape = Capsule()
-        }, contentAlignment = Alignment.Center) {
-            if (floorEnabled) {
-            Box(Modifier.fillMaxWidth().graphicsLayer { alpha = 1f - expansion }
-                .then(if (floorEditing) Modifier.clearAndSetSemantics {} else Modifier)) {
-                LiquidButton(onClick = floors, enabled = enabled && !floorEditing && !state.loading, backdrop = backdrop, mode = glass,
-                    surfaceColor = MaterialTheme.colorScheme.surface.copy(alpha = .45f),
-                    progress = floor.toFloat() / detail.highestPostNumber, progressColor = LogoYellow.copy(alpha = .27f),
-                    contentPadding = PaddingValues(horizontal = 8.dp),
-                    modifier = Modifier.fillMaxWidth().testTag("topic-floor-index").semantics {
-                        contentDescription = "楼层索引，当前第 $floor 楼，共 ${detail.highestPostNumber} 楼"
-                        progressBarRangeInfo = ProgressBarRangeInfo(floor.toFloat(), 1f..detail.highestPostNumber.toFloat())
-                    }) {
-                    BasicText("$floor / ${detail.highestPostNumber}", style = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.colorScheme.onSurface),
-                        maxLines = 1, autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 12.sp, stepSize = .5.sp))
-                }
-            }
-            if (transition.currentState || transition.targetState) Box(Modifier.requiredWidth(fullWidth).graphicsLayer { alpha = expansion }) {
-                FloorNavigationBar(floorRaw, floorChange, floorHighest, floorJumping, floorError, floorConfirm,
-                    backdrop, glass, Modifier.fillMaxWidth(), openingFloor = currentFloor, close = floorClose)
-            }
-            }
-        }
-        Box(Modifier.graphicsLayer { alpha = 1f - expansion }
-            .then(if (floorEditing) Modifier.clearAndSetSemantics {} else Modifier)) {
-            LiquidButton(onClick = null, backdrop = backdrop, mode = glass,
-                surfaceColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.3f),
-                contentPadding = PaddingValues(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly,
-                modifier = Modifier.testTag("topic-actions")) {
-                TopicReactionButton(first, available && (state.viewerId == null || first?.canReact == true),
-                    choose = if (first?.reactionsAvailable == true && detail.validReactions.isNotEmpty()) ({ choose(first) }) else null,
-                    click = { first?.let(like) }, bottom = true)
-                // 批A-1：底栏对齐官方「👍 💬 ↗」——补回复计数与分享（回应钮已有）
-                Row(Modifier.testTag("topic-reply-count"), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.ModeComment, "回复数", Modifier.size(19.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .75f * LocalContentColor.current.alpha))
-                    Text((detail.highestPostNumber - 1).coerceAtLeast(0).toString(),
-                        Modifier.padding(start = 3.dp), style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .75f * LocalContentColor.current.alpha))
-                }
-                IconButton(onClick = share, enabled = enabled, modifier = Modifier.testTag("topic-share")) {
-                    Icon(Icons.Rounded.Share, "分享帖子", Modifier.size(19.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .75f * LocalContentColor.current.alpha))
-                }
-                if (ownFirst) {
-                    IconButton(onClick = { first?.let { actions.edit(detail.id, it) } },
-                        enabled = available && first?.editableBy(state.viewerId) == true, modifier = Modifier.testTag("topic-edit")) {
-                        Icon(Icons.Rounded.Edit, "编辑主帖", Modifier.size(19.dp),
+                    // 点亮（官方「亮了」= 主帖回应）
+                    TopicReactionButton(first, available && (state.viewerId == null || first?.canReact == true),
+                        choose = if (first?.reactionsAvailable == true && detail.validReactions.isNotEmpty()) ({ choose(first) }) else null,
+                        click = { first?.let(like) }, bottom = true)
+                    // 评论数
+                    Row(Modifier.testTag("topic-reply-count").padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.ModeComment, "回复数", Modifier.size(19.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .75f * LocalContentColor.current.alpha))
+                        Text((detail.highestPostNumber - 1).coerceAtLeast(0).toString(),
+                            Modifier.padding(start = 3.dp), style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .75f * LocalContentColor.current.alpha))
+                    }
+                    // 转发（数有数据显示数，无数据只显图标；动作为系统分享不变）
+                    Row(Modifier.testTag("topic-share").clickable(enabled = enabled, role = Role.Button) { share() }
+                        .padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Share, "分享帖子", Modifier.size(19.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .75f * LocalContentColor.current.alpha))
+                        if (detail.shareNum >= 0) Text(detail.shareNum.toString(), Modifier.padding(start = 3.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .75f * LocalContentColor.current.alpha))
+                    }
+                    // 收藏保留（官方底栏无此项——本端收藏主帖的可达入口，如实记差）
+                    IconButton(onClick = { first?.let(bookmark) }, enabled = available, modifier = Modifier.testTag("topic-bookmark")) {
+                        Icon(if (first?.bookmarkId != null) Icons.Rounded.Star else Icons.Rounded.StarBorder, "收藏主帖",
+                            Modifier.size(19.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .75f * LocalContentColor.current.alpha))
+                    }
+                    if (ownFirst) {
+                        IconButton(onClick = { first?.let { actions.edit(detail.id, it) } },
+                            enabled = available && first?.editableBy(state.viewerId) == true, modifier = Modifier.testTag("topic-edit")) {
+                            Icon(Icons.Rounded.Edit, "编辑主帖", Modifier.size(19.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = .75f * LocalContentColor.current.alpha))
+                        }
                     }
                 }
-                // 虎扑无 Boost 等价机制——原 Discourse 火箭按钮移除
+                // ---------- 楼层编辑态（整栏替换） ----------
+                if (transition.currentState || transition.targetState) {
+                    Box(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp).graphicsLayer { alpha = expansion }) {
+                        FloorNavigationBar(floorRaw, floorChange, floorHighest, floorJumping, floorError, floorConfirm,
+                            backdrop, glass, Modifier.fillMaxWidth(), openingFloor = currentFloor, close = floorClose)
+                    }
+                }
             }
         }
-    }, modifier = Modifier.fillMaxWidth()) { measurables, constraints ->
-        val loose = constraints.copy(minWidth = 0, minHeight = 0)
-        val left = measurables[0].measure(loose)
-        val right = measurables[2].measure(loose)
-        val progress = expansion.coerceIn(0f, 1f)
-        val gap = 8.dp.roundToPx()
-        val start = ((left.width + gap) * (1f - progress)).roundToInt()
-        val end = constraints.maxWidth - ((right.width + gap) * (1f - progress)).roundToInt()
-        val middleWidth = (end - start).coerceAtLeast(1)
-        val middle = measurables[1].measure(loose.copy(minWidth = middleWidth, maxWidth = middleWidth))
-        val height = maxOf(left.height, middle.height, right.height)
-        layout(constraints.maxWidth, height) {
-            left.placeRelative(start - gap - left.width, (height - left.height) / 2)
-            middle.placeRelative(start, (height - middle.height) / 2)
-            right.placeRelative(end + gap, (height - right.height) / 2)
-        }
-    }
     }
 }
 

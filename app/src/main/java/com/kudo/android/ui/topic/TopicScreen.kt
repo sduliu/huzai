@@ -20,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.focus.focusProperties
@@ -256,15 +257,40 @@ fun TopicScreen(state: TopicState, glass: GlassMode, back: () -> Unit, retry: ()
                         if (!originalIgnored || revealOriginal) item("title") {
                             Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text(detail.title, style = MaterialTheme.typography.headlineSmall)
+                                // 批Nfix-3：官方作者行——头像+昵称+发布时间，右侧「版块名 >」进版块流
+                                val author = detail.author
                                 val category = LocalTopicPresentation.current.categories.firstOrNull { it.id == detail.categoryId }
-                                if (category != null || detail.tags.isNotEmpty()) {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    if (author != null) {
+                                        Row(Modifier.weight(1f).clickable(enabled = !showing, role = androidx.compose.ui.semantics.Role.Button) { user(author.username) },
+                                            verticalAlignment = Alignment.CenterVertically) {
+                                            Avatar(author, 28.dp, presentation = AvatarPresentation.PUBLIC)
+                                            Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                                                Text(author.displayName, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                                    style = MaterialTheme.typography.titleSmall, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                                                    color = MaterialTheme.colorScheme.onSurface)
+                                                TopicAuthorMetadata(detail.originalPost?.updatedAt ?: detail.createdAt, category = null,
+                                                    edited = detail.originalPost?.edited == true)
+                                            }
+                                        }
+                                    } else Spacer(Modifier.weight(1f))
+                                    category?.let {
+                                        Row(Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp))
+                                            .clickable(enabled = !showing, role = androidx.compose.ui.semantics.Role.Button) { openCategory(it.id) }
+                                            .testTag("topic-board-link").padding(horizontal = 6.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            Text(it.name, style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                            Icon(Icons.Rounded.ChevronRight, "进入版块", Modifier.size(16.dp),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                }
+                                if (detail.tags.isNotEmpty()) {
                                     FlowRow(Modifier.testTag("topic-detail-metadata"),
                                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                                         verticalArrangement = Arrangement.spacedBy(5.dp),
                                         itemVerticalAlignment = Alignment.CenterVertically) {
-                                        category?.let {
-                                            CategoryInline(it, Modifier.testTag("topic-detail-category"), onClick = { openCategory(it.id) })
-                                        }
                                         detail.tags.forEach { tag -> TopicTagChip(tag, onClick = { openTag(tag) }) }
                                     }
                                 }
@@ -294,6 +320,14 @@ fun TopicScreen(state: TopicState, glass: GlassMode, back: () -> Unit, retry: ()
                                         if (heading.level == 2 || heading.level == 3) headingAnchors[heading.path] = requester
                                     } else null, quote = quotedReply)
                                 if (post.number == 1) TopicSolutionsSummary(detail, posts, !showing, ::navigatePost)
+                                // 批Nfix-3：官方文末 meta「发布于{地} 阅读 {数}」——缺段不显示、全缺不渲染
+                                if (post.number == 1 && (detail.location.isNotBlank() || detail.readCount > 0)) {
+                                    Text(listOfNotNull(
+                                        detail.location.takeIf(String::isNotBlank)?.let { "发布于$it" },
+                                        detail.readCount.takeIf { it > 0 }?.let { "阅读 $it" },
+                                    ).joinToString(" "), Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp).testTag("topic-meta"),
+                                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                                 if (post.number > 1 && thread != null) ReplyPreview(thread, state.replyLoads[post.id], state.hasMoreReplies(post), !showing) {
                                     if (it == null) openThread(post) else navigatePost(it)
                                 }

@@ -576,3 +576,22 @@ Muse 2026-10-26 真机验收：批N 的 N1/N4 改进了**无挂载点的死组�
 - **接入点**：`FeedViewModel.enrichFeed(filter)`——refresh/more/prefetch 落页后异步补齐（首屏不被请求拖慢），结果按 id 合回 `_state` 与 `_pages`；热榜（hot 频道）不走帖子卡、跳过。
 - `TopicCard` 底行 `shareNum>=0` 时追加 `Share + compactNumber`（官方「赞/评/转发」三计数）。
 - 成本与批N 相同：每 tid 两接口、4条/批+120ms 节流；作者缓存命中后只剩 share 请求。
+
+## 批Nfix-3：首页帖详情复刻——作者行版块链接 / 文末 meta / 通栏底栏（移植 N2+N3 到 TopicScreen 路径）
+
+首页详情真实组件是 `ui/topic/TopicScreen`（Discourse `TopicDetail` 模型），批N 改的 `hupuui/ThreadDetail*` 只在专区盖入路径活着。移植：
+
+- **作者行+版块链接**：标题下新增官方形态作者行（头像+昵称+`TopicAuthorMetadata` 发布时间），右侧「版块名 ChevronRight」→ `openCategory(detail.categoryId)`（`category/{id}` 推入版块流页，替代批N-2 的 zoneBoardRequest 信号——首页详情是 nav 目的地，直接推页更简）；话题 tags 保留为 FlowRow（原分类 chip 已并入作者行链接）。
+- **文末 meta**：`TopicDetail.location`/`readCount` 新字段，`toTopicDetail()` 桥入 thread.location/read；主楼卡文末「发布于{地} 阅读 {数}」（缺段不显示、全缺不渲染，`topic-meta` testTag）。
+- **通栏底栏**：`TopicBottomBar` 悬浮液态按钮组 → 满宽不透明 `Surface`+0.5dp 顶线；内容「页码(开楼层跳转) | 我来评论灰框(开回复编辑器) | 点亮 | 评论数 | 转发+数 | ☆收藏」；楼层编辑态整栏替换 `FloorNavigationBar`（三段滑出动画→透明度交叉）。testTag 兼容：`topic-reply`/`topic-floor-index`/`topic-share`/`topic-reply-count` 保留，新增 `topic-bookmark`/`topic-board-link`/`topic-meta`。
+- **转发数**：`detail()` 内与正文并发取 `hupu.threadShareNum`→`TopicDetail.shareNum`（-1 只显图标）；点亮=主帖 `TopicReactionButton`；「写回复」液态按钮改名「我来评论」语义不变。
+- **收藏保留**（官方无此位，本端收藏主帖可达入口，如实记差）；自帖编辑入口随 `ownFirst` 保留。
+
+## 批Nfix-4：专区详情打开时隐藏主导航药丸（层叠修复）
+
+成因（批Nfix-0 表）：`GlassNavigation` 渲染在 `"root"` composable 外层、ZonePage 的 `ThreadDetailOverlay` 下层——批N-3 通栏底栏贴底后与药丸同边重叠。方案取「详情打开时隐藏主导航药丸」而非「底栏抬到药丸上方」：
+
+- 官方详情是推入页本无底栏导航，隐藏形态对齐官方；抬栏方案会让通栏浮在半空且仍需正文避让，治不了重叠根因。
+- 实现：`HupuUiSignals.zoneDetailOpen`（可观察 state）——ZonePage `LaunchedEffect(openedThread != null)` 置位 + `DisposableEffect` 兜底复位；KudoApp `if (!zoneDetailOpen) GlassNavigation(...)`。
+- 影响面：仅专区 Tab 详情盖入期间；版块流/搜索盖入层不动药丸（版块页 FAB 避让沿用批L-3）；`NavHost` 目的地详情（首页路径）本不经 root composable，不受影响。
+- `LocalQuickScrollBottomPadding`（navBars+88dp）在详情打开期间保留——列表末留白偏大但无害，不回改。
