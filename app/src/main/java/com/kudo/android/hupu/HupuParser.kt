@@ -561,6 +561,42 @@ object HupuParser {
         )
     }
 
+    /**
+     * 批Z-1：search2 type=users → (用户条目, hasNextPage)。匿名可读（count=2000 实测）。
+     * 字段名照抄响应：id=短puid、username(带高亮font)、header=头像、lights=获亮、recNum=推荐。
+     */
+    fun parseUserSearch(json: String): Pair<List<HupuSearchUser>, Boolean> {
+        val root = try { JSONObject(json) } catch (e: Exception) { return emptyList<HupuSearchUser>() to false }
+        val rs = root.optJSONObject("data")?.optJSONObject("result") ?: return emptyList<HupuSearchUser>() to false
+        val arr = rs.optJSONArray("data") ?: return emptyList<HupuSearchUser>() to false
+        val out = mutableListOf<HupuSearchUser>()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val id = o.optString("id")
+            if (id.isEmpty()) continue
+            out += HupuSearchUser(
+                puid = id,
+                username = stripHighlight(o.optString("username")),
+                header = o.optString("header"),
+                lights = o.optLong("lights"),
+                recNum = o.optLong("recNum"),
+            )
+        }
+        return out to (rs.optInt("hasNextPage", 0) == 1)
+    }
+
+    /**
+     * 批Z-1：search2 type=topic 的分页变体——除条目外回传 hasNextPage。
+     * [parseTopicSearch] 保持原签名（ZonePage 选择器只取首屏）。
+     */
+    fun parseTopicSearchPage(json: String): Pair<List<HupuTopicInfo>, Boolean> {
+        val hasNext = try {
+            JSONObject(json).optJSONObject("data")?.optJSONObject("result")
+                ?.optInt("hasNextPage", 0) == 1
+        } catch (e: Exception) { false }
+        return parseTopicSearch(json) to hasNext
+    }
+
     private fun subAuthorFrom(o: JSONObject?): HupuAuthor? {
         o ?: return null
         val name = o.optString("username").ifEmpty { o.optString("puname") }

@@ -330,6 +330,8 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                             initialQuery = q,
                             onOpenThread = { s -> topic(HupuIds.topicId(s.tid)) },
                             onClose = { nav.popBackStack() },
+                            // 批Z-1：版块搜索结果 → 版块页（与热榜热门版块同路由）
+                            onOpenBoard = { url -> nav.navigate("category/${HupuIds.boardId(url)}") },
                         )
                     }
                     composable("personal/{destination}") { entry ->

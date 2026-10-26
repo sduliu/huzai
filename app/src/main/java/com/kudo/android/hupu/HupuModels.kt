@@ -333,6 +333,31 @@ data class HupuSearchPage(
     val count: Long = 0L,
 )
 
+/**
+ * 批Z-1：用户搜索结果条目（m.hupu.com/api/v2/search2 type=users，匿名可读）。
+ * 字段语义经用户主页 userInfoData 逐字段比对（2026-10-27 匿名实测 user 50082186/30256516）：
+ *   lights  = be_light_count（获亮）；
+ *   recNum  = be_recommend_count（推荐数，非粉丝——fans=be_follow_count 不在此接口下发）。
+ */
+data class HupuSearchUser(
+    val puid: String,            // data.id（短 puid）
+    /** 已剥高亮标签的用户名 */
+    val username: String,
+    /** 头像 URL */
+    val header: String,
+    /** 获亮数（be_light_count） */
+    val lights: Long = 0L,
+    /** 被推荐数（be_recommend_count） */
+    val recNum: Long = 0L,
+)
+
+/** 批Z-1：search2 分类分页结果（type=users/topic 走 hasNextPage，非 totalPage）。 */
+data class HupuSearchSlice<T>(
+    val items: List<T>,
+    val page: Int,
+    val hasNext: Boolean,
+)
+
 /** 搜索排序方式（sortby 参数，桌面版六种） */
 data class SearchSort(val key: String, val title: String)
 

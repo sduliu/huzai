@@ -89,6 +89,7 @@ import com.kudo.android.hupu.HupuFilter
 import com.kudo.android.hupu.HupuPrefs
 import com.kudo.android.hupu.HupuRepository
 import com.kudo.android.hupu.HupuSearchItem
+import com.kudo.android.hupu.HupuSearchUser
 import com.kudo.android.hupu.HupuTopicInfo
 import com.kudo.android.hupu.SEARCH_SORTS
 import com.kudo.android.hupuui.components.Chip
@@ -121,6 +122,8 @@ fun SearchPage(
     onClose: () -> Unit,
     /** 路由带参进入（热榜「大家都在搜」）时直接提交该词 */
     initialQuery: String = "",
+    /** 批Z-1：版块结果行点按 → 打开版块（category/{boardId}） */
+    onOpenBoard: (String) -> Unit = {},
 ) {
     val repo = remember { HupuRepository() }
     val scope = rememberCoroutineScope()
@@ -155,8 +158,13 @@ fun SearchPage(
     }
 
     var results by remember { mutableStateOf<List<HupuSearchItem>>(emptyList()) }
+    // 批Z-1：分类搜索（search2 type=topic/users，匿名实测可用；news 类型返回空不接）
+    var category by remember { mutableStateOf("posts") }
+    var topicResults by remember { mutableStateOf<List<HupuTopicInfo>>(emptyList()) }
+    var userResults by remember { mutableStateOf<List<HupuSearchUser>>(emptyList()) }
     var page by remember { mutableIntStateOf(1) }
     var totalPages by remember { mutableIntStateOf(0) }
+    var hasNext by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }      // 首次/换条件加载
     var loadingMore by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
@@ -220,15 +228,39 @@ fun SearchPage(
         HupuPrefs.addSearchHistory(qq)
         page = 1
         results = emptyList()
+        topicResults = emptyList()
+        userResults = emptyList()
+        hasNext = false
         loading = true
         failed = false
         scope.launch {
-            val p = repo.search(qq, topicId, sortby, 1)
-            if (p != null) {
-                results = p.items
-                totalPages = p.totalPages
-                page = p.page
-            } else failed = true
+            when (category) {
+                // 批Z-1：帖子沿用桌面版通道（sortby/topicId 筛选参数只对该通道有效）
+                "posts" -> {
+                    val p = repo.search(qq, topicId, sortby, 1)
+                    if (p != null) {
+                        results = p.items
+                        totalPages = p.totalPages
+                        page = p.page
+                    } else failed = true
+                }
+                "topics" -> {
+                    val s = repo.searchTopicsPage(qq, 1)
+                    if (s != null) {
+                        topicResults = s.items
+                        hasNext = s.hasNext
+                        page = s.page
+                    } else failed = true
+                }
+                else -> {
+                    val s = repo.searchUsers(qq, 1)
+                    if (s != null) {
+                        userResults = s.items
+                        hasNext = s.hasNext
+                        page = s.page
+                    } else failed = true
+                }
+            }
             loading = false
         }
     }
@@ -236,17 +268,49 @@ fun SearchPage(
     fun loadMore() {
         val q = activeQuery ?: return
         if (loadingMore || loading || failed) return
-        if (page >= totalPages) return
         loadingMore = true
         scope.launch {
-            val p = repo.search(q, topicId, sortby, page + 1)
-            if (p != null) {
-                results = (results + p.items).distinctBy { it.tid }
-                totalPages = p.totalPages
-                page = p.page
+            when (category) {
+                "posts" -> {
+                    if (page < totalPages) {
+                        val p = repo.search(q, topicId, sortby, page + 1)
+                        if (p != null) {
+                            results = (results + p.items).distinctBy { it.tid }
+                            totalPages = p.totalPages
+                            page = p.page
+                        }
+                    }
+                }
+                "topics" -> {
+                    if (hasNext) {
+                        val s = repo.searchTopicsPage(q, page + 1)
+                        if (s != null) {
+                            topicResults = (topicResults + s.items).distinctBy { it.topicId }
+                            hasNext = s.hasNext
+                            page = s.page
+                        }
+                    }
+                }
+                else -> {
+                    if (hasNext) {
+                        val s = repo.searchUsers(q, page + 1)
+                        if (s != null) {
+                            userResults = (userResults + s.items).distinctBy { it.puid }
+                            hasNext = s.hasNext
+                            page = s.page
+                        }
+                    }
+                }
             }
             loadingMore = false
         }
+    }
+
+    /** 批Z-1：切换结果分类（帖子=桌面通道 / 版块、用户=search2），立即重搜第 1 页 */
+    fun changeCategory(c: String) {
+        if (category == c) return
+        category = c
+        activeQuery?.let { submit(it) }
     }
 
     fun changeSort(newSort: String) {
@@ -300,13 +364,13 @@ fun SearchPage(
             val dark = isAppDarkTheme()
             if (searched) {
                 // 1.192c: 补「选中项居中」便捷特性。
-                // 序号 0 是「专区」按钮，排序项从 1 开始；选第 1 个排序项时回到最左，
-                // 避免把唯一入口「专区」按钮挤出屏幕左侧。
+                // 批Z-1：序号 0-2 是分类 chips、3 是「专区」按钮，排序项从 4 开始；
+                // 选第 1 个排序项时回到最左，避免把入口挤出屏幕左侧。
                 val filterBarState = rememberLazyListState()
-                val sortSelIdx = 1 + SEARCH_SORTS.indexOfFirst { it.key == sortby }
+                val sortSelIdx = 4 + SEARCH_SORTS.indexOfFirst { it.key == sortby }
                 LaunchedEffect(sortby) {
-                    if (sortSelIdx >= 1) {
-                        if (sortSelIdx <= 1) filterBarState.animateScrollToItem(0)
+                    if (sortSelIdx >= 4) {
+                        if (sortSelIdx <= 4) filterBarState.animateScrollToItem(0)
                         else filterBarState.animateChipCenterTo(sortSelIdx)
                     }
                 }
@@ -320,8 +384,18 @@ fun SearchPage(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // 专区筛选按钮（与排序 chips 同行，不再单独成行）
+                    // 批Z-1：结果分类 chips（帖子/版块/用户——search2 三匿名类）
                     item {
+                        Chip(text = "帖子", selected = category == "posts") { changeCategory("posts") }
+                    }
+                    item {
+                        Chip(text = "版块", selected = category == "topics") { changeCategory("topics") }
+                    }
+                    item {
+                        Chip(text = "用户", selected = category == "users") { changeCategory("users") }
+                    }
+                    // 专区筛选按钮（仅帖子分类：topicId 为桌面通道参数）
+                    if (category == "posts") item {
                         val allTopicsFlat = remember(categories) {
                         categories.flatMap { it.topics }.distinctBy { it.topicId }
                     }
@@ -358,7 +432,7 @@ fun SearchPage(
                         )
                     }
                     }
-                    items(SEARCH_SORTS, key = { it.key }) { s ->
+                    if (category == "posts") items(SEARCH_SORTS, key = { it.key }) { s ->
                         Chip(text = s.title, selected = sortby == s.key) { changeSort(s.key) }
                     }
                 }
@@ -371,7 +445,9 @@ fun SearchPage(
                 activeQuery == null -> "history"
                 loading -> "loading"
                 failed -> "error"
-                results.isEmpty() -> "empty"
+                (category == "posts" && results.isEmpty()) ||
+                    (category == "topics" && topicResults.isEmpty()) ||
+                    (category == "users" && userResults.isEmpty()) -> "empty"
                 else -> "ok"
             }
             when (state) {
@@ -390,9 +466,19 @@ fun SearchPage(
                 }
                 "error" -> ErrorRetry { retrySearch() }
                 "empty" -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("没有找到相关帖子", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    // 批Z-1：分类空态各自显式（官方 search2 空结果同样给空白列表页）
+                    val label = when (category) {
+                        "topics" -> "版块"
+                        "users" -> "用户"
+                        else -> "帖子"
+                    }
+                    Text("没有找到相关$label", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                else -> SearchResults(results, page < totalPages, loadingMore, ::loadMore, topInset) { onOpenThread(it) }
+                else -> when (category) {
+                    "topics" -> TopicResults(topicResults, hasNext, loadingMore, ::loadMore, topInset, onOpenBoard)
+                    "users" -> UserResults(userResults, hasNext, loadingMore, ::loadMore, topInset)
+                    else -> SearchResults(results, page < totalPages, loadingMore, ::loadMore, topInset) { onOpenThread(it) }
+                }
             }
         }
         }
@@ -685,6 +771,11 @@ private fun SearchItemRow(it: HupuSearchItem, onOpen: (HupuSearchItem) -> Unit) 
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(it.forumName, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // 批Z-1：作者名（官方搜索行 meta 含 username；点按链路为批X2 欠账，纯文本展示）
+                if (it.username.isNotBlank()) {
+                    Spacer(Modifier.width(10.dp))
+                    Text(it.username, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
                 Spacer(Modifier.width(10.dp))
                 Text("${formatCount(it.replies)} 回复", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (it.addTimeDisplay.isNotBlank()) {
@@ -703,6 +794,129 @@ private fun SearchItemRow(it: HupuSearchItem, onOpen: (HupuSearchItem) -> Unit) 
                     .size(width = 100.dp, height = 76.dp)
                     .clip(RoundedCornerShape(10.dp)),
             )
+        }
+    }
+}
+
+// ---------- 批Z-1：版块 / 用户结果（search2 匿名分类） ----------
+
+/** 与 [SearchResults] 同风格的分类结果列表骨架（卡片行 + 触底翻页）。 */
+@Composable
+private fun SearchSliceList(
+    hasNext: Boolean,
+    loadingMore: Boolean,
+    onLoadMore: () -> Unit,
+    topInset: androidx.compose.ui.unit.Dp,
+    content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit,
+) {
+    val listState = rememberLazyListState()
+    val shouldLoadMore by remember(hasNext, loadingMore) {
+        derivedStateOf {
+            val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            hasNext && !loadingMore && last >= listState.layoutInfo.totalItemsCount - 5
+        }
+    }
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore) onLoadMore()
+    }
+    LazyColumn(
+        state = listState,
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp + topInset, bottom = 140.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        content()
+        if (hasNext) {
+            item(key = "slice-more") {
+                Box(Modifier.fillMaxWidth().padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                }
+            }
+        }
+    }
+}
+
+/** 版块结果列表（search2 type=topic；行 = logo + 名 + 简介；点按开版块） */
+@Composable
+private fun TopicResults(
+    items: List<HupuTopicInfo>,
+    hasNext: Boolean,
+    loadingMore: Boolean,
+    onLoadMore: () -> Unit,
+    topInset: androidx.compose.ui.unit.Dp,
+    onOpen: (String) -> Unit,
+) {
+    SearchSliceList(hasNext, loadingMore, onLoadMore, topInset) {
+        items(items, key = { it.topicId }) { t ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .clickable { onOpen(t.url) }
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (!t.logo.isNullOrBlank()) {
+                    com.kudo.android.hupuui.components.HupuIconImage(
+                        model = t.logo, contentDescription = null,
+                        modifier = Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)),
+                        contentScale = ContentScale.Crop,
+                    )
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(t.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (t.desc.isNotBlank()) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(t.desc, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 18.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 用户结果列表（search2 type=users；行 = 头像 + 昵称 + 获亮/推荐 meta）。
+ * 点按链路：官方行可点进用户主页，但主页加载属批X2 范围——本批只渲染结果，
+ * 行不挂 clickable（欠账：批X2 合并后接 HupuSearchUser.puid → 用户主页）。
+ */
+@Composable
+private fun UserResults(
+    items: List<HupuSearchUser>,
+    hasNext: Boolean,
+    loadingMore: Boolean,
+    onLoadMore: () -> Unit,
+    topInset: androidx.compose.ui.unit.Dp,
+) {
+    SearchSliceList(hasNext, loadingMore, onLoadMore, topInset) {
+        items(items, key = { it.puid }) { u ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (u.header.isNotBlank()) {
+                    com.kudo.android.hupuui.components.HupuAvatarImage(
+                        model = u.header, contentDescription = null,
+                        modifier = Modifier.size(44.dp).clip(CircleShape),
+                        contentScale = ContentScale.Crop,
+                    )
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(u.username.ifBlank { "虎扑JR" }, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "获亮 ${formatCount(u.lights)} · 推荐 ${formatCount(u.recNum)}",
+                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                    )
+                }
+            }
         }
     }
 }

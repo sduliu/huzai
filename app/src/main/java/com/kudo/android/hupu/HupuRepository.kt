@@ -124,6 +124,32 @@ class HupuRepository {
         return withContext(Dispatchers.Default) { HupuParser.parseTopicSearch(json) }
     }
 
+    /**
+     * 批Z-1：搜索分类「版块」（search2 type=topic 分页变体，匿名）。
+     * hasNextPage=1 时可继续翻页；网络/JSON 失败返回 null（交页内错误态）。
+     */
+    suspend fun searchTopicsPage(query: String, page: Int = 1): HupuSearchSlice<HupuTopicInfo>? {
+        val q = java.net.URLEncoder.encode(query, "UTF-8")
+        val json = HupuApi.getMobileJson(
+            "/api/v2/search2?keyword=$q&puid=0&type=topic&topicId=0&page=$page",
+        ) ?: return null
+        val (items, hasNext) = withContext(Dispatchers.Default) { HupuParser.parseTopicSearchPage(json) }
+        return HupuSearchSlice(items, page, hasNext)
+    }
+
+    /**
+     * 批Z-1：搜索分类「用户」（search2 type=users，匿名实测 count=2000）。
+     * 失败返回 null；空结果返回空 items（页内显式空态）。
+     */
+    suspend fun searchUsers(query: String, page: Int = 1): HupuSearchSlice<HupuSearchUser>? {
+        val q = java.net.URLEncoder.encode(query, "UTF-8")
+        val json = HupuApi.getMobileJson(
+            "/api/v2/search2?keyword=$q&puid=0&type=users&topicId=0&page=$page",
+        ) ?: return null
+        val (items, hasNext) = withContext(Dispatchers.Default) { HupuParser.parseUserSearch(json) }
+        return HupuSearchSlice(items, page, hasNext)
+    }
+
     /** 话题列表页（含分页）。url 如 /topic、/topic-daily；page 从 1 开始 */
     suspend fun topicPage(url: String, page: Int = 1, refresh: Boolean = false): HupuTopicPage? {
         val path = if (page <= 1) url else "$url-$page"
