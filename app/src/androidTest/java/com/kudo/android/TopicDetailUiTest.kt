@@ -106,7 +106,8 @@ class TopicDetailUiTest {
                 state = state.copy(authorProfile = state.authorProfile!!.copy(isFollowed = !state.authorProfile!!.isFollowed))
             })
         }
-        compose.onAllNodesWithText(author.displayName).assertCountEquals(1)
+        // 顶栏 + 标题下作者行两处各一次
+        compose.onAllNodesWithText(author.displayName).assertCountEquals(2)
         compose.onNodeWithTag("topic-author").performTouchInput { click() }
         compose.runOnIdle { assertEquals(author.username, opened) }
         compose.onNodeWithText("关注").performTouchInput { click() }
@@ -119,6 +120,14 @@ class TopicDetailUiTest {
         val after = compose.onNodeWithTag("topic-author").fetchSemanticsNode().boundsInRoot
         assertEquals(before.top, after.top, 0.5f)
         compose.onNodeWithText(author.displayName).assertIsDisplayed()
+    }
+
+    /** 批X3-1：标题下作者行与顶栏绑同一 detail.author——点按走同一 user 路由。 */
+    @Test fun titleAuthorRowOpensUserProfile() {
+        var opened = ""
+        compose.setContent { Screen(initial, user = { opened = it }) }
+        compose.onNodeWithTag("topic-title-author").assertIsDisplayed().performTouchInput { click() }
+        compose.runOnIdle { assertEquals(author.username, opened) }
     }
 
     @Test fun authorKeepsFlairOnAvatarAndOtherDecorationsAfterTheNickname() {

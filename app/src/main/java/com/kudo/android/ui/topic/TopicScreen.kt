@@ -262,7 +262,9 @@ fun TopicScreen(state: TopicState, glass: GlassMode, back: () -> Unit, retry: ()
                                 val category = LocalTopicPresentation.current.categories.firstOrNull { it.id == detail.categoryId }
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                     if (author != null) {
-                                        Row(Modifier.weight(1f).clickable(enabled = !showing && author.id != 0, role = androidx.compose.ui.semantics.Role.Button) { user(author.username) },
+                                        Row(Modifier.weight(1f).heightIn(min = 48.dp)
+                                            .clickable(enabled = !showing && author.id != 0, role = androidx.compose.ui.semantics.Role.Button) { user(author.username) }
+                                            .testTag("topic-title-author"),
                                             verticalAlignment = Alignment.CenterVertically) {
                                             Avatar(author, 28.dp, presentation = AvatarPresentation.PUBLIC)
                                             Column(Modifier.weight(1f).padding(start = 8.dp)) {

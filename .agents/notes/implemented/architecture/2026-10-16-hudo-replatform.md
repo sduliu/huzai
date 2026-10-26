@@ -1076,3 +1076,14 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **漏接线实点**：`ThreadPreviewPost`（详情「评论回复」楼中楼 sheet 行）头像+作者行从未接 `user()`——真机「正文作者行点按无反应」即此；补 `user` 参，头像与作者标签分别挂 `openUser`，门控 `post.author.id != 0`。
 - **门控口径统一**（与批W-2 `pageId.isNotEmpty()` 同义）：X2-1 后 `Member.id != 0` ⇔ 有可路由 pageId（euid/puid 任一下发即非零，双缺归 0）。`TopicTopBar` 作者行、`TopicScreen` 标题下作者行、`TopicPost` 回复作者行三处已接点同步补 `author.id != 0`/`post.author.id != 0`——双缺作者不再误路由昵称进 UserScreen（不接错页），Discourse 真 id>0 行为不变。
 - 单测沿用 X2-1 桥接断言（`member username carries pageId`、`member ids are namespaced`——id=0 ⇔ 双缺 ⇔ 不可点契约由测试钉死）。回退：revert 本 commit。
+
+## 批X3：标题作者行点按追查（顶栏已通、标题行仍死）
+
+### 批X3-1：标题行与顶栏逐字节等价——断点不在数据/门控/接线，按命中区域收束
+
+- **对象同一性实证**：标题下作者行绑 `detail.author`（`TopicDetail.author` 带默认值= `posts[number==1].author`），顶栏 `TopicTopBar` 绑 `state.detail?.author`——同一实例，同一次重组读同一快照；不存在「标题行用了另一个未过桥接的 Member」。
+- **字段实测（真实 SSR 夹具）**：样本帖 tid=643322860「官方首周战力榜」双形态——桌面 SSR `author={puname:虎扑篮球资讯,puid:56098302,euid:27066519444214}` → `toTopicDetail`→`detail.author`{username=27066519444214,id!=0}；移动 SSR `basicInfo.author={name,puid}`（无 euid）→ {username=56098302,id!=0}。`parseThreadDetail`/`parseMobileThreadDetail`→`toMember` 两路均产出可路由 Member——`author.id != 0` 门控不会拦截。夹具：`thread_detail_643322860.html`、`mobile_thread_643322860.html`。
+- **接线实证**：标题行 `clickable{ user(author.username) }` 自 `0941167`（批Nfix-3）起即存在，`9e65b46` 仅补 `author.id != 0` 门控；`::user` 在 `KudoApp` 落位 `user` 槽位，`user/{username}` 全数字分流 `UserProfilePage`（顶栏实测已通）。
+- **拦截面审计（全部排除）**：`Avatar`/`TopicAuthorMetadata` 不装 pointerInput；`tapGuard`/`PostReadingViewport`/`QuickScroll*`/`layerBackdrop`（字节码核实纯绘制节点）/`MaterialPageScaffold`（header 按实测高度给 contentPadding，无重叠）/`LocalReadingBlocked`/`screenMaterial`/`ReplyEditorSheet` 均不拦截该区域输入；`hupuui` 栈 `MainPost`/`ThreadHeader`/`FloorSheet` 作者行亦已全部接线。
+- **结论与动作**：静态层面该行与已验证可用的顶栏行等价——若有缺陷只能是真机命中区域差异（顶栏行 `heightIn(min=48)`，标题行裸 ~40dp）。行修饰链改成与顶栏逐字节同构（`weight→heightIn(48)→clickable→testTag`），新增 `topic-title-author` tag 供真机/UI 测试定位；`TopicDetailUiTest.titleAuthorRowOpensUserProfile` 钉死点按→user 回调（顺带修正 `authorAppearsOnce…` 旧断言 1→2，标题行合法出现第二次作者名）。若 Muse 真机仍死，下一步用该 tag 做 uiautomator 坐标级定位。
+- 单测：`detail author carries routable pageId in both SSR shapes`（ThreadDetailRelatedTest，真实双形态 SSR 夹具断言 username/id）。回退：revert 本 commit。

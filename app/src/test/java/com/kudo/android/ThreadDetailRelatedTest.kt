@@ -1,9 +1,11 @@
 package com.kudo.android
 
+import com.kudo.android.data.toTopicDetail
 import com.kudo.android.hupu.HupuParser
 import com.kudo.android.hupu.pageId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -200,6 +202,30 @@ class ThreadDetailRelatedTest {
         val bare = d.replies[2]
         assertEquals("", bare.client)
         assertFalse(bare.hidden)
+    }
+
+    /**
+     * 批X3-1：标题下作者行与顶栏绑同一 `detail.author`（= posts[number==1].author）。
+     * 真机断言依据：样本帖 tid=643322860「官方首周战力榜」（虎扑篮球资讯）双形态
+     * 实测 SSR——桌面 author={puid,euid,puname} / 移动 basicInfo.author={puid,name}。
+     * 两路都必须产出可路由 Member：id!=0、username=pageId（否则 id==0 会被
+     * 门控挡住，表现为「点按无反应」）。
+     */
+    @Test
+    fun `detail author carries routable pageId in both SSR shapes`() {
+        val desk = javaClass.classLoader!!.getResource("thread_detail_643322860.html")!!.readText()
+        val dd = HupuParser.parseThreadDetail(desk)!!.toTopicDetail()
+        val da = dd.author!!
+        assertEquals("虎扑篮球资讯", da.name)
+        assertEquals("27066519444214", da.username) // euid 优先
+        assertNotEquals(0, da.id)
+
+        val mob = javaClass.classLoader!!.getResource("mobile_thread_643322860.html")!!.readText()
+        val md = HupuParser.parseMobileThreadDetail(mob)!!.toTopicDetail()
+        val ma = md.author!!
+        assertEquals("虎扑篮球资讯", ma.name)
+        assertEquals("56098302", ma.username) // 移动页无 euid → puid 回落
+        assertNotEquals(0, ma.id)
     }
 
     @Test
