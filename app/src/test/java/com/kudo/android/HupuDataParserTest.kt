@@ -169,4 +169,33 @@ class HupuDataParserTest {
         assertEquals(poster, videos[0].poster)
         assertTrue(blocks.any { it is ArticleBlock.TextBlock })
     }
+
+    @Test fun playerRankPage_parsesSingleDimensionPageAndEmptyPageMeansListEnd() {
+        // 批F-1：playerSingleDimensionSeasonRank 真实结构（2026-10-26 匿名实测 pageNo=1/20）
+        val json = """{"errorCode":"","errorMsg":"","success":true,"result":{
+            "engName":"basic.ptsAvg","chineseName":"得分","hasMore":false,
+            "rankInfoList":[
+              {"rank":1,"playerId":"1901000000479677","playerName":"杰罗姆",
+               "photo":"https://i11.hoopchina.com.cn/x.png","teamShortName":"灰熊","value":"36.5"},
+              {"rank":19,"playerId":"","playerName":"默里","teamName":"掘金","value":"22.0"}
+            ]}}"""
+        val page = HupuDataParser.parsePlayerRankPage(json)
+        assertNotNull(page)
+        assertEquals("basic.ptsAvg", page!!.key)
+        assertEquals("得分", page.name)
+        assertEquals(2, page.leaders.size)
+        assertEquals(1, page.leaders[0].rank)
+        assertEquals("灰熊", page.leaders[0].teamName)
+        assertEquals("36.5", page.leaders[0].value)
+        // teamShortName 缺时回落 teamName
+        assertEquals("掘金", page.leaders[1].teamName)
+        // 成功响应但 rankInfoList 为空 = 榜尾（不是解析失败）
+        val end = HupuDataParser.parsePlayerRankPage(
+            """{"success":true,"result":{"engName":"basic.ptsAvg","chineseName":"得分","rankInfoList":[]}}"""
+        )
+        assertNotNull(end)
+        assertTrue(end!!.leaders.isEmpty())
+        assertNull(HupuDataParser.parsePlayerRankPage("""{"success":false}"""))
+        assertNull(HupuDataParser.parsePlayerRankPage("not json"))
+    }
 }

@@ -460,6 +460,20 @@ class HupuRepository {
         return withContext(Dispatchers.Default) { HupuDataParser.parsePlayerRankBoard(json) }
     }
 
+    /** 批F-1：单维度球员全量榜一页（pageNo 20 行/页；返回空 leaders = 已到榜尾）。 */
+    suspend fun playerRankPage(
+        leagueType: String,
+        rankType: String,
+        season: String = "",
+        stageType: String = "",
+        pageNo: Int = 1,
+        refresh: Boolean = false,
+    ): HupuRankItem? {
+        val json = HupuDataApi.fetchPlayerSingleDimRank(leagueType, rankType, season, stageType, pageNo, forceNetwork = refresh)
+            ?: return null
+        return withContext(Dispatchers.Default) { HupuDataParser.parsePlayerRankPage(json) }
+    }
+
     /** 选秀整版（年份表 + 指定年顺位）。 */
     suspend fun draftBoard(leagueType: String, year: String?, refresh: Boolean = false): HupuDraftBoard? {
         val yearsJson = HupuDataApi.fetchDraftYears(leagueType, forceNetwork = refresh)

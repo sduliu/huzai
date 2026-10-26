@@ -132,6 +132,27 @@ object HupuDataApi {
         return get(url, "player-season-rank-$leagueType-$season-$stageType", forceNetwork, "https://m.hupu.com/")
     }
 
+    /**
+     * 批F-1：单维度球员全量榜（playerSingleDimensionSeasonRank）——
+     * playerSeasonRank 每个统计项的 allUrl（template/index?model=basketball/rank/index#/playerRank）
+     * 背后的官方端点，rank/index 页 JS 实参：`pageNo` 分页 20 行/页，拉空页即止
+     * （2026-10-26 匿名实测 ptsAvg 连续取到 ~rank300+）。season 空 = 当季。
+     */
+    suspend fun fetchPlayerSingleDimRank(
+        leagueType: String,
+        rankType: String,
+        season: String = "",
+        stageType: String = "",
+        pageNo: Int = 1,
+        forceNetwork: Boolean = false,
+    ): String? {
+        var url = "$GAMES_BASE/basketballapi/playerSingleDimensionSeasonRank" +
+            "?competitionLeagueType=$leagueType&competitionType=$leagueType" +
+            "&rankType=$rankType&playerType=normal&pageNo=$pageNo"
+        if (season.isNotEmpty()) url += "&season=$season&competitionStageType=$stageType"
+        return get(url, "player-dim-rank-$leagueType-$rankType-$season-$stageType-p$pageNo", forceNetwork, "https://m.hupu.com/")
+    }
+
     /** 选秀年份表（draftYearConfig）。 */
     suspend fun fetchDraftYears(leagueType: String, forceNetwork: Boolean = false): String? =
         get(

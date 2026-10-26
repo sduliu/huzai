@@ -693,6 +693,8 @@ data class HupuRankItem(
     val key: String,             // engName，如 basic.ptsAvg
     val name: String,            // chineseName，如 得分
     val leaders: List<HupuRankEntry>,
+    /** 官方下发 hasMore（top5 摘要是否还有全量榜可展开） */
+    val hasMore: Boolean = false,
 )
 
 /** 球员榜维度（基础/进阶）。 */

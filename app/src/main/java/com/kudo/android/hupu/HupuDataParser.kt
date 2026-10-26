@@ -193,15 +193,7 @@ object HupuDataParser {
                             it.optJSONArray("rankInfoList")?.let { rl ->
                                 for (k in 0 until rl.length()) {
                                     val e = rl.optJSONObject(k) ?: continue
-                                    leaders += HupuRankEntry(
-                                        rank = e.optInt("rank"),
-                                        playerId = e.optString("playerId"),
-                                        name = e.optString("playerName"),
-                                        teamName = e.optString("teamShortName")
-                                            .ifEmpty { e.optString("teamName") },
-                                        photo = e.optString("photo"),
-                                        value = e.optString("value"),
-                                    )
+                                    leaders += rankEntry(e)
                                 }
                             }
                             if (leaders.isNotEmpty()) {
@@ -209,6 +201,7 @@ object HupuDataParser {
                                     key = it.optString("engName"),
                                     name = it.optString("chineseName"),
                                     leaders = leaders,
+                                    hasMore = it.optBoolean("hasMore"),
                                 )
                             }
                         }
@@ -223,6 +216,38 @@ object HupuDataParser {
                 }
             }
             HupuPlayerRankBoard(season, stageName, dims)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun rankEntry(e: JSONObject): HupuRankEntry = HupuRankEntry(
+        rank = e.optInt("rank"),
+        playerId = e.optString("playerId"),
+        name = e.optString("playerName"),
+        teamName = e.optString("teamShortName").ifEmpty { e.optString("teamName") },
+        photo = e.optString("photo"),
+        value = e.optString("value"),
+    )
+
+    /** 批F-1：playerSingleDimensionSeasonRank → 单维度单页榜；成功响应空页返回空 leaders（=榜尾），非 JSON/失败才 null。 */
+    fun parsePlayerRankPage(json: String): HupuRankItem? {
+        return try {
+            val root = JSONObject(json)
+            if (!root.optBoolean("success", false)) return null
+            val r = root.optJSONObject("result") ?: return null
+            val leaders = mutableListOf<HupuRankEntry>()
+            r.optJSONArray("rankInfoList")?.let { rl ->
+                for (i in 0 until rl.length()) {
+                    leaders += rankEntry(rl.optJSONObject(i) ?: continue)
+                }
+            }
+            HupuRankItem(
+                key = r.optString("engName"),
+                name = r.optString("chineseName"),
+                leaders = leaders,
+                hasMore = r.optBoolean("hasMore"),
+            )
         } catch (e: Exception) {
             null
         }

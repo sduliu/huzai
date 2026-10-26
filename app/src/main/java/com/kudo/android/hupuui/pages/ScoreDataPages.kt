@@ -20,9 +20,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -30,10 +34,13 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +61,8 @@ import com.kudo.android.hupu.HupuMatch
 import com.kudo.android.hupu.HupuMatchDay
 import com.kudo.android.hupu.HupuPlayerRankBoard
 import com.kudo.android.hupu.HupuRankCategory
+import com.kudo.android.hupu.HupuRankEntry
+import com.kudo.android.hupu.HupuRankItem
 import com.kudo.android.hupu.HupuRepository
 import com.kudo.android.hupu.HupuSeasonOption
 import com.kudo.android.hupu.HupuStandingGroup
@@ -66,6 +75,7 @@ import com.kudo.android.hupuui.components.SkeletonHome
 import com.kudo.android.hupuui.components.chipBarClip
 import com.kudo.android.hupuui.components.normalizeCover
 import com.kudo.android.hupuui.components.tapGuard
+import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
@@ -369,6 +379,8 @@ internal fun PlayerRankView(league: String) {
     var failed by remember { mutableStateOf(false) }
     var tick by remember { mutableIntStateOf(0) }
     var dimSel by remember { mutableStateOf("") }
+    // 批F-1：点「查看完整榜单」展开全量榜 overlay（官方 allUrl 指向的 rank/index 页同源数据）
+    var fullRank by remember { mutableStateOf<HupuRankItem?>(null) }
 
     LaunchedEffect(league) {
         seasons = repo.rankSeasons(rankType)
@@ -392,6 +404,7 @@ internal fun PlayerRankView(league: String) {
         loading = false
     }
 
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize()) {
         if (seasons.size > 1) {
             SeasonChips(seasons, seasonSel) { s -> if (s != seasonSel) seasonSel = s }
@@ -467,8 +480,201 @@ internal fun PlayerRankView(league: String) {
                                         )
                                     }
                                 }
+                                if (item.hasMore) {
+                                    Row(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .clickable { fullRank = item }
+                                            .padding(vertical = 6.dp),
+                                        horizontalArrangement = Arrangement.Center,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            "查看完整榜单",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.primary,
+                                        )
+                                        Icon(
+                                            Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(14.dp),
+                                        )
+                                    }
+                                }
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+    fullRank?.let { item ->
+        PlayerRankFullOverlay(
+            league = league,
+            item = item,
+            season = seasonSel?.season.orEmpty(),
+            stageType = seasonSel?.seasonType.orEmpty(),
+            onBack = { fullRank = null },
+        )
+    }
+    }
+}
+
+/** 批F-1：单维度球员全量榜盖入页（LeagueStandingsOverlay 同款滑入骨架）。 */
+@Composable
+private fun PlayerRankFullOverlay(
+    league: String,
+    item: HupuRankItem,
+    season: String,
+    stageType: String,
+    onBack: () -> Unit,
+) {
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        SecondaryPage.enter()
+        progress.animateTo(1f, tween(280))
+    }
+    DisposableEffect(Unit) {
+        onDispose { SecondaryPage.exit() }
+    }
+    var closing by remember { mutableStateOf(false) }
+    LaunchedEffect(closing) {
+        if (closing) {
+            progress.animateTo(0f, tween(280))
+            onBack()
+        }
+    }
+    PredictiveBackHandler { events ->
+        if (closing) {
+            events.collect { }
+            return@PredictiveBackHandler
+        }
+        try {
+            events.collect { event -> progress.snapTo(1f - event.progress) }
+            progress.animateTo(0f, tween(120))
+            closing = true
+        } catch (e: CancellationException) {
+            progress.animateTo(1f, tween(200))
+            throw e
+        }
+    }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .zIndex(1.6f)
+            .graphicsLayer { translationX = (1f - progress.value) * size.width }
+            .background(MaterialTheme.colorScheme.background)
+            .tapGuard(),
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            CenteredTopBar(title = "${item.name}榜", onBack = { closing = true })
+            PlayerRankFullList(league, item, season, stageType)
+        }
+    }
+}
+
+/** 全量榜列表：pageNo 20 行/页滚动续载，空页即止（官方 rank/index 滚动加载同款）。 */
+@Composable
+private fun PlayerRankFullList(league: String, item: HupuRankItem, season: String, stageType: String) {
+    val repo = remember { HupuRepository() }
+    val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
+    val rows = remember { mutableStateListOf<HupuRankEntry>() }
+    var nextPage by remember { mutableIntStateOf(1) }
+    var hasMore by remember { mutableStateOf(true) }
+    var loading by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
+
+    fun loadPage() {
+        if (loading || !hasMore || failed) return
+        loading = true
+        scope.launch {
+            val p = repo.playerRankPage(league, item.key, season, stageType, nextPage)
+            if (p == null) {
+                failed = true
+            } else {
+                rows += p.leaders
+                hasMore = p.leaders.size >= 20
+                nextPage++
+            }
+            loading = false
+        }
+    }
+    LaunchedEffect(Unit) { loadPage() }
+    val shouldLoadMore by remember {
+        derivedStateOf {
+            val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            hasMore && !loading && !failed &&
+                last >= listState.layoutInfo.totalItemsCount - 5
+        }
+    }
+    LaunchedEffect(shouldLoadMore) { if (shouldLoadMore) loadPage() }
+
+    when {
+        rows.isEmpty() && loading -> SkeletonHome()
+        rows.isEmpty() && failed -> ErrorRetry { failed = false; loadPage() }
+        else -> LazyColumn(
+            state = listState,
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 100.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            items(rows, key = { e -> e.playerId.ifEmpty { "${e.rank}-${e.name}" } }) { e ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "${e.rank}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(30.dp),
+                    )
+                    AsyncImage(
+                        model = normalizeCover(e.photo), contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(26.dp).clip(CircleShape),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            e.name, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                        if (e.teamName.isNotEmpty()) {
+                            Text(
+                                e.teamName, fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                            )
+                        }
+                    }
+                    Text(
+                        e.value, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+            item(key = "footer") {
+                Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+                    when {
+                        loading -> CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                        failed -> Text(
+                            "加载失败，点击重试",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clickable { failed = false; loadPage() },
+                        )
+                        !hasMore -> Text(
+                            "已加载全部 ${rows.size} 人",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }

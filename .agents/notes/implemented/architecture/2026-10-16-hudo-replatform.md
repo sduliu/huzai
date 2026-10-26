@@ -344,3 +344,12 @@ Muse 找不到内嵌视频帖是「样本难找」而非链路不通。用 2026-
   1. `prof.euid` 为空串（cookie 缺字段时 `optString`→""）→ 跳过 `euid=` 无效请求，点击改为 toast「账号资料缺失，请重新登录」而非打开注定失败的 UserProfilePage；
   2. `prof.name` 空 → 显示占位「虎扑用户」；
   3. `ownInfo` 四字段（levelDesc/following/followers/regTimeStr）全空 → 统计行回落「已登录」——缺字段不再冒充「关注 0 · 粉丝 0」真实计数（0/0 真实账号的 regTimeStr 非空，不受影响）。
+
+## 批F-1：球员榜全量（playerSingleDimensionSeasonRank 分页盖入页）
+
+批B 的 playerSeasonRank 每项只给 top5；其 `allUrl` 字段指向 `games.mobileapi.hupu.com/template/index?model=basketball/rank/index#/playerRank`——抓该页 JS 实参找到背后的全量端点 `basketballapi/playerSingleDimensionSeasonRank`（参数：competitionLeagueType+competitionType+rankType+season+competitionStageType+playerType=normal+pageNo）。匿名实测（2026-10-26）：20 行/页，ptsAvg 连续取到 rank~300+，空页即止；官方 rank/index 页 scroll 只翻到 pageNo 5（~100 行），酷DO 拉到空页为真正全量。
+
+- `HupuDataApi.fetchPlayerSingleDimRank(league, rankType, season, stageType, pageNo)`；`HupuDataParser.parsePlayerRankPage` → `HupuRankItem`（rankInfoList 行解析与整版共用 `rankEntry`）；空页返回空 leaders 区分「榜尾」与「网络失败」（非 JSON/失败才 null）。
+- `HupuRankItem` 增 `hasMore`（官方下发，top5 是否有全量可展开）。
+- `PlayerRankView`：统计项卡底部 `hasMore` 时出「查看完整榜单 ›」→ `PlayerRankFullOverlay`（LeagueStandingsOverlay 同款滑入骨架：SecondaryPage 计数+PredictiveBack+CenteredTopBar「{项}榜」）→ `PlayerRankFullList` pageNo 续载（derivedStateOf 滚动距底 5 项触发），footer 三态（转圈/失败重试/「已加载全部 N 人」）。
+- 单测 `playerRankPage_parsesSingleDimensionPageAndEmptyPageMeansListEnd`：真实字段 fixture + teamShortName→teamName 回落 + 空页=榜尾 + 非 JSON/false→null。
