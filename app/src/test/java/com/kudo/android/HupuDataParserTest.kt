@@ -60,6 +60,29 @@ class HupuDataParserTest {
         assertEquals("西北分区", div.groups[0].title)
     }
 
+    @Test fun teamStatRanks_parsesStatGroupsForLeftRail() {
+        // 批Y-3：积分榜左栏「技术统计」= teamSeasonStatsAllRank 每项一个分组（官方 top5）
+        val json = """{"success":true,"result":[
+            {"rankType":"ptsAvg","name":"场均得分","data":[
+                {"rank":1,"teamName":"俄克拉荷马城雷霆","teamShortName":"雷霆","logoUrl":"l","value":"120.5"},
+                {"rank":2,"teamName":"丹佛掘金","teamShortName":"掘金","logoUrl":"","value":"118.9"}
+            ]},
+            {"rankType":"astAvg","name":"场均助攻","data":[
+                {"rank":1,"teamName":"掘金","teamShortName":"掘金","logoUrl":"","value":"31.2"}
+            ]}
+        ]}"""
+        val groups = HupuDataParser.parseTeamStatRanks(json)
+        assertEquals(2, groups.size)
+        assertEquals("场均得分", groups[0].title)
+        assertEquals(listOf("值"), groups[0].columns)
+        assertEquals("雷霆", groups[0].rows[0].team)
+        assertEquals("120.5", groups[0].rows[0].cells[0])
+        assertEquals("掘金", groups[1].rows[0].team)
+        // 空 data 的分组被跳过；整体空 → 空表（左栏该项不渲染类别）
+        assertTrue(HupuDataParser.parseTeamStatRanks("""{"success":true,"result":[{"rankType":"x","data":[]}]}""").isEmpty())
+        assertTrue(HupuDataParser.parseTeamStatRanks("not-json").isEmpty())
+    }
+
     @Test fun playerRank_mapsDimensionItemLeaders() {
         val json = """{"success":true,"result":{
             "competitionSeasonStageType":{"competitionSeasonType":{"season":"2026-2027"},"competitionStageTypeName":"常规赛"},
