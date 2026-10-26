@@ -482,3 +482,14 @@ Muse 验收发现 `assembleDebugAndroidTest` 全量编译被陈旧测试阻断�
 - **版主团队 + 招募标记**：话题页 SSR `$$data.admins`（与 topic 平级的顶层节点）——`adminApplicable=1`=招募版主、`adminList`=版主（roleName/userName/header/url）。解析进 `HupuTopicPage.boardInfo` → `TopicFeedState.boardInfo` → `BoardProfileHeader` 下新增「专区信息」行（前 6 个版主头像 + 名单 + 红底招募标记，纯展示不可点）。
 - 成员数惰性拉取：`TopicFeedOverlay` 挂 `LaunchedEffect(topic.topicId)` → 父级 `zoneMemberTexts` map 按 topicId 缓存，失败不写入（下次进入自动重试）。
 - `fetchMobileJson`（批L-1 误加的封装）已删除——与既有 `getMobileJson`（批F-4）重复，统一用后者。
+
+## 批L-2b：版块页缺口的匿名源核查结论（不做项）
+
+2026-10-26 经 Resin 代理对 bbs/m 站实测逐项核查（桌面 UA 同 app 取数通道）：
+
+- **精华 tab**：无匿名源。话题页 SSR tabs 实测只有「最新回复/最新发布/24小时榜」（lakers、502 同构）；`lakers-digest`/`lakers-essence` 等 URL 变体返回 404 兜底页（category=虎扑社区）；`topicThreads` API 的 type/sort/sortType 参数全部无效（回包恒同列表）；`games.mobileapi.hupu.com` 的 bbsthreadapi 家族回 `code:-24`（需 §9 签名，按批B 结论不碰）；`bbs.hupu.com/pcmapi/pc/bbs/v1/*` 回 AS021999。
+- **真实经历 tab**：同上无源——官方 app 的 zone 内 tag 过滤面，无公开的 zone→tag 映射。
+- **置顶标**：SSR `threads.list` 项无 isTop/isPin 字段（键集实测：author/cover/createdAt/hasVideo/lights/read/repliedAt/replies/tid/title/titleFont/topic/topicId/url，titleFont 恒空）；SSR 数据里无独立置顶数组。
+- **版规正文**：`admins` 节点仅 title/adminApplicable/adminList，无 rules 文本或链接；全页无 guize/rule 字段。已兑现的部分=版主团队 + 招募标记（L-2）；申请版主与版规内容属登录态/无源，不做。
+
+结论：以上四项无匿名可读数据源，按规则不伪造、不占位——等官方接口面变化或登录批次再评估。
