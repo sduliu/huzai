@@ -1050,3 +1050,10 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **`parseMobileThreadDetail` 映射**：`threadData.code!=200`→null（诚实）；thread←`threadInfo.t_detail`（tid/title/content/replies/lights/hits/share/is_lock，标量多为字符串）+`threadData.data.basicInfo`（fid/topicName/topic_id/author{puid,name}）；replies←`initialRepliesData.initialReplies`（pid/content/light/replies/createDt/is_lz/location/user{puid,username,header}/quote_info/via/isDelete|isHidden|hide|isAudit|illegal）。作者无 euid→`pageId` 回落 puid。
 - **顺带实证**：tid=643319700 作者=`赛场小助手`(puid=95496558,无 euid)——即批W Muse 点不动的官方账号帖本帖。
 - 回退：revert 本 commit。局限：移动兜底只出第 1 页回复（initialReplies 首屏），翻页仍走桌面 `/{tid}-{page}.html`（无移动等价分页）。
+
+### 批Xfix-2：作者主页补验支持（配合死链修复后的真机链路）
+
+- **赛场小助手本号实证**：tid=643319700 即 Muse 批W 点不动的官方账号帖——移动 SSR `basicInfo.author`/`t_author` 均为 `{puid=95496558, 无 euid}`；`m.hupu.com/user/95496558` 返回完整 SSR（Lv.5、发帖39、帖20+回20）——puid 路**真机可达**（死链修通后点作者头像即此路径）。
+- **普通用户路**：移动页回复作者 `{puid,username,header}` 无 euid → `pageId` 落 puid（实测 user/{puid} 与 user/{euid} 同达同一 SSR）；桌面路径作者 euid 俱全走原路不变。
+- **覆盖面**：移动兜底解析产出的作者对象天然带 puid → 详情页作者行点按在两形态下均可达；双缺（puid 亦无）行不可点不接错页——口径不变。
+- 纯实证补记，无运行代码改动（mobile 解析器作者映射已在 Xfix-1 提交内含断言覆盖）。
