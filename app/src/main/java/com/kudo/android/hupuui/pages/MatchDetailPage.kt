@@ -125,6 +125,11 @@ fun MatchDetailOverlay(
     nbaQuery: NbaStatsQuery? = null,
     /** 批U-1：篮球比赛详情头数据（basketballapi/matchInfo）；非空 → 替换浅色记分板为官方深色头 */
     basketballInfo: com.kudo.android.hupu.HupuMatchInfo? = null,
+    /** 批U-2：讨论 tab 的评分对象钥匙（scoreItemKey outBizType/outBizNo）；空 = 不拉评论 */
+    scoreBizType: String? = null,
+    scoreBizNo: String? = null,
+    /** 批U-2：讨论 tab 数据源（匿名 comments 拉取用） */
+    hupuRepo: HupuRepository? = null,
     /** 记分板点队名/队标 → 盖出球队页（memberId/name/logo） */
     onOpenTeam: (String, String, String?) -> Unit = { _, _, _ -> },
 ) {
@@ -170,6 +175,13 @@ fun MatchDetailOverlay(
     val currentRound = tree?.rounds?.find { it.bizId == selectedRoundId } ?: tree?.rounds?.firstOrNull()
     // 队伍分类子 Tab（"全部"为默认）：key = memberId 或 "fun"（趣评=中立角色）
     var selectedGroup by remember { mutableStateOf("all") }
+
+    // 批U-2：官方详情 Tab 集合——篮球=businessType(basketball) 场出「战报/虎扑评分/统计/讨论」
+    // （直播属排除项不接）；非篮球场保持旧「评分(+数据统计/文字实录)」分类。
+    val isBasketball = scoreboard?.quarterMatchId != null
+    var topTab by remember { mutableStateOf(MatchTopTab.RATING) }
+    // 换场（含组件实例复用）后若本场不再是篮球，把选中项收回「虎扑评分」
+    LaunchedEffect(isBasketball) { if (!isBasketball) topTab = MatchTopTab.RATING }
 
     // 1.201：顶层分类——null = 「评分」（默认）；BOX/PLAY = 数据统计 / 文字实录。
     // 非 NBA（nbaQuery == null）时只会停在 null，等价于页面只有「评分」。
@@ -229,27 +241,33 @@ fun MatchDetailOverlay(
                 scoreboard?.let { ScoreboardBanner(it, onTeam = onOpenTeam) }
             }
 
-            // 1.201：顶层分类条——「评分」恒有；NBA 追加「数据统计 / 文字实录」
-            // （非 NBA 只有一项，整条不显示，外观与旧版一致）
-            val detailTab = nbaTab
-            if (detailTabs.size > 1) {
-                LazyRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        // 裁剪边界退到 8dp，给首个/末个 chip 的浮起阴影留空间（内容仍从 16dp 起）
-                        .chipBarClip()
-                        .padding(bottom = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    items(detailTabs, key = { it.first?.name ?: "score" }) { (key, label) ->
-                        Chip(text = label, selected = detailTab == key) { nbaTab = key }
+            // 批U-2：篮球场 → 官方 Tab 条（战报/虎扑评分/统计/讨论）；非篮球 → 旧 chip 分类条
+            if (isBasketball) {
+                MatchTopTabBar(selected = topTab, onSelect = { topTab = it })
+            } else {
+                // 1.201：顶层分类条——「评分」恒有；NBA 追加「数据统计 / 文字实录」
+                // （非 NBA 只有一项，整条不显示，外观与旧版一致）
+                val detailTab = nbaTab
+                if (detailTabs.size > 1) {
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            // 裁剪边界退到 8dp，给首个/末个 chip 的浮起阴影留空间（内容仍从 16dp 起）
+                            .chipBarClip()
+                            .padding(bottom = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        items(detailTabs, key = { it.first?.name ?: "score" }) { (key, label) ->
+                            Chip(text = label, selected = detailTab == key) { nbaTab = key }
+                        }
                     }
                 }
             }
 
             val q = nbaQuery
-            if (detailTab == null || q == null) {
-                // ---------- ① 评分（原样：加载中 / 失败重试 / 正常） ----------
+            val showRating = if (isBasketball) topTab == MatchTopTab.RATING else nbaTab == null || q == null
+            if (showRating) {
+                // ---------- ① 虎扑评分（原评分内容：加载中 / 失败重试 / 正常） ----------
                 val state = if (tree != null) "ok" else if (loading) "loading" else "error"
                 val pullState = rememberPullToRefreshState()
                 PullToRefreshBox(
@@ -273,9 +291,19 @@ fun MatchDetailOverlay(
                         }
                     }
                 }
+            } else if (isBasketball) {
+                when (topTab) {
+                    // 战报：官方为编辑帖，匿名无结构化源（批U-0 量取表）——不编数据
+                    MatchTopTab.RECAP -> MatchTabEmpty("本场暂无战报")
+                    MatchTopTab.RATING -> Unit // 已被 showRating 分支覆盖
+                    MatchTopTab.STATS ->
+                        if (q != null) NbaStatsBody(state = nbaState, query = q, tab = NbaStatsTab.BOX)
+                        else MatchTabEmpty("本场暂无统计数据")
+                    MatchTopTab.DISCUSS -> MatchDiscussTab(bizType = scoreBizType, bizNo = scoreBizNo, repo = hupuRepo)
+                }
             } else {
                 // ---------- ② 数据统计 / 文字实录（与「评分」同级，直接嵌在本页 tab 下方） ----------
-                NbaStatsBody(state = nbaState, query = q, tab = detailTab)
+                NbaStatsBody(state = nbaState, query = q!!, tab = nbaTab!!)
             }
         }
 
@@ -1292,4 +1320,102 @@ internal fun matchInfoDateText(info: com.kudo.android.hupu.HupuMatchInfo): Strin
     // "2026-10-24 04:00:00" → "10月24日 04:00"
     val m = Regex("(\\d{4})-(\\d{2})-(\\d{2}) (\\d{2}):(\\d{2})").find(info.matchTime) ?: return ""
     return "${m.groupValues[2].toInt()}月${m.groupValues[3].toInt()}日 ${m.groupValues[4]}:${m.groupValues[5]}"
+}
+
+/** 批U-2：官方详情 Tab 集合（篮球场）——战报/虎扑评分/统计/讨论；直播属排除项不接。 */
+private val MatchJrsBlue = Color(0xFF3B82F6)
+
+private enum class MatchTopTab(val label: String) {
+    RECAP("战报"), RATING("虎扑评分"), STATS("统计"), DISCUSS("讨论"),
+}
+
+/** 官方文本 Tab 条：等宽四格、选中蓝字+底部蓝指示条（区别于旧玻璃 chip）。 */
+@Composable
+private fun MatchTopTabBar(selected: MatchTopTab, onSelect: (MatchTopTab) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 8.dp),
+    ) {
+        MatchTopTab.entries.forEach { tab ->
+            val on = tab == selected
+            Column(
+                Modifier
+                    .weight(1f)
+                    .clickable { onSelect(tab) }
+                    .padding(top = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    tab.label,
+                    fontSize = 14.sp,
+                    fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (on) MatchJrsBlue else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    Modifier
+                        .width(22.dp)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(if (on) MatchJrsBlue else Color.Transparent),
+                )
+            }
+        }
+    }
+}
+
+/** Tab 空态（战报/无数据场）——居中单行灰字。 */
+@Composable
+private fun MatchTabEmpty(text: String) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(text, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/**
+ * 批U-2：讨论 tab——评分对象评论区（bplcommentapi primarySingleRow，匿名 GET 首屏 20 条）。
+ *
+ * 官方口径讨论挂在评分对象（scoreItemKey）下；实测近期完赛场 `canComment=false` 且
+ * commentCount=0（官方本场未开讨论）——空列表渲染空态，不编数据；有数据即正常渲染。
+ */
+@Composable
+private fun MatchDiscussTab(
+    bizType: String?,
+    bizNo: String?,
+    repo: HupuRepository?,
+) {
+    var state by remember { mutableStateOf("loading") }
+    var reloadKey by remember { mutableStateOf(0) }
+    var comments by remember { mutableStateOf<List<com.kudo.android.hupu.HupuScoreComment>>(emptyList()) }
+    LaunchedEffect(bizType, bizNo, reloadKey) {
+        val r = repo ?: run { state = "empty"; return@LaunchedEffect }
+        val bt = bizType ?: run { state = "empty"; return@LaunchedEffect }
+        val bn = bizNo ?: run { state = "empty"; return@LaunchedEffect }
+        state = "loading"
+        val res = r.scoreComments(bt, bn, cursor = 0L, refresh = reloadKey > 0)
+        if (res == null) {
+            state = "error"
+        } else {
+            comments = res.comments
+            state = if (comments.isEmpty()) "empty" else "ok"
+        }
+    }
+    when (state) {
+        "loading" -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 2.dp)
+        }
+        "error" -> ErrorRetry { reloadKey += 1 }
+        "empty" -> MatchTabEmpty("本场讨论暂未开放")
+        else -> LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(comments, key = { it.commentId }) { c ->
+                CommentRow(c)
+            }
+        }
+    }
 }

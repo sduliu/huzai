@@ -918,3 +918,10 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **接线**：`ScorePage` 按 `openedMatch.matchId`+`businessType==basketball` 拉取缓存于 `matchInfos`；到位后替换 `ScoreboardBanner`（未到位/非篮球场仍走浅色板，零回归）。
 - **模型**：`HupuMatchInfo`/`HupuMatchPlayerStat`/`HupuMatchPlayerStats` 新模型（后者为批U-3 球员统计备用）；API `HupuDataApi.fetchMatchInfo/fetchMatchPlayerStats`；解析 `HupuDataParser.parseMatchInfo/parseMatchPlayerStats`；仓储 `HupuRepository.matchInfo/matchPlayerStats`。
 - 回退：revert 本 commit（深色头自动消失，浅色板顶回）。
+
+### 批U-2：详情 Tab 官方集合（篮球场）——战报/虎扑评分/统计/讨论
+
+- **分流**：`isBasketball = scoreboard.quarterMatchId != null`（businessType=basketball 场）→ 官方文本 Tab 条 `MatchTopTabBar`（等宽四格，选中蓝字+22dp 蓝指示条）；非篮球场保持旧「评分/数据统计/文字实录」chip 条零回归。
+- **Tab 口径**：战报=匿名无结构化源（量取表）→ 空态「本场暂无战报」，不编数据；虎扑评分=原评分树内容；统计=NbaStatsBody(BOX)（nbaQuery 缺失场→空态）；讨论=`primarySingleRow` 评论挂评分对象（scoreBizType/scoreBizNo）——实测近期场 canComment=false/commentCount=0 → 空态「本场讨论暂未开放」，有数据走 `CommentRow` 渲染；直播=排除项不接。
+- **文字实录 tab 从篮球场 Tab 条移除**（官方集合不含）——pbp 数据仍将由统计 tab 走势图复用（批U-4）；非篮球场保留。回退：revert 本 commit。
+- **数据统计 pill 疑点结论**：旧 chip 链路（clickable→nbaTab→NbaStatsBody）代码路径正常，Muse 坐标命中疑为主因；篮球场已整体换成文本 Tab 条，命中域更大，顺带消解。

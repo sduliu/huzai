@@ -1100,6 +1100,10 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
                 } else null,
                 // 批U-1：matchInfo 到位 → 深色官方头（未到位走浅色记分板兜底）
                 basketballInfo = matchInfos[om.matchId],
+                // 批U-2：讨论 tab（评分对象钥匙 + 仓储）
+                scoreBizType = om.scoreBizType,
+                scoreBizNo = om.scoreBizNo,
+                hupuRepo = repo,
                 onLiveTick = {
                     // 1.198：实时记分板 —— 静默刷新（**不动 detailLoading**，否则会闪骨架）
                     val no = om.scoreBizNo
