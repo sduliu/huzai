@@ -138,27 +138,32 @@ fun SportChannelHeader(
                 )
             }
         }
-        // 官方快捷图标行（批T-2 对齐官方位序）：
+        // 官方快捷图标行（批T-2 对齐官方位序；批V-3 修标签判定）：
         //   NBA/篮球系：赛程 / 数据 / 主队 / AI工坊* / NBA游戏*（*排除类不渲染）
         //   足球系：    赛程 / 积分榜 / 主队 / 冠军经理* / 足球游戏*
         // 第二位规则：有原生数据 tab 轨道的频道给「数据」（默认落球员榜 tab）；
         // 无数据轨道（soccer getDataTabList 服务端报错为空）回落「积分榜」。
+        // 批V-3：单次取数拿到空结果（瞬时失败/缓存错误 JSON）会整场停在「积分榜」兜底——
+        // 空结果 forceNetwork 重试一次；取数中不渲染第二位，消除标签先兜底后翻转。
         // 主队 = 登录态聚合页，本批只留入口位 + 提示（登录批次欠账）。
-        val dataKinds by produceState<Set<String>>(emptySet(), sportKey) {
-            value = repository.leagueDataTabs(sportKey)
-                .mapNotNull { com.kudo.android.hupuui.pages.nativeDataTabKind(it.url)?.second }
-                .toSet()
+        val dataTabs by produceState<List<com.kudo.android.hupu.HupuDataTab>?>(null, sportKey) {
+            var tabs = repository.leagueDataTabs(sportKey)
+            if (tabs.isEmpty()) tabs = repository.leagueDataTabs(sportKey, refresh = true)
+            value = tabs
         }
+        val dataKinds = dataTabs
+            ?.mapNotNull { com.kudo.android.hupuui.pages.nativeDataTabKind(it.url)?.second }
+            ?.toSet()
         Row(Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 4.dp)) {
             ShortcutIcon("赛程", { Icon(Icons.Rounded.CalendarMonth, null, Modifier.size(22.dp), MaterialTheme.colorScheme.primary) }) {
                 onOpenSchedule(sportKey)
             }
-            if (dataKinds.isNotEmpty()) {
+            if (!dataKinds.isNullOrEmpty()) {
                 val kind = listOf("player", "team", "draft", "injury").first { it in dataKinds }
                 ShortcutIcon("数据", { Icon(Icons.Rounded.Leaderboard, null, Modifier.size(22.dp), MaterialTheme.colorScheme.primary) }) {
                     onOpenDataTab(sportKey, kind)
                 }
-            } else if (hasStandings) {
+            } else if (dataKinds != null && hasStandings) {
                 ShortcutIcon("积分榜", { Icon(Icons.Rounded.BarChart, null, Modifier.size(22.dp), MaterialTheme.colorScheme.primary) }) {
                     onOpenStandings(sportKey)
                 }

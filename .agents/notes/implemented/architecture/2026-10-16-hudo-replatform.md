@@ -973,3 +973,10 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **未开始预约行**（NBA NOTSTARTED 实测）：`subscribeInfo.showSubscribe=true`、`scoreCountText=null`——官方右列=「🔔预约」单入口；酷DO 原渲染「未开始」状态字 + 填充胶囊 chip。修：预约位改铃铛图标+「预约」蓝字（Icons.Outlined.Notifications 12dp），`subscribable` 时隐藏「未开始」；订阅仍只读弹窗（写接口登录态不接）。
 - **进行中行**（CBA 实测）："进行中" 蓝字保留；INPROGRESS+subscribable 组合仍显状态字。
 - **不同联赛行**：NBA/CBA(basketball)/epl(football)/lol 共用 MatchRow，文案同口径；soccer `pv` 裸数经 `hupuWanScoreText` 归一。
+
+### 批V-3：NBA 快捷行第二位「数据」标签——单次取数失败整场停兜底
+
+- **官方「数据」落点实证**：官方快捷行「数据」= 联赛数据中心（getDataTabList tab 轨道：nba=全球/赛程/球队榜/球员榜/选秀/伤病/对阵图/荣誉榜/历史榜）——首屏即「榜类内容」，非独立积分榜页。按 Muse 规则取「标签=数据 + 落点=数据中心（score/nba?dtab=player 球员榜）」。
+- **enType 探测全表**：nba(9)/cba(7) 有原生 kind；epl/fifa 仅「赛程」、soccer/laliga FETCH_SOURCE_ERROR、电竞系全 h5（无 native kind）——回落逻辑本身正确。
+- **根因**：`produceState` 只取一次 `leagueDataTabs`；瞬时失败或被缓存的错误 JSON（合法 JSON 会缓存 10min）→ 空集 → 整场渲染「积分榜」兜底。服务端同 URL 实测稳定返回，属设备侧取数失败。
+- **修**：空结果 `forceNetwork` 重试一次（cacheKey 直打网络）；`dataKinds` 改可空——取数中不渲染第二位，消「积分榜→数据」标签翻转。
