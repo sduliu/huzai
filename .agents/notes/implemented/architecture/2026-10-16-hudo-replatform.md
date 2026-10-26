@@ -765,3 +765,15 @@ Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage
 - **`FeedUi.FlatPostRow`**：`titleFontColor`（`blue→0xFF3B82F6` 官方蓝[纯 CSS blue 深底不可读]/`orange→0xFFFFA500`/`red→0xFFE60023`，未知色不覆盖）+ `titleFontBold`（第二段 `==1` → SemiBold=官方 600，否则行默认 Medium）。仅落平铺帖行——官方标色出现的对应面（bbs.hupu.com 版块列表）；大卡信息流行数据本无 titleFont 不接。
 - 语义取舍：不自造「置顶」徽标文字——官方 SSR 也是彩色加粗无文字徽标；标色语义混用（含精华蓝标），如实还原通道而非断言单一语义。
 - 测试：`BoardInfoParserTest` +`titleFont marker parses`（5/5 绿）。
+
+## 批S-2：R-2 真机点按样本定位——约 140 帖 / ~1800 楼层匿名扫描
+
+**样本量**：首页版块流 `all-gambia` 15 + 大版块新帖/热榜（`topic-daily` 8、`502`+`502-hot` 14、`lakers` 8、`cba` 6、`nba` 6、`lol` 6）+ `walkingStreet` 信息流 30 + 高互链版块（`vote`/`fyt-soccer`/`509`/`ent`/`history`/`stock`/`school` 各 10 新帖）≈ **140 主帖**；每帖扫 `thread.content` + 回复页 1（20 楼）+ 亮回复（≤50），另对 4 个热帖深扫回复页 2-2690 共 ~400 楼——合计 ~1800 楼层 HTML。命中 12 帖。
+
+**形态实证**：
+- `@用户` = `<a class="u" href="https://my.hupu.com/{euid}" uid="…">@名</a>`——当前最常见站内锚点（`@深聊` AI 助理被高频召唤，euid 79730222460518 多帖复现）；
+- 主帖正文 `<a>` 用户帖几乎绝迹（140 主帖仅翻译团官方帖与招工帖例外）；官方/半官方帖的站内链接呈 `<a data-type="card-link" href=…>` 与裸 `<a href>` 两形态，回复里还有嵌套双 `<a>`（`<a><a>…`）变体——均为普通 href，渲染器统一按 LinkAnnotation 处理；
+- `/4618`、`/761` 实测为有效版块页（足球翻译团招工版块，topicPage 50 帖×N 页）——BOARD 落点真实；
+- TAG 类（`/tag/`、`?tagId=`）全样本零命中——正文 tag 链接在当代虎扑内容中事实不存在，该类路由仅有分类器与单测覆盖，如实记录。
+
+**样本清单**（标题 | tid | 类型 | 目标 | 层 | 所在版块）见交付报告；接线代码本批零改动（扫描未发现路由 bug）。
