@@ -56,6 +56,18 @@ class BoardInfoParserTest {
     }
 
     @Test
+    fun `titleFont marker parses from thread list, absent degrades empty`() {
+        val html = topicHtml("null").replace(
+            """{"tid":"1","title":"帖","url":"/1.html","lights":3,"replies":7}""",
+            """{"tid":"1","title":"帖","url":"/1.html","lights":3,"replies":7,"titleFont":"orange~1~~~~~"},""" +
+                """{"tid":"2","title":"普通","url":"/2.html","lights":0,"replies":1}""",
+        )
+        val p = HupuParser.parseTopicPage(html)!!
+        assertEquals("orange~1~~~~~", p.threads[0].titleFont)
+        assertEquals("", p.threads[1].titleFont)
+    }
+
+    @Test
     fun `zoneData absent or malformed is safe`() {
         assertNull(HupuParser.parseZoneInfo("""{"pageProps":{}}"""))
         assertNull(HupuParser.parseZoneInfo("not-json"))

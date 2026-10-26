@@ -587,6 +587,7 @@ object HupuParser {
             )
         },
         url = o.optString("url"),
+        titleFont = o.optString("titleFont"),
     )
 
     /**

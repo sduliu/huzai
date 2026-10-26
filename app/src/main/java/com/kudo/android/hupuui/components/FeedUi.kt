@@ -429,7 +429,22 @@ internal fun FeedItem(thread: HupuThread, showImage: Boolean, onOpen: (HupuThrea
     }
 }
 
-/** 官方版块页平铺帖行：作者行 + 标题（可带红「置顶」） + 「N回复 / N推荐」+ 右侧时间，底部细分隔线。 */
+/**
+ * 批S-1：topicPage `threads.list[].titleFont`（官方标色标题，`{css色}~{粗体}~~~~~`，
+ * SSR 渲染 `color:X;font-weight:600`，置顶/精华/高亮混用通道）→ 标题同款彩色加粗。
+ * 颜色按官方语义映射到本端可读色（纯 CSS blue 深底下不可读 → 官方蓝；其余忠实 CSS 色值）；
+ * 未知色不覆盖主题默认。粗体 flag=1 → SemiBold（=官方 600）。
+ */
+private fun titleFontColor(tf: String): Color? = when (tf.substringBefore('~').lowercase()) {
+    "blue" -> Color(0xFF3B82F6)
+    "orange" -> Color(0xFFFFA500)
+    "red" -> Color(0xFFE60023)
+    else -> null
+}
+
+private fun titleFontBold(tf: String): Boolean = tf.split('~').getOrNull(1) == "1"
+
+/** 官方版块页平铺帖行：作者行 + 标题（标色帖彩色加粗） + 「N回复 / N推荐」+ 右侧时间，底部细分隔线。 */
 @Composable
 private fun FlatPostRow(thread: HupuThread, onOpen: (HupuThread) -> Unit) {
     Column(Modifier.fillMaxWidth().clickable { onOpen(thread) }) {
@@ -446,7 +461,9 @@ private fun FlatPostRow(thread: HupuThread, onOpen: (HupuThread) -> Unit) {
         }
         Spacer(Modifier.height(4.dp))
         Text(
-            thread.title, fontSize = 15.sp, fontWeight = FontWeight.Medium,
+            thread.title, fontSize = 15.sp,
+            fontWeight = if (titleFontBold(thread.titleFont)) FontWeight.SemiBold else FontWeight.Medium,
+            color = titleFontColor(thread.titleFont) ?: Color.Unspecified,
             lineHeight = 20.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
         )
         Spacer(Modifier.height(5.dp))

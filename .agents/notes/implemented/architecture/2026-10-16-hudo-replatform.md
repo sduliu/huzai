@@ -758,3 +758,10 @@ Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage
 | 真实经历 tab | (a) 无匿名源 | 目录树无该版块；`walkingStreet/threads` 仅 `{page,cursor}` 无 tab 参；全 JS chunk 无字符串 |
 | 置顶标记 | **(b) 有源可接** | `topicPage` `threads.list[].titleFont`——官方渲染 `color:X;font-weight:600` 标色标题即其置顶/高亮呈现形态；无 `isTop` 布尔，实现按官方同款「彩色加粗标题」还原而非自造徽标 |
 | 版规正文 | (a) 无匿名源 | `-rules` URL 全系社区首页兜底；`topic.desc` 仅一句简介（已在版头上屏，lakers 含规则句属偶发文本非结构化版规）；完整版规疑走 App 内管理面，匿名不可得 |
+
+## 批S-1：标色标题（置顶标记唯一可接项）——titleFont 同款还原
+
+- **`HupuThread.titleFont`**（末尾默认参）+ `threadFrom` 解析 `titleFont`；仅 `topicPage` `threads.list[]` 携带（board/信息流条目无此键，空串降级）。
+- **`FeedUi.FlatPostRow`**：`titleFontColor`（`blue→0xFF3B82F6` 官方蓝[纯 CSS blue 深底不可读]/`orange→0xFFFFA500`/`red→0xFFE60023`，未知色不覆盖）+ `titleFontBold`（第二段 `==1` → SemiBold=官方 600，否则行默认 Medium）。仅落平铺帖行——官方标色出现的对应面（bbs.hupu.com 版块列表）；大卡信息流行数据本无 titleFont 不接。
+- 语义取舍：不自造「置顶」徽标文字——官方 SSR 也是彩色加粗无文字徽标；标色语义混用（含精华蓝标），如实还原通道而非断言单一语义。
+- 测试：`BoardInfoParserTest` +`titleFont marker parses`（5/5 绿）。

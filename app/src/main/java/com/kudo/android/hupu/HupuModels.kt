@@ -47,6 +47,12 @@ data class HupuThread(
      * ≥0 = `api/v2/bbs-thread/{tid}` 的 `t_detail.share`，惰性补齐后显示真实值。
      */
     val shareNum: Int = -1,
+    /**
+     * 批S-1：topicPage `threads.list[].titleFont` 标色标题标记（官方渲染 `color:X;font-weight:600`）。
+     * 格式 `{css色}~{粗体}~~~~~`（实测 `orange~1~~~~~`/`blue~1~~~~~`/`blue~~~~~~`）；
+     * 空 = 无标色。官方仅作彩色加粗标题呈现（置顶/精华/高亮混用，无语义布尔），本端同款还原。
+     */
+    val titleFont: String = "",
 ) {
     val detailUrl: String get() = if (url.isNotEmpty()) url else "/$tid.html"
 }
