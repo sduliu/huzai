@@ -1057,3 +1057,16 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **普通用户路**：移动页回复作者 `{puid,username,header}` 无 euid → `pageId` 落 puid（实测 user/{puid} 与 user/{euid} 同达同一 SSR）；桌面路径作者 euid 俱全走原路不变。
 - **覆盖面**：移动兜底解析产出的作者对象天然带 puid → 详情页作者行点按在两形态下均可达；双缺（puid 亦无）行不可点不接错页——口径不变。
 - 纯实证补记，无运行代码改动（mobile 解析器作者映射已在 Xfix-1 提交内含断言覆盖）。
+
+## 批X2：作者主页路由参错命名空间修复
+
+### 批X2-1：`Member.username` 必须承载 pageId，不能回落昵称
+
+- **真机症状（Muse 2038）**：频道资讯帖详情顶栏作者头像点按进「个人主页」路由，内容区却是「内容不存在或暂无权限」（仅「刷新登录状态」、无返回按钮）。
+- **断点**：资讯行走 `SportNewsRow→topic/{id}→TopicScreen`；顶栏 `TopicTopBar` 调 `user(author.username)`。`HupuBridge.toMember()` 旧映射 `username=euid ?: 昵称`——Xfix-1 移动兜底解析出的作者**只下发 puid 无 euid** → username=昵称「虎扑篮球资讯」→ `user/{昵称}` 非全数字 → 被分流进 `UserScreen`（Discourse 用户页）→ `repository.user(昵称)`→`m.hupu.com/user/虎扑篮球资讯` 无资料 → `ApiFailure(NOT_FOUND)` → `ErrorState` 无 back 参 = 所见形态。「能进路由」是因为 UserScreen 占位标题就叫「个人主页」。
+- **实际走的数据与 id（对照任务要求）**：路由参=`Member.username`；匿名取数=`fetchUserHtml(id)`→`m.hupu.com/user/{id}`→`parseUserProfile`（移动 SSR，`userInfoData/threadList/replyList`），登录态才先走 PC `getUserInfo?euid=` 并自动落 SSR。断点在 **id 命名空间**（昵称≠id），不在 SSR 结构。
+- **修**（`toMember` 与信息流卡两处 Member 同口径）：`username = pageId.ifBlank { name }`（euid→puid→name）；`Member.id = pageId → HupuIds.id("user:$it")`——顺带修复同根缺陷：euid 双缺时旧映射全员 `id=0` 互等，`post.author.id == detail.author?.id` 恒真 → 「楼主」徽标会误标到每个回复；改后同 pageId 同 id、异者不同 id，且与 `repository.user()` 的 `id("user:$euid")` 命名空间统一（自帖判定 `author.id==viewerId` 有命中可能）。
+- **puid 路由可达实证**：`m.hupu.com/user/56098302`（虎扑篮球资讯本号 puid）2026-10-26 实测返回完整 SSR——`userInfoData{nickname:虎扑篮球资讯,puid:56098302,level:1280}` + threadList/replyList 数组齐全；夹具 `user_puid_56098302.html` 落库。
+- **`spaceUserInfo` 同款毒化防护**：错误 SSR（无 userInfoData）也含 `__NEXT_DATA__` 会被 `fetchUserHtml` 缓存——解析 null 时 `HupuCache.remove("/user/$euid")` 定向剔除 + `forceNetwork` 重拉一次，仍失败才判真不存在（与 X-1/Xfix-1 详情机制同源）。
+- **不接**：登录态 PC `getUserInfo` 的 euid 命名空间不做 puid 回退改写（语义不同）；双缺（euid/puid 均无）作者在批X2-2 由 UI 侧 `author.id != 0` 门控成不可点、不接错页。
+- 单测：`member username carries pageId not nickname`（真实帖作者载荷断言）、`member ids are namespaced per pageId`、`puid route user SSR parses full profile`（真实夹具）。回退：revert 本 commit。

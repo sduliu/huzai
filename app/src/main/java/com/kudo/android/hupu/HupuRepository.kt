@@ -299,8 +299,16 @@ class HupuRepository {
                 ?.let { HupuParser.parseSpaceUserInfo(it) }
                 ?.let { hupuUserInfoCache.put(euid, it); return it }
         }
-        return HupuApi.fetchUserHtml(euid)?.let { HupuParser.parseUserProfile(it) }
-            ?.also { hupuUserInfoCache.put(euid, it) }
+        // 批X2-1：错误 SSR（无 userInfoData）同样含 __NEXT_DATA__ 会被 fetchUserHtml
+        // 缓存——解析 null 时剔除条目并强制重拉一次，仍失败才判真不存在（同 X-1 详情机制）。
+        val html = HupuApi.fetchUserHtml(euid)
+        var p = html?.let { HupuParser.parseUserProfile(it) }
+        if (p == null && html != null) {
+            HupuCache.remove("/user/$euid")
+            p = HupuApi.fetchUserHtml(euid, forceNetwork = true)
+                ?.let { HupuParser.parseUserProfile(it) }
+        }
+        return p?.also { hupuUserInfoCache.put(euid, it) }
     }
 
     /**

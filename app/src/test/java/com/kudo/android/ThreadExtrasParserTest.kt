@@ -1,10 +1,15 @@
 package com.kudo.android
 
+import com.kudo.android.data.toPost
 import com.kudo.android.hupu.HupuAuthor
 import com.kudo.android.hupu.HupuParser
+import com.kudo.android.hupu.HupuReply
 import com.kudo.android.hupu.pageId
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -62,5 +67,61 @@ class ThreadExtrasParserTest {
         assertEquals("p1", HupuAuthor(puid = "p1", euid = "").pageId)
         assertEquals("", HupuAuthor(puid = "0", euid = "").pageId)
         assertEquals("", HupuAuthor().pageId)
+    }
+
+    /**
+     * 批X2-1：Member.username 是 user/{username} 路由参——必须承载 pageId 而非昵称，
+     * 否则移动 SSR 作者（只下发 puid）会拿昵称进 UserScreen → NOT_FOUND（真机实证）。
+     * 真实样本：tid=643321948「追梦谈0胜3负」basicInfo.author={puid:56098302,name:虎扑篮球资讯}。
+     */
+    @Test
+    fun `member username carries pageId not nickname`() {
+        val mobileAuthor = HupuReply(pid = "1", floor = 2,
+            author = HupuAuthor(puid = "56098302", name = "虎扑篮球资讯")).toPost("t").author
+        assertEquals("56098302", mobileAuthor.username)
+        assertNotEquals(0, mobileAuthor.id)
+
+        val euidAuthor = HupuReply(pid = "2", floor = 3,
+            author = HupuAuthor(puid = "p1", euid = "e1", name = "n")).toPost("t").author
+        assertEquals("e1", euidAuthor.username)
+
+        // 双缺仅昵称：不造 id、路由参回落昵称（不接错页的边界由 UI 侧 id!=0 门控保证）
+        val nameOnly = HupuReply(pid = "3", floor = 4,
+            author = HupuAuthor(name = "x")).toPost("t").author
+        assertEquals("x", nameOnly.username)
+        assertEquals(0, nameOnly.id)
+
+        assertEquals("", HupuReply(pid = "4", floor = 5).toPost("t").author.username)
+    }
+
+    /** 批X2-1：同 pageId 的两个 Member 拿到同一 user: 命名空间 id（楼主徽标不误标）。 */
+    @Test
+    fun `member ids are namespaced per pageId`() {
+        val op = HupuReply(pid = "1", floor = 1,
+            author = HupuAuthor(puid = "56098302", name = "虎扑篮球资讯")).toPost("t").author
+        val other = HupuReply(pid = "2", floor = 2,
+            author = HupuAuthor(puid = "20292842", name = "罩渐大")).toPost("t").author
+        val dupe = HupuReply(pid = "3", floor = 3,
+            author = HupuAuthor(puid = "56098302", name = "虎扑篮球资讯")).toPost("t").author
+        assertNotEquals(op.id, other.id)
+        assertEquals(op.id, dupe.id)
+    }
+
+    /**
+     * 批X2-1：puid 路由 `m.hupu.com/user/56098302` 真实 SSR（2026-10-26 抓包）——
+     * userInfoData/threadList/replyList 齐全，解析产出完整资料卡。
+     */
+    @Test
+    fun `puid route user SSR parses full profile`() {
+        val html = javaClass.classLoader!!.getResource("user_puid_56098302.html")!!.readText()
+        val p = HupuParser.parseUserProfile(html)
+        assertNotNull(p)
+        p!!
+        assertEquals("虎扑篮球资讯", p.name)
+        assertEquals("56098302", p.puid)
+        // euid 缺省回落 puid（真实页未下发 euid 字段）
+        assertEquals("56098302", p.euid)
+        assertTrue(p.threads.isNotEmpty())
+        assertTrue(p.replies.isNotEmpty())
     }
 }

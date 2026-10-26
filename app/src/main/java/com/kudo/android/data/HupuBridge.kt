@@ -8,6 +8,7 @@ import com.kudo.android.hupu.HupuThread
 import com.kudo.android.hupu.HupuThreadDetail
 import com.kudo.android.hupu.HupuTopic
 import com.kudo.android.hupu.HupuTopicInfo
+import com.kudo.android.hupu.pageId
 import java.time.Instant
 
 /**
@@ -102,8 +103,11 @@ private fun hupuEmojiize(html: String): String {
 
 private fun HupuAuthor?.toMember(): Member =
     Member(
-        id = this?.euid?.takeIf { it.isNotBlank() }?.let(HupuIds::id) ?: 0,
-        username = this?.euid?.takeIf { it.isNotBlank() } ?: this?.name.orEmpty(),
+        // pageId = euid→puid 回落（移动 SSR 作者只下发 puid）：username 承载路由参，
+        // 全数字进 UserProfilePage 而非 UserScreen；id 进 user: 命名空间——否则 euid 双缺
+        // 时全员 id=0 互等，「楼主」徽标会误标到每个回复（批X2-1）。
+        id = this?.pageId?.takeIf { it.isNotBlank() }?.let { HupuIds.id("user:$it") } ?: 0,
+        username = this?.pageId?.takeIf { it.isNotBlank() } ?: this?.name.orEmpty(),
         name = this?.name.orEmpty(),
         avatar = this?.url.orEmpty(),
     )

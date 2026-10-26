@@ -164,9 +164,12 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
                             (cached[0].isNotEmpty() || cached[1].isNotEmpty())
                         val cachedMs = cached?.getOrNull(4)?.toLongOrNull() ?: 0L
                         if (author == null && cachedAuthor && cached != null) {
+                            // cached = puid|euid|name|avatar|ms——路由参按 euid→puid→name 回落
+                            // （移动 SSR 作者常只下发 puid；批X2-1 与 toMember 同口径）
+                            val pid = cached[1].ifBlank { cached[0] }
                             author = Member(
-                                id = cached[1].takeIf { it.isNotBlank() }?.let(HupuIds::id) ?: 0,
-                                username = cached[1].ifBlank { cached[2] },
+                                id = pid.takeIf { it.isNotBlank() }?.let { HupuIds.id("user:$it") } ?: 0,
+                                username = pid.ifBlank { cached[2] },
                                 name = cached[2],
                                 avatar = cached[3],
                             )
@@ -178,12 +181,15 @@ class CommunityRepository(val client: DiscourseClient, private val hupu: HupuRep
                             val (a, date, ms) = hupu.threadCardHead(tid)
                             if (a != null && (a.puid.isNotEmpty() || a.euid.isNotEmpty() || a.name.isNotBlank())) {
                                 fresh[tid] = "${a.puid}|${a.euid}|${a.name}|${a.url}|$ms"
-                                if (author == null) author = Member(
-                                    id = a.euid.takeIf { it.isNotBlank() }?.let(HupuIds::id) ?: 0,
-                                    username = a.euid.ifBlank { a.name },
-                                    name = a.name,
-                                    avatar = a.url,
-                                )
+                                if (author == null) {
+                                    val pid = a.euid.ifBlank { a.puid }
+                                    author = Member(
+                                        id = pid.takeIf { it.isNotBlank() }?.let { HupuIds.id("user:$it") } ?: 0,
+                                        username = pid.ifBlank { a.name },
+                                        name = a.name,
+                                        avatar = a.url,
+                                    )
+                                }
                             }
                             if (bumped.isBlank()) {
                                 bumped = if (ms > 0) java.time.Instant.ofEpochMilli(ms).toString() else date
