@@ -154,3 +154,5 @@ val CategoryColors = listOf(
     Color(0xFFF76B15), // 学习-橘
     Color(0xFF6E56CF)  // 其他-靛
 )
+/** 官方正文话题词/站内链接色（虎扑 App 固定蓝，与主题色解耦）。批P：双渲染器共用。 */
+val HUPU_LINK_BLUE = Color(0xFF3B82F6)

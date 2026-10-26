@@ -80,6 +80,8 @@ import com.kudo.android.ui.components.LocalAvatarMetadata
 import com.kudo.android.ui.components.mediaUrl
 import com.kudo.android.ui.LinuxDoLink
 import com.kudo.android.ui.ExternalAppLinkPolicy
+import com.kudo.android.hupu.HupuLink
+import com.kudo.android.hupuui.theme.HUPU_LINK_BLUE
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
@@ -492,13 +494,18 @@ internal fun parseInlineArticle(html: String, linkColor: Color, onFootnote: ((St
                     }
                     "a" -> {
                         val footnoteId = footnoteReferenceId(node)
-                        val url = ExternalAppLinkPolicy.contentUrl(node.attr("href"))
+                        val hupuDest = HupuLink.destination(node.attr("href"))
+                        val url = hupuDest?.url ?: ExternalAppLinkPolicy.contentUrl(node.attr("href"))
                         val color = explicitColor ?: node.parents().firstNotNullOfOrNull { articleStyleColor(it.attr("style")) } ?: linkColor
                         if (footnoteId != null) {
                             if (onFootnote != null) withLink(LinkAnnotation.Clickable("footnote-$footnoteId",
                                 TextLinkStyles(SpanStyle(color = color))) { onFootnote(footnoteId) }, children)
                             else children()
-                        } else if (url != null) withStyle(SpanStyle(color = color)) {
+                        } else if (hupuDest != null) withStyle(SpanStyle(color = HUPU_LINK_BLUE)) {
+                            // 官方正文话题词/站内链接：固定蓝、无下划线，与普通外链（主题色+下划线）区分
+                            withLink(LinkAnnotation.Url(hupuDest.url, TextLinkStyles(SpanStyle(color = HUPU_LINK_BLUE))), children)
+                        }
+                        else if (url != null) withStyle(SpanStyle(color = color)) {
                             withLink(LinkAnnotation.Url(url, TextLinkStyles(SpanStyle(textDecoration = TextDecoration.Underline))), children)
                         }
                         else children()

@@ -625,3 +625,12 @@ Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage
 - **share 不动节流**：`threadShareNum` 仍走 `getMobileJson`（防频控常设），总量 ≥30s 不变——但渐显可见且与作者行解耦；`more()`/`refresh()` 重跑 enrich 时，已带 share≥0/作者缓存的条目在 pending 过滤中自然跳过，重放成本低。
 - 测试：`ThreadExtrasParserTest` 加 `createdAtMs` 例（正/空/脏值），4/4 绿。
 - 回归面：未触碰 NF2（FeedScreen 搜索条）/NF3（TopicScreen 详情）/NF4（zoneDetailOpen 信号）——改动文件为 HupuParser/HupuRepository/CommunityRepository/FeedViewModel/ThreadExtrasParserTest，与三处零文件交集。
+
+## 批P-1：首页详情正文话题词——链接分类器 + 官方蓝链样式
+
+**证据基线（Resin 匿名实测，先核查再改）**：官方详情正文话题词 = 虎扑站内链接，官方 App 固定蓝、可点、应用内打开。桌面 SSR `pageProps.detail.thread.content` 抽样（9 帖：新闻 3 + 步行街用户帖 6）正文/回复均无 `<a>`、无 `#xxx#` 文本——话题词以 `<a>` 出现时走本路径；`thread.topic`（话题区元数据：topicId/name/url）与移动端 `moduleConfigList.topic.tags[].url = "huputiyu://bbs/subject/{topicId}"` 是官方话题位数据源（批P-2 接）。官方渲染事实：移动 SSR `topic` 模块位于正文前、蓝字可点。
+
+- **新文件 `hupu/HupuLink.kt`**：`HupuLink.destination(raw)` → `HupuDestination{Thread(tid)/Board(boardUrl)/User(euid)/Tag(tagId)}`，承载归一化绝对 URL。规则：`/{tid}.html`（含版块前缀与 `-{page}` 翻页尾）、`m.hupu.com/bbs/{tid}(.html)` → Thread；单段版块路径（`/all-nba`、`/502`）、`m.hupu.com/bbs/{board}` → Board；`my.hupu.com/{euid}`、`m.hupu.com/user/{euid}` → User；`m.hupu.com/tag/{id}`、`?tagId=`、`huputiyu://bbs/subject/{id}` → Tag。非虎扑域/多段不可判定/非 http 一律 null → 走既有分流。HOSTS 仅 `bbs/m.hupu.com`（`www.hupu.com` 资讯域不进 bbs 路由）。
+- **共享蓝常量**：`HUPU_LINK_BLUE = 0xFF3B82F6` 上移到 `hupuui/theme/Color.kt`（原 `ThreadDetailHtml.kt` internal 定义删除、改 import——专区路径渲染零变化，仅常量归位）。理由：任务要求样式常量集中一处，双渲染器（RichContent/ThreadDetailHtml）共用。
+- **`RichContent` `<a>` 分支**：`HupuLink.destination(href)` 命中 → `LinkAnnotation.Url(dest.url)` + `SpanStyle(color=HUPU_LINK_BLUE)` **无下划线**——官方话题词形态；未命中走原路（`contentUrl` 可解 → 主题色+下划线；不可解 → 裸文本）。`dest.url` 已归一化为绝对 URL，LocalUriHandler→openLink 拿到的是合法绝对地址。
+- 测试 `HupuLinkTest` 8/8：帖（前缀/翻页/移动/相对）、版块、用户、tag 三种形态、外链/伪协议/多段不可判定负例。

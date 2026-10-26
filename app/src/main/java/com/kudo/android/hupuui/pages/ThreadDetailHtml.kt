@@ -124,6 +124,7 @@ import com.kudo.android.hupu.HupuPrefs
 import com.kudo.android.hupu.isLocalStickerUrl
 import com.kudo.android.hupu.HupuFloorReplies
 import com.kudo.android.hupu.HupuReply
+import com.kudo.android.hupuui.theme.HUPU_LINK_BLUE
 import com.kudo.android.hupu.HupuSubReply
 import com.kudo.android.hupu.HupuThreadDetail
 import com.kudo.android.hupu.HupuVote
@@ -182,9 +183,6 @@ internal sealed class HtmlBlock {
 
 /** 文本内联样式区间（剥标签后坐标） */
 internal data class HtmlSpan(val start: Int, val end: Int, val bold: Boolean, val link: String?)
-
-/** 批N-2：官方正文话题词/链接色（虎扑 App 蓝链色，与主题色解耦——官方固定蓝） */
-internal val HUPU_LINK_BLUE = Color(0xFF3B82F6)
 
 /**
  * HTML → 块列表（保序）：<img> 与投票占位 <span data-type="vote"> 提为独立块，
