@@ -95,6 +95,7 @@ private fun GuestProfileScreen(login: () -> Unit, settings: () -> Unit, about: (
     Column(Modifier.fillMaxSize().statusBarsPadding().semantics { paneTitle = "我的" }.testTag("guest-profile")) {
         LazyColumn(state = scroll, modifier = Modifier.quickScrollTarget(scroll), contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 16.dp, bottom = 112.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item { GuestIdentityHeader(login) }
             item { GuestLoginPanel("登录后参与社区讨论", login) }
             item {
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surface)) {
@@ -109,6 +110,46 @@ private fun GuestProfileScreen(login: () -> Unit, settings: () -> Unit, about: (
                 Text("真诚 · 友善 · 团结 · 专业", Modifier.fillMaxWidth().padding(18.dp),
                     style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+/**
+ * 批AA-1：未登录身份占位卡——镜像 MemberHeader 的头像/昵称/等级位/统计槽，
+ * 全部以「—」占位（不编数据），点按整卡去登录页。
+ */
+@Composable
+private fun GuestIdentityHeader(login: () -> Unit) {
+    val ink = MaterialTheme.colorScheme.onSurface
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+        .background(MaterialTheme.colorScheme.surface).clickable(role = Role.Button, onClick = login)
+        .padding(horizontal = 20.dp, vertical = 22.dp).testTag("guest-identity"),
+        verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Box(Modifier.size(64.dp).clip(RoundedCornerShape(50))
+                .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+                Icon(Icons.Rounded.Person, null, Modifier.size(34.dp), tint = MaterialTheme.colorScheme.outline)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text("未登录", color = ink, fontSize = 21.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Lv.—", Modifier.clip(RoundedCornerShape(5.dp))
+                        .background(ink.copy(alpha = .08f)).padding(horizontal = 7.dp, vertical = 3.dp),
+                        color = ink.copy(alpha = .55f), fontSize = 11.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium)
+                }
+                Text("登录后查看个人信息", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp, lineHeight = 18.sp)
+            }
+            Icon(Icons.Rounded.ChevronRight, "去登录", Modifier.size(24.dp), tint = MaterialTheme.colorScheme.outline)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            listOf("访问天数", "已读帖子", "获赞", "发帖数").forEach { label ->
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("—", color = ink, fontSize = 19.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold)
+                    Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, lineHeight = 17.sp)
+                }
             }
         }
     }
