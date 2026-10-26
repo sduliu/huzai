@@ -986,3 +986,11 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **纵轴**：数值标签步长按量级自适应（`yStep=ceil(maxScore/5/10)*10`，150→30、90→20、50→10，≤6 标），末刻度必标；标签 TextMeasurer 画在 Canvas 左缘 26dp 留白区，9sp onSurfaceVariant——不写死 0-150。
 - **横轴**：节次刻度「第1节/第2节/第3节/第4节」各 12min 节中线标注 + 节界竖线（axis 25% 透明度）；加时按 `maxMin>48` 每 5min 一个「加时/加时N」。
 - 双折线/图例/数据源（playbyplay 推导）零改动。回退：revert 本 commit。
+
+### 批V-5：内容线第 5 级——作者主页匿名可达性核查 + 操作按钮官方化
+
+- **链路实证**：帖子详情作者/回复者头像点按 → `onOpenUser(euid)` → `user/{euid}` 路由 → `UserProfilePage` → `spaceUserInfo(euid)`：登录走 PC `getUserInfo`，**匿名走 `HupuApi.fetchUserHtml` 移动版 SSR → `parseUserProfile`**。链路各环本已接通，本批核查无断点。
+- **匿名 SSR 实测字段**（m.hupu.com/user/{euid}，userInfoData）：昵称/头像/Lv 等级+等级色/粉丝/关注/被亮/被推荐/发帖计数/回帖计数/IP 属地（`location` 兜底）/加入虎扑天数/声望值——资料卡字段零缺失；`threadList`+`replyList` SSR 内嵌（官方移动网页同为 20+20 预览口径）。
+- **差异修正（本批唯一代码改动）**：官方匿名态资料卡仍显示「关注/私信」按钮（点按转登录提示）；酷DO 原 `showFollow=logged` 直接隐藏、私信按钮匿名点按会开必败的 PmChatPage（`postSpaceApiJson` 无 cookie 恒空）——修：两按钮匿名可见，点按分别走 `toggleFollow` 既有「请先在「我的」页登录」提示与新加「登录后可用：私信」toast。**不绕登录墙**。
+- **匿名差异如实记**：①发帖/回帖列表仅 SSR 内嵌预览、无翻页（PC space 分页系登录墙，登录批次欠账）；②粉丝/关注计数展示但不可点（关注 tab 登录墙）；③推荐/收藏/关注三 tab 匿名不显示（官方移动站匿名同仅主题/回帖两 tab）；④拉黑系纯本地黑名单，匿名可用，「更多」菜单无登录项泄漏。
+- 回退：revert 本 commit（恢复按钮隐藏 + PmChatPage 匿名必败原状）。

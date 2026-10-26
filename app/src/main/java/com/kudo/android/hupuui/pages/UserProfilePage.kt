@@ -558,23 +558,29 @@ fun UserProfilePage(
                                 p = p,
                                 onOpenFollowers = openFollowers,
                                 onOpenFollowing = openFollowing,
-                                showFollow = !p.isSelf && logged && p.puid.isNotEmpty(),
+                                // 批V-5：官方匿名态也显示「关注/私信」按钮，点按转登录提示；
+                                // 隐藏按钮反而与官方不一致（登录批次欠账以提示呈现，不绕登录墙）
+                                showFollow = !p.isSelf && p.puid.isNotEmpty(),
                                 followed = followed,
                                 followBusy = followBusy,
                                 onToggleFollow = { toggleFollow() },
                                 onPm = if (!p.isSelf && p.puid.isNotEmpty()) {
                                     {
-                                        pmConv = PmConversation(
-                                            puid = p.puid.toLongOrNull() ?: 0L,
-                                            sid = 0L,
-                                            name = p.name,
-                                            avatar = p.avatar.ifEmpty { null },
-                                            lastContent = "",
-                                            lastTime = 0L,
-                                            unread = 0,
-                                            isSystem = false,
-                                        )
-                                        pmEpoch++
+                                        if (!HupuAccount.isLoggedIn) {
+                                            HuzaiToast.show("登录后可用：私信")
+                                        } else {
+                                            pmConv = PmConversation(
+                                                puid = p.puid.toLongOrNull() ?: 0L,
+                                                sid = 0L,
+                                                name = p.name,
+                                                avatar = p.avatar.ifEmpty { null },
+                                                lastContent = "",
+                                                lastTime = 0L,
+                                                unread = 0,
+                                                isSystem = false,
+                                            )
+                                            pmEpoch++
+                                        }
                                     }
                                 } else null,
                             )
@@ -895,7 +901,9 @@ private fun ProfileCard(
     }.getOrDefault(MaterialTheme.colorScheme.primary)
     // 1.193: 先落到局部 val，避免在 Compose lambda 里对可空参数做智能转换
     val pmAction = onPm
-    val canFollow = showFollow && followed != null
+    // 批V-5：匿名态 followed=null——放开渲染让按钮可见（点按走 toggleFollow 的登录提示），
+    // 登录态保持「followed 未解析不出按钮」防关注态闪烁。
+    val canFollow = showFollow && (followed != null || !HupuAccount.isLoggedIn)
 
     Column(
         Modifier
