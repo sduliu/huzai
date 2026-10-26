@@ -943,3 +943,17 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **三种口径分屏保留**（官方实证）：频道大卡=蓝「N万JRs评分」（批T-4 `hupuJrsScoreText`）；赛程页紧凑行+选手评分卡=灰「N万人评分」（新 `hupuWanScoreText`：9223评分→9223人评分、3.5万评分→3.5万人评分）；详情页球员卡=「9087JRs评分」原始计数。
 - 改动面：`ScorePageSchedule` 右列、`ScorePageWidgets` 选手评分卡计数行；非计数文案原样透传。
 - 回退：revert 本 commit。
+
+### 批U-6：回归面核查（本批 13 文件 vs 各批已验面）
+
+| 回归面 | 状态 | 依据 |
+|---|---|---|
+| 批Q 专区冷启缓存（zone_categories_v1 SWR） | ✅ 未触碰 | HupuPrefs/ZonePage/CommunityRepository 零 diff |
+| 底栏三项（首页/专区/我的） | ✅ 未触碰 | KudoApp 零 diff |
+| 版块「立即发布」FAB | ✅ 未触碰 | ZonePage/BoardPage 零 diff |
+| 批O 信息流卡作者行/转发数 | ✅ 未触碰 | FeedUi.kt/enrichTopics 零 diff |
+| 批R 话题 chip/应用内路由 | ✅ 未触碰 | HupuBridge/toTopicDetail 零 diff |
+| 批S 标色标题（titleFont） | ✅ 未触碰 | FlatPostRow/HupuParser titleFont 零 diff；本批仅改 HupuBoardParser 的 newsList link 正则（TID_IN_LINK 只作用于 boardNews 条目，不触 topicPage） |
+| 批T 频道结构 | ⚠️ 有意改动 | U-0b/c：资讯胶囊官方化 + 🔥 按 likes>=50 门控；其余频道结构零 diff |
+| 比分卡/详情页 | ⚠️ 有意改动 | 即本批目标（U-1~U-5），逐节见上 |
+- FallbackImages*/proguard*/release 变体零触碰；PlayerScoreRow 保留为非篮球路径。
