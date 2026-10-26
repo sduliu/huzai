@@ -36,8 +36,8 @@ class NestedReplyActionsUiTest {
         replyLoads = mapOf(root.id to ReplyLoad(cursors = mapOf(direct.id to ReplyCursor(4, true)))))
 
     @Composable private fun Screen(state: TopicState = initial, like: (Post) -> Unit = {}, reply: (Post?) -> Unit = {},
-        react: (Post, String) -> Unit = { _, _ -> }) {
-        TopicScreen(state, GlassMode.TRANSLUCENT, {}, {}, {}, {}, like, {}, reply, {}, {}, {}, {}, react = react)
+        react: (Post, String) -> Unit = { _, _ -> }, user: (String) -> Unit = {}) {
+        TopicScreen(state, GlassMode.TRANSLUCENT, {}, {}, {}, {}, like, {}, reply, user, {}, {}, {}, react = react)
     }
     private fun open() = compose.onNodeWithText("查看 2 条回复").performScrollTo().performClick()
     private fun showFloor(number: Int) = compose.onNodeWithTag("thread-posts").performScrollToNode(hasTestTag("thread-preview-post-$number"))
@@ -167,6 +167,31 @@ class NestedReplyActionsUiTest {
         compose.onNodeWithTag("thread-reply-4").performClick()
         compose.runOnIdle { assertEquals(2, signIns) }
         compose.onNodeWithTag("thread-posts").assertDoesNotExist()
+    }
+
+    /** 批X3-2：楼中楼作者行（头像与昵称标签两处）与详情顶栏同口径——id!=0 即可点，走同一 user 路由。 */
+    @Test fun discussionAuthorRowOpensUserProfile() {
+        var opened = ""
+        compose.setContent { KudoTheme(DisplaySettings()) { Screen(initial, user = { opened = it }) } }
+        open(); showFloor(4)
+        compose.onNode(hasText("丙 回复 乙") and hasAnyAncestor(hasTestTag("thread-posts")))
+            .assertIsDisplayed().performTouchInput { click() }
+        compose.runOnIdle { assertEquals("second", opened) }
+        compose.onNode(hasContentDescription("丙的头像") and hasAnyAncestor(hasTestTag("thread-posts")))
+            .assertIsDisplayed().performTouchInput { click() }
+        compose.runOnIdle { assertEquals("second", opened) }
+    }
+
+    @Test fun discussionAuthorStaysDeadWhenMemberHasNoRoutableId() {
+        var opened = ""
+        val unroutable = initial.copy(detail = detail.copy(posts = posts.map {
+            if (it.id == nested.id) it.copy(author = it.author.copy(id = 0)) else it
+        }))
+        compose.setContent { KudoTheme(DisplaySettings()) { Screen(unroutable, user = { opened = it }) } }
+        open(); showFloor(4)
+        compose.onNode(hasText("丙 回复 乙") and hasAnyAncestor(hasTestTag("thread-posts")))
+            .assertIsDisplayed().performTouchInput { click() }
+        compose.runOnIdle { assertEquals("", opened) }
     }
 
     @Test fun ignoredReplyStaysHiddenWithoutNewInteractionButtons() {

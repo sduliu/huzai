@@ -1087,3 +1087,9 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **拦截面审计（全部排除）**：`Avatar`/`TopicAuthorMetadata` 不装 pointerInput；`tapGuard`/`PostReadingViewport`/`QuickScroll*`/`layerBackdrop`（字节码核实纯绘制节点）/`MaterialPageScaffold`（header 按实测高度给 contentPadding，无重叠）/`LocalReadingBlocked`/`screenMaterial`/`ReplyEditorSheet` 均不拦截该区域输入；`hupuui` 栈 `MainPost`/`ThreadHeader`/`FloorSheet` 作者行亦已全部接线。
 - **结论与动作**：静态层面该行与已验证可用的顶栏行等价——若有缺陷只能是真机命中区域差异（顶栏行 `heightIn(min=48)`，标题行裸 ~40dp）。行修饰链改成与顶栏逐字节同构（`weight→heightIn(48)→clickable→testTag`），新增 `topic-title-author` tag 供真机/UI 测试定位；`TopicDetailUiTest.titleAuthorRowOpensUserProfile` 钉死点按→user 回调（顺带修正 `authorAppearsOnce…` 旧断言 1→2，标题行合法出现第二次作者名）。若 Muse 真机仍死，下一步用该 tag 做 uiautomator 坐标级定位。
 - 单测：`detail author carries routable pageId in both SSR shapes`（ThreadDetailRelatedTest，真实双形态 SSR 夹具断言 username/id）。回退：revert 本 commit。
+
+### 批X3-2：楼中楼 `ThreadPreviewPost` 作者行补验
+
+- **代码核查**：`openUser = if (post.author.id != 0) { user(post.author.username) }`——头像 Box 与作者标签（`authorLabel`=`「丙 回复 乙」`形态）两处各挂 `clickable(enabled)`，与顶栏同口径；`post.author` 经 `toMember` 产出即带 pageId。
+- **UI 覆盖**：`NestedReplyActionsUiTest.discussionAuthorRowOpensUserProfile`（标签+头像两点按断言 `user("second")`）；`discussionAuthorStaysDeadWhenMemberHasNoRoutableId`（id=0 双缺作者点按静默——不接错页的负向断言）。
+- 纯测试与调用点跟进，无运行代码改动。
