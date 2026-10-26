@@ -441,3 +441,15 @@ Muse 验收发现 `assembleDebugAndroidTest` 全量编译被陈旧测试阻断�
 - coroutines jar 带入 JVM debug-agent 对 `java.lang.instrument`/`sun.misc.Signal` 的引用（仅 -javaagent 场景可达）→ 补 4 条 dontwarn。
 - 自证（dex 表直查）：LazyKt 旧包=引用无定义，新包=**DEF**；8 探针类全 DEF；剩余未解析引用=编译期注解（errorprone/Composable/Jetbrains）+ JDK-only + **他测试引用的 app 已改名类**（`CommunityDirectoryScreenKt`/`DirectoryTag` 在主 APK 已 rename——`CommunityDirectoryUiTest` 等直调该类名的测试仍不可跑，属 debug-minify 的固有局限，`-e class` 过滤下不阻塞兜底测试；mockwebserver WebSocket 路径同理）。`FallbackImagesUiTest` 所需 app 类（`KudoThemeKt`/`FallbackImagesKt`/`HupuImageFallback`/`DisplaySettings`）均 canonical DEF 于主 APK。
 - 回退：删 `libs/*.jar` + build.gradle 两行 files() 依赖 + 本笔记段。
+
+## 批J：instrument 启动 IllegalAccessError——撤销嵌入，debug 主包保留 kotlin canonical
+
+批I 的 libs/ 嵌入引入第二份 stdlib：**stdlib jar 里 `CollectionsKt__CollectionsKt` 等 `__` 多文件部件类是 package-private**（javap 实证：`class` 无 public），而主包 R8 合并后的版本被改成 public 供 androidx 调用——instrument 双类加载器同进程，主包 `ProcessLifecycleInitializer` 解析到测试 dex 的包私有副本 → `IllegalAccessError`（AppInitializer 阶段）。单独主包启动正常，因单 dex 内自洽。
+
+根治（替换批I 方案）：**debug 变体主包保留 kotlin/kotlinx canonical 类**——`app/proguard-debug.pro`：`-keep class kotlin.** { *; }` + `-keep class kotlinx.** { *; }`，接入 `debug.proguardFiles`。主包代码不再被重写到 `__` 合并类，只调 public 门面（`CollectionsKt`/`LazyKt`），测试 dex 按同一规范名从主包解析——单一 stdlib 来源，无副本可撞。libs/ 嵌入 jar 与对应 dontwarn 同步撤销。
+
+- 影响面：只动 debug 构建配置；release `proguardFiles` 链未动，正式包零影响。代价=debug 包 kotlin 类不再被 R8 合并/裁剪，dex 变大（19,673 类 vs 原 18,343）且失去部分内联优化——nightly 走 debug 变体，属可接受的测试友好性交换；如夜间构建性能敏感可再议缩小 keep 面。
+- `-dontshrink/-dontobfuscate/-dontoptimize` 保留在 test 变体：防 R8 把「未被静态引用的测试类」当死码裁掉（junit 反射发现入口）。
+- 自证（dex 表直查）：主包 `LazyKt`/`CollectionsKt`/`CollectionsKt__CollectionsKt`/`BuildersKt`/`JobKt`/`Intrinsics` 全部 DEF；test dex kotlin.* 类定义=0（纯引用，单源解析）；`TestDirCalculator`/`ActivityScenario`/`AppInitializer`/`ProcessLifecycleInitializer` 链路类全部可解析；兜底测试调用树（`KudoThemeKt`/`FallbackImagesKt`/`DisplaySettings`/coil2 `SubcomposeAsyncImageKt`/M3 组件）全 canonical DEF。
+- 残余（如实）：test dex 引用的个别共享类主包仍无定义——`androidx.concurrent.futures.CallbackToFutureAdapter`、compose-ui `DialogWindowProvider`/`PixelMap`（兜底测试路径不经过，其他测试若触达仍可能缺）；`com.kudo.*` 被改名的类（`CommunityDirectoryScreenKt`/`DirectoryTag` 等）→ 直调这些类名的旧 androidTest 仍不可跑；mockwebserver WebSocket/okio 路径、junit 可选依赖（easymock/jmock，junit 自带容错）。完整 instrument 跑通与否最终仍需 Muse 真机确认。
+- 回退：删 `proguard-debug.pro` + `proguardFiles` 引用行 + 本笔记段（恢复批I 状态须另还原嵌入）。

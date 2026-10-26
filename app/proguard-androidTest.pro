@@ -5,13 +5,6 @@
 -dontwarn com.google.errorprone.annotations.CanIgnoreReturnValue
 -dontwarn com.google.errorprone.annotations.MustBeClosed
 -dontwarn org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement
-# 批I-1：coroutines-core-jvm 嵌入后带入 kotlinx.coroutines.debug AgentPremain
-# 对 JDK-only 类（java.lang.instrument/sun.misc.Signal）的引用——仅 -javaagent
-# JVM 场景可达，Android 运行时永远不会走到，dontwarn 安全。
--dontwarn java.lang.instrument.ClassFileTransformer
--dontwarn java.lang.instrument.Instrumentation
--dontwarn sun.misc.Signal
--dontwarn sun.misc.SignalHandler
 
 # 批I-1：测试变体整体禁用 R8 收缩/混淆/优化（debug.isMinifyEnabled 会传染 test APK）。
 # 原因：am instrument 在 runner 启动即 NoClassDefFoundError kotlin/LazyKt——
