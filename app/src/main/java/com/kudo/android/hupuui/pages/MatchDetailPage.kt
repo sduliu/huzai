@@ -238,10 +238,10 @@ fun MatchDetailOverlay(
             // 1.198：记分板（赛制 / 状态 / 两队 / 比分或开赛时间）
             // 1.201：上提到内容区之外——各组内容（评分/数据统计/文字实录）共用同一块记分板，且不随列表滚走
             // 批U-1：basketball matchInfo 到位 → 官方深色头（队标/大比分/已结束/日期时间/排名行/分享钮）；
-            // 未到位或非篮球 → 旧浅色记分板
-            val bInfo = basketballInfo
-            if (bInfo != null) {
-                MatchDarkHeader(bInfo, onTeam = onOpenTeam, homeId = scoreboard?.homeId ?: "", awayId = scoreboard?.awayId ?: "")
+            // 批V-6：football_match 树 infoJson 同构头兜底（篮球源优先）；都无 → 旧浅色记分板
+            val dInfo = basketballInfo ?: tree?.matchInfo
+            if (dInfo != null) {
+                MatchDarkHeader(dInfo, onTeam = onOpenTeam, homeId = scoreboard?.homeId ?: "", awayId = scoreboard?.awayId ?: "")
             } else {
                 scoreboard?.let { ScoreboardBanner(it, onTeam = onOpenTeam) }
             }
@@ -1275,6 +1275,9 @@ private fun MatchDarkHeader(
                 }
                 if (info.matchStatusChinese.isNotBlank()) {
                     Text(info.matchStatusChinese, fontSize = 12.sp, color = MatchDarkSub)
+                }
+                if (info.leagueDesc.isNotBlank()) {
+                    Text(info.leagueDesc, fontSize = 12.sp, color = MatchDarkSub)
                 }
                 if (dateText.isNotBlank()) {
                     Text(dateText, fontSize = 12.sp, color = MatchDarkSub)

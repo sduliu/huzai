@@ -303,6 +303,48 @@ class HupuMatchDetailParserTest {
         assertEquals("约什-吉迪", s.away[0].name)
         assertNull(com.kudo.android.hupu.HupuDataParser.parseMatchPlayerStats("""{"result":{}}"""))
     }
+
+    // 批V-6：football_match 树根节点真实形态（达姆施塔特 0-0 圣保利，德乙第9轮）——
+    // self.node.infoJson 各字段为单元素数组；children 为 football_item 选手/教练 → flat。
+    private val footballTreeJson = """{"code":1,"data":{
+        "self":{"node":{"bizId":"57665","bizType":"football_match","name":"达姆施塔特 0-0 圣保利",
+            "summedScorePersonCount":128,"infoJson":{
+                "homeTeamName":["达姆施塔特"],"awayTeamName":["圣保利"],
+                "homeTeamScore":["0"],"awayTeamScore":["0"],
+                "homeTeamLogo":["https://assets-football.hoopchina.com.cn/h.png"],
+                "awayTeamLogo":["https://assets-football.hoopchina.com.cn/a.png"],
+                "matchStatus":["COMPLETED"],"matchTime":["1792773000000"],
+                "matchId":["3867722"],"roundCn":["第9轮"],
+                "competitionTypeCn":["德乙"],"season":["2026-2027"]}}},
+        "pageResult":{"data":[
+            {"node":{"bizId":"90001","bizType":"football_item","name":"舒汉","summedScorePersonCount":30,"infoJson":{"teamId":["7298"]}}},
+            {"node":{"bizId":"90002","bizType":"football_item","name":"教练 弗洛里安·科菲尔特","summedScorePersonCount":12}}]}
+    }}"""
+
+    @Test fun scoreTree_footballMatch_mapsHeaderFromInfoJson() {
+        val t = HupuMatchParser.parseScoreTree(footballTreeJson)!!
+        val mi = t.matchInfo!!
+        assertEquals("3867722", mi.matchId)
+        assertEquals("COMPLETED", mi.matchStatus)
+        assertEquals("已结束", mi.matchStatusChinese)
+        assertEquals(1792773000000L, mi.chinaStartTime)
+        assertEquals("达姆施塔特", mi.homeTeamName)
+        assertEquals("圣保利", mi.awayTeamName)
+        assertEquals("0", mi.homeScore)
+        assertEquals("0", mi.awayScore)
+        assertEquals("https://assets-football.hoopchina.com.cn/h.png", mi.homeTeamLogo)
+        assertEquals("德乙 第9轮", mi.leagueDesc)
+        assertEquals("2026-2027", mi.season)
+        // football_item 叶子 → flat 结构不变（与既有行为一致）
+        assertTrue(t.flat)
+        assertEquals(2, t.rounds.single().players.size)
+    }
+
+    @Test fun scoreTree_nonFootball_matchInfoStaysNull() {
+        // 非 football_match 根节点不产头数据（不泛化套用其他 bizType 命名空间）
+        val json = footballTreeJson.replace("football_match", "basketball_match")
+        assertNull(HupuMatchParser.parseScoreTree(json)!!.matchInfo)
+    }
 }
 
 class TrendPointsTest {

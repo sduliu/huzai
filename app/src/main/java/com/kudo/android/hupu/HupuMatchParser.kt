@@ -164,10 +164,48 @@ object HupuMatchParser {
                 scorePersonCount = selfNode.optLong("summedScorePersonCount", selfNode.optLong("scorePersonCount", 0L)),
                 rounds = rounds.reversed(), // API 倒序（data[0]=最后一局）→ 正序
                 flat = flat,
+                // 批V-6：football_match 根节点 infoJson 带完整头字段（队名/队标/比分/状态/开赛时间/联赛轮次）
+                matchInfo = footballMatchInfoFrom(selfNode),
             )
         } catch (e: Exception) {
             null
         }
+    }
+
+    /** 批V-6：football_match 根节点 → 详情头数据。infoJson 各字段为单元素字符串数组。
+     *  仅限 football_match——其他 bizType 字段命名空间不同，不泛化套用。 */
+    private fun footballMatchInfoFrom(selfNode: JSONObject): HupuMatchInfo? {
+        if (selfNode.optString("bizType") != HupuMatchApi.FOOTBALL_MATCH) return null
+        val ij = selfNode.optJSONObject("infoJson") ?: return null
+        fun f(key: String): String =
+            ij.optJSONArray(key)?.optString(0)?.trim().orEmpty().ifEmpty { ij.optString(key).trim() }
+        val home = f("homeTeamName")
+        val away = f("awayTeamName")
+        if (home.isEmpty() && away.isEmpty()) return null
+        val status = f("matchStatus")
+        val statusCn = when (status) {
+            "COMPLETED" -> "已结束"
+            "INPROGRESS" -> "进行中"
+            "NOTSTARTED" -> "未开始"
+            else -> ""
+        }
+        val league = f("competitionTypeCn")
+        val round = f("roundCn")
+        return HupuMatchInfo(
+            matchId = f("matchId").ifEmpty { selfNode.optString("bizId") },
+            matchStatus = status,
+            matchStatusChinese = statusCn,
+            matchTime = "",
+            chinaStartTime = f("matchTime").toLongOrNull() ?: 0L,
+            homeScore = f("homeTeamScore"),
+            awayScore = f("awayTeamScore"),
+            homeTeamName = home,
+            awayTeamName = away,
+            homeTeamLogo = f("homeTeamLogo").ifEmpty { null },
+            awayTeamLogo = f("awayTeamLogo").ifEmpty { null },
+            season = f("season"),
+            leagueDesc = listOf(league, round).filter { it.isNotBlank() }.joinToString(" "),
+        )
     }
 
     private fun playerFrom(n: JSONObject): HupuScoreItem = HupuScoreItem(

@@ -994,3 +994,11 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **差异修正（本批唯一代码改动）**：官方匿名态资料卡仍显示「关注/私信」按钮（点按转登录提示）；酷DO 原 `showFollow=logged` 直接隐藏、私信按钮匿名点按会开必败的 PmChatPage（`postSpaceApiJson` 无 cookie 恒空）——修：两按钮匿名可见，点按分别走 `toggleFollow` 既有「请先在「我的」页登录」提示与新加「登录后可用：私信」toast。**不绕登录墙**。
 - **匿名差异如实记**：①发帖/回帖列表仅 SSR 内嵌预览、无翻页（PC space 分页系登录墙，登录批次欠账）；②粉丝/关注计数展示但不可点（关注 tab 登录墙）；③推荐/收藏/关注三 tab 匿名不显示（官方移动站匿名同仅主题/回帖两 tab）；④拉黑系纯本地黑名单，匿名可用，「更多」菜单无登录项泄漏。
 - 回退：revert 本 commit（恢复按钮隐藏 + PmChatPage 匿名必败原状）。
+
+### 批V-6：足球详情形态核查 + 深色头接通（football_match 树 infoJson 匿名源）
+
+- **官方落点实证**：赛程 SSR `url=huputiyu://soccerleagues/{en}/live/{matchId}`（原生路由，无 H5 等价物——`m.hupu.com/soccer/*` 全 404）；`queryMatchDetailScoreUrl` 实测返回 `detail.html?outBizNo=&outBizType=football_match`——官方赛果页即评分详情页，与酷DO 现链路同源。
+- **匿名详情数据源探测**：football-api `match/` 下 14 个详情类端点猜测（matchInfo/lineup/event/stats/live/technic 等）全 `No static resource`——无阵容/事件/技术统计匿名源，如实不接、不把 basketballapi 套到足球。
+- **可行对齐**：`football_match` 评分树 self.node.infoJson 带完整头字段（homeTeamName/awayTeamName/homeTeamScore/awayTeamScore/homeTeamLogo/awayTeamLogo/matchStatus/matchTime epoch ms/roundCn/competitionTypeCn/season，值均为单元素数组）——解析进 `HupuScoreTree.matchInfo`（`footballMatchInfoFrom`，**仅限 football_match**，其他 bizType 字段命名空间不同不泛化）；详情页深色头改 `basketballInfo ?: tree?.matchInfo`（篮球源优先不变），中央列加 `leagueDesc`（「德乙 第9轮」）一行。排名行/到场/耗时字段树内不存在→自隐不编。
+- **Tab 集合如实记**：官方足球原生页 tab 结构匿名不可考；酷DO 维持通用 chip 流（football 单评分组，条自动隐），不编官方 tab 名。
+- 单测：`scoreTree_footballMatch_mapsHeaderFromInfoJson` + `scoreTree_nonFootball_matchInfoStaysNull`（HupuMatchDetailParserTest）。回退：revert 本 commit。

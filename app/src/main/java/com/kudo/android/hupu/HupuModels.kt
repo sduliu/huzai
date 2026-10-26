@@ -422,6 +422,9 @@ data class HupuScoreTree(
     val rounds: List<HupuScoreRound>,    // 对局列表（正序：第1局在前）
     /** true = 扁平结构（NBA/WNBA 等传统体育：children 直接是选手，无对局层，UI 隐藏对局横滑条） */
     val flat: Boolean = false,
+    /** 批V-6：足球详情头数据（football_match 根节点 infoJson，匿名可用）。
+     *  篮球不走此路——matchInfo 由 basketballapi 单独供给且优先。 */
+    val matchInfo: HupuMatchInfo? = null,
 )
 
 /** 一个对局（BO）及其选手 */
@@ -880,6 +883,8 @@ data class HupuMatchInfo(
     val scoreText: String = "",
     /** 赛季（"2026-2027"） */
     val season: String = "",
+    /** 批V-6：联赛+轮次文案（football_match 树 infoJson 的 competitionTypeCn+roundCn，如「德乙 第9轮」；空不显） */
+    val leagueDesc: String = "",
 )
 
 /** 批U-3：篮球单场球员统计一行（basketballapi/playerMatchStats 的 homePlayers/awayPlayers 一项）。 */
