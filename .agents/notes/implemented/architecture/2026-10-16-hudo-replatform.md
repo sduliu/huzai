@@ -659,3 +659,27 @@ Muse 2026-10-26 真机验收批Nfix：推荐流（latest，FeedScreen→FeedPage
 | 图片 | `<img>` → `ArticleBlock.Image`+画廊 | 全屏画廊查看器 | 官方全屏查看 | 无差异，未动 |
 | 视频占位 | `thread.video`/`iframe` → `ArticleBlock.Video`→`RichVideoBlock` | 内嵌可点播放卡 | 官方内嵌播放 | 无差异，未动 |
 | `#xxx#` 纯文本话题词 | 样本 0 例 | — | — | 无匿名样本证实标记形态，不做文本扫描，如实记差 |
+
+## 批Q-0：专区冷启动 ~10s 定性 + 导航重构挂载点清单（先核查再改）
+
+**冷启动定性（代码核查，非猜测）**：专区目录 = `ZonePage → repo.categories() → HupuApi.fetchHtml("/all-gambia")`（桌面 SSR ≈280KB）→ `parseCategories`。链路三处成本，主因是**全局节流排队**而非网络/解析本身：
+1. `fetchHtml` 第 367 行 `throttle.acquire()` **先于缓存检查**——`HupuApi.throttle` 是全应用共享 `RequestThrottle(1000ms)` CAS 时间片（非 FIFO）；
+2. 冷启动并发面：`mobileHome`（不走节流）+ 批O `enrichFeed` 的 ~30 个 `bbs-thread` share 请求（走 `getMobileJson` → 同一节流）+ 目录请求——目录要在 ≥30 个排队请求里 CAS 抢片，等待随队列长度线性增长 ≈10s，与 Muse 真机观察吻合；热切换快是因队列已排空+10min 磁盘缓存在命中；
+3. `HupuCache` 对 `/all-gambia` 走 LIST_TTL=10min——重启间隔 >10min 必走网络（280KB，秒级）；磁盘缓存在但短命；图标走 Coil 磁盘缓存，非瓶颈。
+
+**修复方向（批Q-1）**：目录解析结果（`List<HupuCategory>`，≈254 项、目录级低频变更）以 JSON 持久化进 `HupuPrefs`——冷启动同步读盘立即上屏（<2s 达标），随后 `categories()` 原通道后台刷新合回（SWR）；节流/网络队列不动，因首屏不再依赖它。下拉刷新（`cateRefreshTick>0`）走 `refresh=true→forceNetwork` 强制刷新。不伪造时间戳：prefs 存 `savedAt` 仅作存档，上屏内容随刷新自然替换。
+
+**导航重构挂载点清单（Q-2 范围钉死）**：
+| 点 | 位置 | 处置 |
+|---|---|---|
+| 底栏 5 项（首页/专区/发布+/比赛/我的） | `ui/components/Glass.kt` GlassNavigation | → 3 项（首页0/专区1/我的2)，`actionIndex=-1`，删 `onCompose`/`action` 参数 |
+| `when(selected)` 挂载 | `KudoApp.kt:231` | 删 `3 -> ScorePage(request)`；`4 ->` 归位 `2 ->` |
+| `scoreRequest` 状态 | `KudoApp.kt:112` | 删（只服务旧 Tab 挂载） |
+| 通知落点 `{ selected = 3 }` | `KudoApp.kt:178` | → `{ selected = 0 }`（路由随后盖入，行为不变） |
+| 「底栏中间按钮」设置项 | `SettingsScreen.kt:72/152/157/169` | 删行+sheet 分支（底栏无中键后此设置是死入口）；`navigationAction` pref 字段保留（不迁移存量） |
+| `score/*` 深链路由 | `KudoApp.kt:288` | **保留**——频道顶部比分卡目标页 |
+| 频道顶部比分卡 | `SportChannelHeader`（批B 已建） | **已是官方形态 A**：`BoardMatchCard` 比分行→`score/$key?match=`、「查看近期N场热门比赛」→`score/$g`、快捷行/资讯切换——无需重建，只验回归 |
+| zoneDetailOpen 药丸隐藏 | `KudoApp.kt:269` | 保留（专区仍在） |
+| 版块「立即发布」FAB | `ZonePage.kt:827` | 保留——发帖唯一入口（任务指定） |
+| 专区搜索 boardSearchOpen | `ZonePage.kt:116` | 不动 |
+| `editor()` 其他入口 | 版块页 createTopic FAB、草稿续写 | 不动 |
