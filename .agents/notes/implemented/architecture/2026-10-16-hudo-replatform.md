@@ -511,3 +511,17 @@ Muse 要求核查「层级稀疏 + 快捷行项数」——先查代码与接口
 - **层级稀疏**：`ShortcutIcon` 已 `semantics(mergeDescendants=true)` + `testTag("shortcut-{label}")`（批A-4 修复）——uiautomator 每入口单节点、bounds=整列触控区，不再稀疏。
 - **降级链**：dataKinds 空（接口失败/无轨道频道）→ 回退 赛程+积分榜（hasStandings 有值时），不留空行。
 - 结论：代码与实时接口均已达官方形态，本批零改动。
+
+## 批N-1：信息流卡复刻——作者行/日期/转发数按 tid 惰性补齐
+
+官方信息流卡顶行（头像+昵称+日期）与底栏第三计数（转发）在综合流数据源里都没有：m.hupu.com 首页 `res[]` 键集实测只有 badge/isNews/label/lights/replies/source/tid/title/type/url；/all-gambia `pageData.threads` 同样无 author。
+
+- **作者行+日期**：复用 1.222 黑名单补作者机制（`/api/v2/threads?tid=`），去掉黑名单门槛改为全量补齐；单次请求新增 `createdAtFormat` 一并回传（`threadCardHead`）。缓存值从 `puid|euid` 扩为 `puid|euid|name|avatar`——旧两段值视为「展示不完整」再补一次（兼容迁移，无版本位）。
+- **转发数**：`m.hupu.com/api/v2/bbs-thread/{tid}` 的 `data.t_detail.share`（实测匿名可读，同接口还带 is_top/hits）。`HupuThread.shareNum` 以 **-1=未携带** 区分「没数据」与「0」——未补齐不占位，补齐后显示真实值（含 0）。转发数易变不落盘，进程内按 tid 记一次。
+- **成本**：每条 tid 两个接口（threads?tid= + bbs-thread）同批并发，4 条/批 + 批间 120ms——沿用既有节流口径；作者缓存命中后只剩转发数请求。
+- `FeedItem` 底行：`shareNum >= 0` 时追加 `IosShare + formatCount`。
+- 右上「···」菜单未做：官方为举报/拉黑入口，本端黑名单交互另属账号页，范围外。
+
+## 批N-1b：神回复预览块无匿名源（不做）
+
+官方信息流卡的灰底神回复块（回复者+亮了[N]+引用正文+「去看 N 条亮回复」）字段 `lightReplyResult{replyUserName,pid,totalCount,content}` **仅存在于 `api/v2/bbs/walkingStreet/threads`**——该接口固定只下发步行街主干道（topicId 参数实测被忽略），接不进首页综合流。res[]、`threads?tid=`、`bbs-thread/{tid}`、detail SSR、`reply/list` 实测均无同义字段；本地按「最亮回复」推导语义不等价（totalCount=亮回复总数非列表可算）且每卡一次全量回复请求不可行。结论：不做，等官方接口面变化。

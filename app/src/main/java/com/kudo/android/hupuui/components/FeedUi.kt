@@ -419,6 +419,12 @@ internal fun FeedItem(thread: HupuThread, showImage: Boolean, onOpen: (HupuThrea
             MetaCount(HupuIcons.MetaLightFilled, formatCount(thread.lights), tint = META_LIGHT_GOLD)
             Spacer(Modifier.width(14.dp))
             MetaCount(HupuIcons.MetaComment, formatCount(thread.replies))
+            // 批N-1：转发数（官方信息流卡底栏第三计数）——SSR 列表无此字段，
+            // 由 threads?tid= + bbs-thread 补齐后 ≥0 才显示；未补齐时不占位
+            if (thread.shareNum >= 0) {
+                Spacer(Modifier.width(14.dp))
+                MetaCount(HupuIcons.IosShare, formatCount(thread.shareNum))
+            }
         }
     }
 }

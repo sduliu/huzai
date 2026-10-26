@@ -41,6 +41,12 @@ data class HupuThread(
     val author: HupuAuthor? = null,
     val topic: HupuTopic? = null,
     val url: String = "",
+    /**
+     * 批N-1：转发数（官方信息流卡底栏第三计数）。
+     * -1 = 数据源未携带（SSR 列表没有该字段）→ 底栏不显示；
+     * ≥0 = `api/v2/bbs-thread/{tid}` 的 `t_detail.share`，惰性补齐后显示真实值。
+     */
+    val shareNum: Int = -1,
 ) {
     val detailUrl: String get() = if (url.isNotEmpty()) url else "/$tid.html"
 }

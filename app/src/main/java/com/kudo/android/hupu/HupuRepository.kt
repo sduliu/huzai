@@ -56,6 +56,26 @@ class HupuRepository {
         return withContext(Dispatchers.Default) { HupuParser.parseThreadAuthor(json) }
     }
 
+    /**
+     * 批N-1：帖子转发数（`m.hupu.com/api/v2/bbs-thread/{tid}` 的 t_detail.share）。
+     * 信息流 SSR 列表不带该字段，首页热帖卡按 tid 惰性补齐；失败返回 null。
+     */
+    suspend fun threadShareNum(tid: String): Int? {
+        val json = HupuApi.getMobileJson("/api/v2/bbs-thread/$tid") ?: return null
+        return withContext(Dispatchers.Default) { HupuParser.parseThreadShareNum(json) }
+    }
+
+    /**
+     * 批N-1：热帖卡作者行补齐（`threads?tid=` 单次请求拿两样）：
+     * first = author（头像+昵称），second = createdAtFormat（官方卡的「日期」）。
+     */
+    suspend fun threadCardHead(tid: String): Pair<HupuAuthor?, String> {
+        val json = HupuApi.fetchThreadAuthorJson(tid) ?: return null to ""
+        return withContext(Dispatchers.Default) {
+            HupuParser.parseThreadAuthor(json) to HupuParser.parseThreadCreatedAt(json)
+        }
+    }
+
     /** 全站版块/话题导航树（取自任一 /all-* 页） */
     suspend fun categories(refresh: Boolean = false): List<HupuCategory> {
         val html = HupuApi.fetchHtml("/all-gambia", forceNetwork = refresh) ?: return emptyList()

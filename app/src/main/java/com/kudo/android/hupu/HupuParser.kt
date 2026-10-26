@@ -666,6 +666,33 @@ object HupuParser {
     }
 
     /**
+     * 批N-1：`m.hupu.com/api/v2/bbs-thread/{tid}` → 转发数。
+     * 响应 `data.t_detail.share`（字符串数字）；同时回传 `hits` 备用。
+     * 实测匿名可读；无字段返回 null。
+     */
+    fun parseThreadShareNum(json: String): Int? {
+        return try {
+            val o = JSONObject(json)
+            o.optJSONObject("data")?.optJSONObject("t_detail")
+                ?.optString("share")?.toIntOrNull()
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** 批N-1：同接口的发布时间（`data.thread.createdAtFormat`，如「2小时前」） */
+    fun parseThreadCreatedAt(json: String): String {
+        return try {
+            val o = JSONObject(json)
+            if (o.optInt("code", 0) != 200) return ""
+            o.optJSONObject("data")?.optJSONObject("thread")
+                ?.optString("createdAtFormat").orEmpty()
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    /**
      * 1.222: `/api/v2/threads?tid=` 详情接口里的作者。
      * 首页热帖列表不带 author，黑名单过滤需要按 tid 补取作者时用这里。
      */

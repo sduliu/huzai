@@ -313,50 +313,73 @@ private fun FeedContent(
         }
     }
 
-    // ---------- 1.222 热帖作者补齐（黑名单在热帖流生效的前提） ----------
-    // 为什么需要：首页热帖数据源（/all-gambia 的 pageData.threads）**整页不含 author**
-    //（实测 0 个 puid/puname），FeedList 的按人过滤自然无从命中；话题流/专区流的列表自带
-    // author，所以那边一直是正常的。
-    // 做法：仅在黑名单非空时，按 tid 从 `/api/v2/threads?tid=` 补取作者（4 条一批 + 批间小睡），
-    // 结果按 tid 长期缓存（作者几乎不变）——所以只有第一次会补，之后秒开；没有黑名单则零请求。
+    // ---------- 1.222 + 批N-1 热帖作者行/转发数补齐 ----------
+    // 为什么需要：首页热帖数据源（/all-gambia 的 pageData.threads）**整页不含 author / 日期 /
+    // 转发数**（实测 0 个 puid/puname），官方信息流卡的「头像+昵称+日期」顶行与底部转发计数
+    // 都要靠按 tid 补取；话题流/专区流的列表自带 author，所以那边一直是正常的。
+    // 做法：按 tid 从 `/api/v2/threads?tid=` 补作者+日期、`api/v2/bbs-thread/{tid}` 补转发数
+    // （4 条一批 + 批间小睡，两条接口同批并发）；作者按 tid 长期缓存（作者几乎不变，
+    // 缓存值格式 puid|euid|name|avatar，旧格式两段值会视为「展示不完整」再补一次）。
+    // 转发数易变不落盘，进程内按 tid 记一次。
     var hotAuthors by remember { mutableStateOf<Map<String, HupuAuthor>>(emptyMap()) }
+    var hotDates by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var hotShares by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     LaunchedEffect(data.threads, HupuPrefs.blacklistVersion) {
-        if (HupuPrefs.loadBlacklist().isEmpty()) {
-            hotAuthors = emptyMap()
-            return@LaunchedEffect
-        }
         val cache = HupuPrefs.loadThreadAuthors()
         val seeded = LinkedHashMap<String, HupuAuthor>()
+        val incomplete = mutableSetOf<String>()
         data.threads.forEach { t ->
             cache[t.tid]?.let { v ->
-                val i = v.indexOf('|')
-                val p = if (i >= 0) v.substring(0, i) else v
-                val e = if (i >= 0) v.substring(i + 1) else ""
-                if (p.isNotEmpty() || e.isNotEmpty()) seeded[t.tid] = HupuAuthor(puid = p, name = "", euid = e)
+                val parts = v.split('|')
+                val p = parts.getOrElse(0) { "" }
+                val e = parts.getOrElse(1) { "" }
+                val n = parts.getOrElse(2) { "" }
+                val h = parts.getOrElse(3) { "" }
+                if (p.isNotEmpty() || e.isNotEmpty()) {
+                    seeded[t.tid] = HupuAuthor(puid = p, euid = e, name = n, url = h)
+                }
+                // 旧缓存只有 puid|euid（1.222 黑名单格式）→ 无昵称/头像，按缺失再补
+                if (n.isEmpty()) incomplete += t.tid
             }
         }
         hotAuthors = seeded
-        val missing = data.threads.map { it.tid }.filter { it.isNotEmpty() && !cache.containsKey(it) }
-        if (missing.isEmpty()) return@LaunchedEffect
+        val missing = data.threads.map { it.tid }
+            .filter { it.isNotEmpty() && (!cache.containsKey(it) || it in incomplete) }
+        val shareMissing = data.threads.map { it.tid }
+            .filter { it.isNotEmpty() && !hotShares.containsKey(it) }
+        if (missing.isEmpty() && shareMissing.isEmpty()) return@LaunchedEffect
         val fresh = LinkedHashMap<String, String>()
-        missing.chunked(4).forEach { chunk ->
-            val got = coroutineScope {
-                chunk.map { tid -> async { tid to repo.threadAuthor(tid) } }.awaitAll()
-            }
-            got.forEach { (tid, a) ->
-                if (a != null && (a.puid.isNotEmpty() || a.euid.isNotEmpty())) {
-                    fresh[tid] = "${a.puid}|${a.euid}"
+        (missing + shareMissing).distinct().chunked(4).forEach { chunk ->
+            coroutineScope {
+                chunk.map { tid ->
+                    async {
+                        val head = if (tid in missing) repo.threadCardHead(tid) else (null to "")
+                        val share = if (tid in shareMissing) repo.threadShareNum(tid) else null
+                        Triple(tid, head, share)
+                    }
+                }.awaitAll()
+            }.forEach { (tid, head, share) ->
+                val (a, date) = head
+                if (a != null && (a.puid.isNotEmpty() || a.euid.isNotEmpty() || a.name.isNotEmpty())) {
+                    fresh[tid] = "${a.puid}|${a.euid}|${a.name}|${a.url}"
                     hotAuthors = hotAuthors + (tid to a)
                 }
+                if (date.isNotEmpty()) hotDates = hotDates + (tid to date)
+                if (share != null) hotShares = hotShares + (tid to share)
             }
             delay(120)
         }
         if (fresh.isNotEmpty()) HupuPrefs.putThreadAuthors(fresh)
     }
-    // 把补齐的作者并回列表（未补到的保持原样 = 不过滤，宁可漏杀不可错杀）
-    val hotThreads = remember(data.threads, hotAuthors) {
-        if (hotAuthors.isEmpty()) data.threads
-        else data.threads.map { t -> hotAuthors[t.tid]?.let { a -> t.copy(author = a) } ?: t }
+    // 把补齐的作者/日期/转发数并回列表（未补到的保持原样 = 不过滤，宁可漏杀不可错杀）
+    val hotThreads = remember(data.threads, hotAuthors, hotDates, hotShares) {
+        data.threads.map { t ->
+            t.copy(
+                author = hotAuthors[t.tid] ?: t.author,
+                createdAtText = hotDates[t.tid] ?: t.createdAtText,
+                shareNum = hotShares[t.tid] ?: t.shareNum,
+            )
+        }
     }
 
     // 话题首屏加载：有缓存直接显示，无缓存才进加载态（下拉刷新时绕过缓存）
