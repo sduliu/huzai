@@ -236,6 +236,24 @@ class HupuDataParserTest {
         assertNull(ms[2].subscribe)
     }
 
+    /** 批W-1：国际足球赛程走 m.hupu.com/soccer SSR——match 对象无 subscribeInfo 字段
+     *  （实测字段表无 subscribe 键）→ subscribe=null → MatchRow 右列诚实保留「未开始」，
+     *  不伪造预约位。match-api 系（nba/cba/lol/epl 实测）全量 NOTSTARTED 带
+     *  showSubscribe=true → 🔔预约正常渲染。 */
+    @Test fun soccerSchedule_notStartedRow_hasNoSubscribeField() {
+        val html = """<html><script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"data":{"games":[
+            {"day":"20261027","date_block":"明天","data":[
+                {"currentMatchId":"3867723","status":{"txt":"未开始"},"title":"德乙第9轮",
+                 "home":{"name":"达姆施塔特","teamId":7298,"logo":"h.png"},
+                 "away":{"name":"圣保利","teamId":12151,"logo":"a.png"},"begin_time":1793000000}
+            ]}]}}}}</script></html>"""
+        val days = HupuMatchParser.parseSoccerSchedule(html)
+        assertEquals(1, days.size)
+        val m = days.single().matches.single()
+        assertEquals("NOTSTARTED", m.status)
+        assertNull(m.subscribe)
+    }
+
     @Test fun jrsScoreText_normalizesWanAndRenSuffix() {
         // 官方频道卡底行：原文计数 + 「JRs评分」（批T-0 实证）
         assertEquals("15.6万JRs评分", hupuJrsScoreText("15.6万人评分"))

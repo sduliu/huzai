@@ -21,10 +21,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -1131,15 +1133,50 @@ internal fun BoardMatchRow(m: HupuMatch, onOpen: () -> Unit) {
             }
         }
         Spacer(Modifier.width(6.dp))
-        Text(
-            m.statusDesc,
-            fontSize = 10.sp,
-            color = if (m.status == "INPROGRESS") MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            textAlign = TextAlign.End,
-            modifier = Modifier.width(42.dp),
-        )
+        // 批W-1：与赛程中心 MatchRow 同口径——可订阅未开赛行右位=🔔预约（订阅写接口不接，只读弹窗）；
+        // 无 subscribeInfo 的行（soccer SSR 源等）保留状态字，不伪造。
+        val subscribable = m.subscribe?.show == true && m.status == "NOTSTARTED"
+        if (subscribable) {
+            var showSubscribe by remember { mutableStateOf(false) }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable { showSubscribe = true },
+            ) {
+                Icon(
+                    Icons.Outlined.Notifications,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(12.dp),
+                )
+                Spacer(Modifier.width(2.dp))
+                Text("预约", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
+            }
+            if (showSubscribe) {
+                AlertDialog(
+                    onDismissRequest = { showSubscribe = false },
+                    title = { Text(m.subscribe.title.ifBlank { "预约提醒" }, fontSize = 16.sp) },
+                    text = { Text(m.subscribe.desc.ifBlank { "暂无预约说明" }, fontSize = 14.sp) },
+                    confirmButton = {
+                        Text(
+                            "知道了", fontSize = 14.sp, color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clickable { showSubscribe = false }.padding(horizontal = 12.dp, vertical = 8.dp),
+                        )
+                    },
+                )
+            }
+        } else {
+            Text(
+                m.statusDesc,
+                fontSize = 10.sp,
+                color = if (m.status == "INPROGRESS") MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                textAlign = TextAlign.End,
+                modifier = Modifier.width(42.dp),
+            )
+        }
     }
 }
 

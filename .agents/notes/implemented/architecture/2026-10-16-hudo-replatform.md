@@ -1002,3 +1002,13 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **可行对齐**：`football_match` 评分树 self.node.infoJson 带完整头字段（homeTeamName/awayTeamName/homeTeamScore/awayTeamScore/homeTeamLogo/awayTeamLogo/matchStatus/matchTime epoch ms/roundCn/competitionTypeCn/season，值均为单元素数组）——解析进 `HupuScoreTree.matchInfo`（`footballMatchInfoFrom`，**仅限 football_match**，其他 bizType 字段命名空间不同不泛化）；详情页深色头改 `basketballInfo ?: tree?.matchInfo`（篮球源优先不变），中央列加 `leagueDesc`（「德乙 第9轮」）一行。排名行/到场/耗时字段树内不存在→自隐不编。
 - **Tab 集合如实记**：官方足球原生页 tab 结构匿名不可考；酷DO 维持通用 chip 流（football 单评分组，条自动隐），不编官方 tab 名。
 - 单测：`scoreTree_footballMatch_mapsHeaderFromInfoJson` + `scoreTree_nonFootball_matchInfoStaysNull`（HupuMatchDetailParserTest）。回退：revert 本 commit。
+
+## 批W：批V 验收两项未验到欠账
+
+### 批W-1：赛程未开始行预约位——第二处行组件漏修（BoardMatchRow）
+
+- **组件关系**：赛程行共两处——①`ScorePageSchedule.MatchRow`（赛程中心 score/{g}、频道「查看近期N场」、数据 tab 全球赛程 `GlobalScheduleView` 共用，批 V-2 已修）；②`BoardPage.BoardMatchRow`（板块页「查看全部赛程」展开态 `showAllMatches`，紧凑行右位裸渲 `statusDesc`——**本批漏修点，Muse 所见即此**）。
+- **可订阅实证**（match-api `getScheduleListByTagForH5`）：NOTSTARTED 全量 `subscribeInfo.showSubscribe=true`——NBA 96/96、CBA 98/98、LOL 20/20、EPL 100/100（例：森林狼vs骑士 `subScribeTitle`="【虎扑】NBA篮球常规赛 森林狼 vs 骑士"）。
+- **修**：BoardMatchRow 右位同口径——`subscribe.show && NOTSTARTED` → 🔔+「预约」蓝字 + 只读弹窗（subScribeTitle/Desc）；进行中/已结束/无字段行保持状态字。
+- **soccer 边界**：国际足球走 m.hupu.com/soccer SSR——match 对象字段表无 subscribe 键（8 个 match-api businessId 候选全空），`subscribe=null` → 保留「未开始」，不伪造预约位。新 pin 测试 `soccerSchedule_notStartedRow_hasNoSubscribeField`。
+- 回退：revert 本 commit。
