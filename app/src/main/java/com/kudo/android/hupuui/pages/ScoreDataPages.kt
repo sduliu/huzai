@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
+import com.kudo.android.hupu.HupuAgainstBracket
 import com.kudo.android.hupu.HupuAward
 import com.kudo.android.hupu.HupuCareerRankBoard
 import com.kudo.android.hupu.HupuDataTab
@@ -91,9 +92,9 @@ import kotlin.coroutines.cancellation.CancellationException
  *   · 其余 h5 → 交回宿主开 EmbedWebPage（官方 H5 原页内嵌）
  */
 
-/** tabUrl 命中官方数据 H5 → (leagueType, kind)；kind ∈ team|player|draft|injury|honor|history */
+/** tabUrl 命中官方数据 H5 → (leagueType, kind)；kind ∈ team|player|draft|injury|against|honor|history */
 internal fun nativeDataTabKind(url: String): Pair<String, String>? {
-    val m = Regex("/300003/([a-zA-Z]+)/(team|player|draft|injury|honor|history)\\.html").find(url)
+    val m = Regex("/300003/([a-zA-Z]+)/(team|player|draft|injury|against|honor|history)\\.html").find(url)
         ?: return null
     return m.groupValues[1].lowercase() to m.groupValues[2]
 }
@@ -140,6 +141,7 @@ internal fun DataTabContent(
                 "injury" -> InjuryView(kind.first)
                 "honor" -> AwardView(kind.first)
                 "history" -> CareerRankView(kind.first)
+                "against" -> AgainstView(kind.first)
                 else -> Box(Modifier.fillMaxSize()) // 不应到达：h5 在宿主层已开 embed
             }
         }
@@ -1087,6 +1089,118 @@ internal fun CareerRankView(league: String) {
                 }
             }
         }
+    }
+}
+
+// ==================== 对阵图（against-plan-chart，季后赛 bracket；官方数据空→显式空态） ====================
+
+/** 批Y：官方 against.html 同源——七列 bracket 系列赛格；数据源空时显式空态（不编图）。 */
+@Composable
+internal fun AgainstView(league: String) {
+    val repo = remember { HupuRepository() }
+    var bracket by remember { mutableStateOf<HupuAgainstBracket?>(null) }
+    var loading by remember { mutableStateOf(true) }
+    var tick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(league, tick) {
+        loading = true
+        bracket = repo.againstChart(league, refresh = tick > 0)
+        loading = false
+    }
+    when {
+        bracket == null && loading -> SkeletonHome()
+        bracket == null -> Column(
+            Modifier.fillMaxSize().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                "暂无季后赛对阵图数据",
+                color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "官方对阵图源当前为空（against-plan-chart result=null）",
+                color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp,
+            )
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "重试", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable { tick++ },
+            )
+        }
+        else -> {
+            // 按 planChartNumber 分组列（官方 NBA：东 R1/东 R2/东决/总决/西决/西 R2/西 R1）
+            val cols = bracket!!.cells.groupBy { it.col }.toSortedMap()
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                cols.forEach { (col, cells) ->
+                    item(key = "acol-$col") {
+                        Column(
+                            Modifier.width(170.dp).fillMaxSize(),
+                            verticalArrangement = Arrangement.SpaceEvenly,
+                        ) {
+                            cells.sortedBy { it.row }.forEach { c -> AgainstCellCard(c) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 一个系列赛格：两行（队徽+种子位+队名+系列赛胜场），晋级方高亮。 */
+@Composable
+private fun AgainstCellCard(c: com.kudo.android.hupu.HupuAgainstCell) {
+    @Composable
+    fun teamRow(name: String, logo: String, seed: String, wins: String, winner: Boolean) {
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (logo.isNotEmpty()) {
+                AsyncImage(
+                    model = normalizeCover(logo), contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(
+                name.ifEmpty { "待定" },
+                fontSize = 12.sp,
+                fontWeight = if (winner) FontWeight.Bold else FontWeight.Normal,
+                color = if (winner) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (seed.isNotEmpty()) {
+                Text(
+                    seed, fontSize = 9.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(
+                wins, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                color = if (winner) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    ) {
+        teamRow(c.teamName, c.teamLogo, c.rank, c.teamScore,
+            winner = c.winnerTeamId.isNotEmpty() && c.winnerTeamId == c.teamId)
+        teamRow(c.oppoTeamName, c.oppoTeamLogo, "", c.oppoScore,
+            winner = c.winnerTeamId.isNotEmpty() && c.winnerTeamId == c.oppoTeamId)
     }
 }
 

@@ -204,6 +204,19 @@ object HupuDataApi {
         )
 
     /**
+     * 批Y：季后赛对阵图（against-plan-chart）——官方 against.html 同源实参：
+     * 仅 planChartType（NBA_PLAYOFF / CBA_PLAYOFF …按联赛大写拼接）。
+     * 注意：2026-10-27 实测 NBA/CBA 全赛季 result=null（官方数据源当前为空），
+     * 空结果走显式空态；端点本身匿名可达（缺参报「planChartType is blank」）。
+     */
+    suspend fun fetchAgainstChart(leagueType: String, forceNetwork: Boolean = false): String? =
+        get(
+            "$GAMES_BASE/basketballapi/against-plan-chart" +
+                "?planChartType=${leagueType.uppercase()}_PLAYOFF",
+            "against-chart-$leagueType", forceNetwork, "https://m.hupu.com/",
+        )
+
+    /**
      * 单节比分（teamMatchQuarterStats）：home/awayQuarterScore 数组（Q1..Q4+OT）。
      * 仅 businessType=basketball 的 matchId 有效。
      */

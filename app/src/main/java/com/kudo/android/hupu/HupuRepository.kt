@@ -642,6 +642,12 @@ class HupuRepository {
         return withContext(Dispatchers.Default) { HupuDataParser.parseCareerRank(json, stage, grain) }
     }
 
+    /** 批Y：季后赛对阵图（against-plan-chart）。官方数据源空时返回 null → 页内显式空态。 */
+    suspend fun againstChart(leagueType: String, refresh: Boolean = false): HupuAgainstBracket? {
+        val json = HupuDataApi.fetchAgainstChart(leagueType, forceNetwork = refresh) ?: return null
+        return withContext(Dispatchers.Default) { HupuDataParser.parseAgainstChart(json) }
+    }
+
     /** 单节比分（仅 businessType=basketball 的比赛有效；失败返回 null）。 */
     suspend fun quarterStats(matchId: String, refresh: Boolean = false): HupuQuarterScore? {
         val json = HupuDataApi.fetchQuarterStats(matchId, forceNetwork = refresh) ?: return null

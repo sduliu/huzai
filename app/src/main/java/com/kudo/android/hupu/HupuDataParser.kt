@@ -438,6 +438,40 @@ object HupuDataParser {
         }
     }
 
+    /**
+     * 批Y：against-plan-chart → 季后赛对阵图。planChartItemList 平铺格，
+     * planChartNumber="行-列" 定 bracket 位置；result=null/无格 → null（官方数据空）。
+     */
+    fun parseAgainstChart(json: String): HupuAgainstBracket? {
+        return try {
+            val r = JSONObject(json).optJSONObject("result") ?: return null
+            val arr = r.optJSONArray("planChartItemList") ?: return null
+            val cells = mutableListOf<HupuAgainstCell>()
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val pos = o.optString("planChartNumber").split("-")
+                val row = pos.getOrNull(0)?.toIntOrNull() ?: continue
+                val col = pos.getOrNull(1)?.toIntOrNull() ?: continue
+                cells += HupuAgainstCell(
+                    row = row, col = col,
+                    teamId = o.optString("teamId"),
+                    teamName = o.optString("teamName"),
+                    teamLogo = o.optString("teamLogo"),
+                    teamScore = o.optString("score"),
+                    rank = o.optString("rank"),
+                    oppoTeamId = o.optString("oppoTeamId"),
+                    oppoTeamName = o.optString("oppoTeamName"),
+                    oppoTeamLogo = o.optString("oppoTeamLogo"),
+                    oppoScore = o.optString("oppoScore"),
+                    winnerTeamId = o.optString("winnerTeamId"),
+                )
+            }
+            if (cells.isEmpty()) null else HupuAgainstBracket(cells)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     /** teamMatchQuarterStats → 单节比分（Q1..Qn 原样数组；OT 节由数组长度>4 表达）。 */
     fun parseQuarterStats(json: String): HupuQuarterScore? {
         return try {

@@ -881,6 +881,29 @@ data class HupuCareerRankBoard(
     val dimensions: List<HupuRankDimension>,
 )
 
+/** 批Y：对阵图一个系列赛格（against-plan-chart planChartItemList 一项）。
+ *  planChartNumber="行-列" 标定 bracket 位置；主客两队 + winnerTeamId 标晋级。 */
+data class HupuAgainstCell(
+    val row: Int,
+    val col: Int,
+    val teamId: String,
+    val teamName: String,
+    val teamLogo: String,
+    val teamScore: String,       // 本队系列赛胜场（score 字段）
+    val rank: String,            // 种子位次（官方左角 rank 徽标）
+    val oppoTeamId: String,
+    val oppoTeamName: String,
+    val oppoTeamLogo: String,
+    val oppoScore: String,
+    val winnerTeamId: String,
+)
+
+/** 批Y：对阵图整版（against-plan-chart）。NBA 七列 bracket：
+ *  东 R1(4)/东 R2(2)/东决(1)/总决(1)/西决(1)/西 R2(2)/西 R1(4)。 */
+data class HupuAgainstBracket(
+    val cells: List<HupuAgainstCell>,
+)
+
 /**
  * 批U-1：篮球比赛详情头（basketballapi/matchInfo?matchId= 的 result 子集）。
  *

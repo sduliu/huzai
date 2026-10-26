@@ -160,6 +160,28 @@ class HupuDataParserTest {
         assertNull(HupuDataParser.parseCareerRank("""{"success":false}""", "REGULAR", "pergame"))
     }
 
+    @Test fun againstChart_nullOnEmptyResultAndParsesCells() {
+        // 批Y：against-plan-chart 2026-10-27 实测 result=null（官方数据空）→ null（显式空态）
+        assertNull(HupuDataParser.parseAgainstChart("""{"success":true,"result":null}"""))
+        assertNull(HupuDataParser.parseAgainstChart("""{"success":true,"result":{"planChartItemList":[]}}"""))
+        // 有数据时按 planChartNumber "行-列" 定位解析（字段名照抄官方组件访问名）
+        val json = """{"success":true,"result":{"planChartItemList":[
+            {"planChartNumber":"0-0","teamId":"t1","teamName":"凯尔特人","teamLogo":"l1","score":"4","rank":"1",
+             "oppoTeamId":"t8","oppoTeamName":"热火","oppoTeamLogo":"l8","oppoScore":"1","winnerTeamId":"t1"},
+            {"planChartNumber":"6-3","teamId":"t4","teamName":"掘金","teamLogo":"","score":"3","rank":"",
+             "oppoTeamId":"t5","oppoTeamName":"森林狼","oppoTeamLogo":"","oppoScore":"3","winnerTeamId":""}
+        ]}}"""
+        val b = HupuDataParser.parseAgainstChart(json)!!
+        assertEquals(2, b.cells.size)
+        val c = b.cells[0]
+        assertEquals(0, c.row); assertEquals(0, c.col)
+        assertEquals("凯尔特人", c.teamName)
+        assertEquals("热火", c.oppoTeamName)
+        assertEquals("4", c.teamScore); assertEquals("1", c.oppoScore)
+        assertEquals("t1", c.winnerTeamId)
+        assertEquals(6, b.cells[1].col); assertEquals(3, b.cells[1].row)
+    }
+
     @Test fun quarterStats_homeAwayArrays() {
         val json = """{"success":true,"result":{"homeQuarterScore":["35","26","37","25"],"awayQuarterScore":["32","49","29","22"]}}"""
         val q = HupuDataParser.parseQuarterStats(json)!!
