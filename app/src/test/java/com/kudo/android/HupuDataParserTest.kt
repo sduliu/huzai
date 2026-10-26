@@ -304,3 +304,39 @@ class HupuMatchDetailParserTest {
         assertNull(com.kudo.android.hupu.HupuDataParser.parseMatchPlayerStats("""{"result":{}}"""))
     }
 }
+
+class TrendPointsTest {
+    private fun play(q: Int, time: String, score: String) =
+        com.kudo.android.hupu.NbaPlay(quarter = q, time = time, team = "", text = "x", score = score)
+
+    @Test fun trendPoints_buildsCumulativeSeries() {
+        val pts = com.kudo.android.hupuui.pages.trendPoints(listOf(
+            play(1, "11:30", "2-0"),
+            play(1, "10:00", "2-3"),
+            play(1, "6:00", "10-7"),
+            play(2, "11:00", "12-10"),
+            play(4, "0:00", "30-25"),
+        ))
+        assertTrue(pts.size >= 5)
+        assertEquals(0f, pts.first().minute)
+        assertEquals(0, pts.first().away)
+        // 第1节 11:30 剩余 → 已打 0.5 分钟
+        assertEquals(0.5f, pts[1].minute, 0.01f)
+        assertEquals(2, pts[1].away)
+        // 第2节 11:00 → 12 + 1 = 13 分钟
+        assertEquals(13f, pts[4].minute, 0.01f)
+        // 终场点分钟数最大
+        assertTrue(pts.last().minute >= 48f - 1f)
+    }
+
+    @Test fun trendPoints_rejectsSparseOrGarbage() {
+        assertTrue(com.kudo.android.hupuui.pages.trendPoints(emptyList()).isEmpty())
+        assertTrue(com.kudo.android.hupuui.pages.trendPoints(listOf(
+            play(1, "12:00", "0-0"),
+        )).isEmpty())
+        assertTrue(com.kudo.android.hupuui.pages.trendPoints(listOf(
+            play(0, "", "bad"),
+            play(1, "", "x"),
+        )).isEmpty())
+    }
+}

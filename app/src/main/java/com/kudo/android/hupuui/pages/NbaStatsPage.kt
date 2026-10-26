@@ -40,6 +40,11 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.layout.size
+import com.kudo.android.hupuui.components.HupuIconImage
+import com.kudo.android.hupuui.components.normalizeCover
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -203,6 +208,11 @@ internal fun NbaStatsBody(
     state: NbaStatsState,
     query: NbaStatsQuery,
     tab: NbaStatsTab,
+    /** 批U-4：节次表队标 + 走势折线队色（来自 matchInfo/赛程卡；缺省走主题色兜底） */
+    homeLogo: String? = null,
+    awayLogo: String? = null,
+    homeColor: String = "",
+    awayColor: String = "",
 ) {
     // ---------- ① 定位 gameId（评分侧 → 日期页 join）——同一场只解析一次 ----------
     // key 用**身份指纹**（日期 + 两队名），不含比分/live：直播轮询改的是比分，
@@ -258,6 +268,13 @@ internal fun NbaStatsBody(
             } else {
                 state.boxFailed.value = state.box.value == null
             }
+            // 批U-4：统计 tab 的走势折线由 playbyplay 事件比分序列推导——BOX 可见时顺带补取，
+            // 不置 pbpServed（PLAY tab 的刷新记账不受影响）
+            if (state.pbp.value == null && !state.pbpFailed.value) {
+                HupuNbaStatsApi.fetchPlayByPlay(id)?.let { parseNbaPlayByPlay(it) }
+                    ?.let { state.pbp.value = it }
+                    ?: run { state.pbpFailed.value = true }
+            }
             state.loading.value = false
             state.userPull.value = false
         } else {
@@ -306,7 +323,11 @@ internal fun NbaStatsBody(
                 "empty" -> NbaEmptyHint(tab)
                 else -> when (tab) {
                     NbaStatsTab.BOX -> state.box.value?.let {
-                        NbaBoxScoreContent(it, identity = statsKey, state = state)
+                        NbaBoxScoreContent(
+                            it, identity = statsKey, state = state,
+                            homeLogo = homeLogo, awayLogo = awayLogo,
+                            homeColor = homeColor, awayColor = awayColor,
+                        )
                     }
                     NbaStatsTab.PLAY -> state.pbp.value?.let {
                         NbaPlayByPlayContent(it, live = query.live, state = state)
@@ -339,7 +360,15 @@ private fun NbaEmptyHint(tab: NbaStatsTab) {
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun NbaBoxScoreContent(box: NbaBoxScore, identity: String?, state: NbaStatsState) {
+private fun NbaBoxScoreContent(
+    box: NbaBoxScore,
+    identity: String?,
+    state: NbaStatsState,
+    homeLogo: String? = null,
+    awayLogo: String? = null,
+    homeColor: String = "",
+    awayColor: String = "",
+) {
     var team by remember { mutableStateOf(0) }   // 0 = 客队, 1 = 主队
     val selected: NbaTeamStats? = if (team == 0) box.away else box.home
 
@@ -358,7 +387,20 @@ private fun NbaBoxScoreContent(box: NbaBoxScore, identity: String?, state: NbaSt
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 140.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item(key = "__quarters__") { NbaQuarterCard(box) }
+        item(key = "__quarters__") { NbaQuarterCard(box, awayLogo = awayLogo, homeLogo = homeLogo) }
+
+        // 批U-4：比分走势折线图（由文字实录逐事件比分推导；官方同款双色折线）
+        state.pbp.value?.let { p ->
+            item(key = "__trend__") {
+                NbaScoreTrendChart(
+                    plays = p.plays,
+                    awayName = box.awayName,
+                    homeName = box.homeName,
+                    awayColor = awayColor,
+                    homeColor = homeColor,
+                )
+            }
+        }
 
         if (box.away != null && box.home != null) {
             item(key = "__team_tabs__") {
@@ -445,7 +487,8 @@ internal fun NbaPkPickerHost(state: NbaStatsState) {
     }
 }
 
-/** 分节比分卡（数据统计 / 文字实录两页共用） */
+/** 分节比分卡（数据统计 / 文字实录两页共用）
+ *  批U-4：列头改官方「第1节/第2节/第3节/第4节/总分」，行首加队标。 */
 @Composable
 private fun NbaQuarterCard(
     awayName: String,
@@ -454,6 +497,8 @@ private fun NbaQuarterCard(
     awayTotal: String,
     homeQuarters: List<String>,
     homeTotal: String,
+    awayLogo: String? = null,
+    homeLogo: String? = null,
 ) {
     val quarterCount = maxOf(awayQuarters.size, homeQuarters.size)
     Column(
@@ -468,8 +513,8 @@ private fun NbaQuarterCard(
             Spacer(Modifier.weight(1f))
             for (i in 0 until quarterCount) {
                 Text(
-                    "${i + 1}",
-                    modifier = Modifier.width(30.dp),
+                    if (i < 4) "第${i + 1}节" else "加时${i - 3}",
+                    modifier = Modifier.width(40.dp),
                     fontSize = 11.sp,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -483,19 +528,29 @@ private fun NbaQuarterCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        NbaQuarterLine(awayName, awayQuarters, awayTotal, quarterCount)
-        NbaQuarterLine(homeName, homeQuarters, homeTotal, quarterCount)
+        NbaQuarterLine(awayName, awayLogo, awayQuarters, awayTotal, quarterCount)
+        NbaQuarterLine(homeName, homeLogo, homeQuarters, homeTotal, quarterCount)
     }
 }
 
 @Composable
 private fun NbaQuarterLine(
     name: String,
+    logo: String?,
     quarters: List<String>,
     total: String,
     quarterCount: Int,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
+        if (logo != null) {
+            HupuIconImage(
+                model = normalizeCover(logo),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+        }
         Text(
             name,
             modifier = Modifier.weight(1f),
@@ -507,7 +562,7 @@ private fun NbaQuarterLine(
         for (i in 0 until quarterCount) {
             Text(
                 quarters.getOrElse(i) { "" },
-                modifier = Modifier.width(30.dp),
+                modifier = Modifier.width(40.dp),
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -525,13 +580,19 @@ private fun NbaQuarterLine(
 }
 
 @Composable
-private fun NbaQuarterCard(box: NbaBoxScore) = NbaQuarterCard(
+private fun NbaQuarterCard(
+    box: NbaBoxScore,
+    awayLogo: String? = null,
+    homeLogo: String? = null,
+) = NbaQuarterCard(
     awayName = box.awayName,
     homeName = box.homeName,
     awayQuarters = box.awayQuarters,
     awayTotal = box.awayTotal,
     homeQuarters = box.homeQuarters,
     homeTotal = box.homeTotal,
+    awayLogo = awayLogo,
+    homeLogo = homeLogo,
 )
 
 /** 数值列最低列宽：容得下 "12-21"/"+15" 这类短串，也是窄屏与超大字体下的下限 */
@@ -1003,4 +1064,132 @@ private fun NbaPlayLine(play: NbaPlay) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
+
+// ---------------------------------------------------------------------------
+// 批U-4：比分走势折线图
+// ---------------------------------------------------------------------------
+
+/** playbyplay 事件 → 走势图数据点（x=比赛分钟，y=两队比分）。 */
+internal data class TrendPoint(val minute: Float, val away: Int, val home: Int)
+
+/** 把 NbaPlay 序列（time="MM:SS" 剩余时间、score="客-主"）转成走势点。返回空 = 无法构建。 */
+internal fun trendPoints(plays: List<NbaPlay>): List<TrendPoint> {
+    val out = mutableListOf(TrendPoint(0f, 0, 0))
+    var lastQ = 0
+    var lastRem = Float.MAX_VALUE
+    var order = 0
+    for (p in plays) {
+        if (p.note) continue
+        val q = p.quarter
+        if (q <= 0) continue
+        val parts = p.score.split('-', '：', ':')
+        if (parts.size != 2) continue
+        val a = parts[0].trim().toIntOrNull() ?: continue
+        val h = parts[1].trim().toIntOrNull() ?: continue
+        // time 是节内剩余时间（"12:00" 递减）；无法解析时按顺序推进
+        val rem = Regex("(\\d+):(\\d+)").find(p.time)?.let {
+            it.groupValues[1].toFloat() * 60f + it.groupValues[2].toFloat()
+        }
+        val qLen = if (q <= 4) 12f * 60f else 5f * 60f
+        val base = if (q <= 4) (q - 1) * 12f else 48f + (q - 5) * 5f
+        val minute = if (rem != null && rem <= qLen) {
+            base + (qLen - rem) / 60f
+        } else {
+            // 无时间戳（整行提示已被过滤）时按事件顺序在节内近似铺点
+            order++
+            if (q != lastQ) { lastQ = q; lastRem = Float.MAX_VALUE; order = 0 }
+            base + (order * 0.2f).coerceAtMost(qLen / 60f - 0.1f)
+        }
+        if (q != lastQ) { lastQ = q; lastRem = Float.MAX_VALUE }
+        out += TrendPoint(minute, a, h)
+    }
+    // 至少要有 2 个不同比分的点才值得画线
+    return if (out.size > 2) out else emptyList()
+}
+
+/** 走势折线图：纵轴比分（0..max，按 10 取整），横轴比赛分钟（0..48+OT），两队双色折线。 */
+@Composable
+private fun NbaScoreTrendChart(
+    plays: List<NbaPlay>,
+    awayName: String,
+    homeName: String,
+    awayColor: String,
+    homeColor: String,
+) {
+    val pts = remember(plays) { trendPoints(plays) }
+    if (pts.isEmpty()) return
+    val awayC = parseTeamColor(awayColor) ?: MaterialTheme.colorScheme.primary
+    val homeC = parseTeamColor(homeColor) ?: MaterialTheme.colorScheme.tertiary
+    val grid = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+    val axis = MaterialTheme.colorScheme.onSurfaceVariant
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            "比分走势",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        val maxScore = (pts.maxOf { maxOf(it.away, it.home) } / 10 + 1) * 10
+        val maxMin = pts.last().minute.coerceAtLeast(48f)
+        androidx.compose.foundation.Canvas(
+            Modifier
+                .fillMaxWidth()
+                .height(180.dp)
+                .padding(start = 28.dp, end = 8.dp, top = 8.dp, bottom = 20.dp)
+        ) {
+            val w = size.width
+            val h = size.height
+            fun xp(min: Float) = (min / maxMin) * w
+            fun yp(score: Float) = h - (score / maxScore) * h
+            // 纵轴网格（每 10 分一条）+ 左侧分值标签由外部 Composable 画不了——画在 Canvas 内
+            var s = 0
+            while (s <= maxScore) {
+                val y = yp(s.toFloat())
+                drawLine(grid, androidx.compose.ui.geometry.Offset(0f, y), androidx.compose.ui.geometry.Offset(w, y), strokeWidth = 1f)
+                s += 10
+            }
+            fun path(sel: (TrendPoint) -> Int): androidx.compose.ui.graphics.Path {
+                val path = androidx.compose.ui.graphics.Path()
+                pts.forEachIndexed { i, pt ->
+                    val x = xp(pt.minute)
+                    val y = yp(sel(pt).toFloat())
+                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                return path
+            }
+            drawPath(path { it.away }, awayC, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4f))
+            drawPath(path { it.home }, homeC, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4f))
+        }
+        // 图例
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            TrendLegend(awayC, awayName)
+            TrendLegend(homeC, homeName)
+        }
+    }
+}
+
+@Composable
+private fun TrendLegend(color: Color, name: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.width(18.dp).height(3.dp).clip(RoundedCornerShape(2.dp)).background(color))
+        Spacer(Modifier.width(6.dp))
+        Text(name, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** "FA0808"/"204224" → Color；空/非法 → null（走主题色）。 */
+private fun parseTeamColor(hex: String): Color? {
+    val v = hex.trim().removePrefix("#")
+    if (v.length != 6) return null
+    val n = v.toLongOrNull(16) ?: return null
+    return Color(0xFF000000 or n)
 }

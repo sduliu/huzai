@@ -302,7 +302,13 @@ fun MatchDetailOverlay(
                     MatchTopTab.RECAP -> MatchTabEmpty("本场暂无战报")
                     MatchTopTab.RATING -> Unit // 已被 showRating 分支覆盖
                     MatchTopTab.STATS ->
-                        if (q != null) NbaStatsBody(state = nbaState, query = q, tab = NbaStatsTab.BOX)
+                        if (q != null) NbaStatsBody(
+                            state = nbaState, query = q, tab = NbaStatsTab.BOX,
+                            homeLogo = basketballInfo?.homeTeamLogo ?: scoreboard?.homeLogo,
+                            awayLogo = basketballInfo?.awayTeamLogo ?: scoreboard?.awayLogo,
+                            homeColor = basketballInfo?.homeTeamDayColor ?: "",
+                            awayColor = basketballInfo?.awayTeamDayColor ?: "",
+                        )
                         else MatchTabEmpty("本场暂无统计数据")
                     MatchTopTab.DISCUSS -> MatchDiscussTab(bizType = scoreBizType, bizNo = scoreBizNo, repo = hupuRepo)
                 }

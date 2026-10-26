@@ -931,3 +931,9 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **BasketballRatingRow**（仅篮球场启用，其他赛事仍走 PlayerScoreRow）：头像44dp + 姓名15sp SemiBold + **星级行**（scoreAvg/2→5星，半星进位，琥珀 #F5A524）+ **数据行**（`{pts}分 {reb}篮板 {asts}助攻` 12sp 灰，playerMatchStats 按中文姓名 join——两端姓名同命名空间，重名取首个）| **蓝色大分** 22sp Bold `MatchJrsBlue` + **「{原始计数}JRs评分」** 11sp 灰（详情页口径=原始计数，与频道卡万制刻意分屏）+ **橙色引言块**（`「热评」` #9A3412 字 / #FFF3E0 底 8dp 圆角）。
 - **数据链**：`playerMatchStats?matchId=`（basketballapi）——ScorePage 与 matchInfo 同 effect 拉取，缓存 `matchPlayerStats[matchId]`。
 - 回退：revert 本 commit（basketball 分支消失，全量回落 PlayerScoreRow）。
+
+### 批U-4：统计 tab——节次表列头/队标 + 比分走势折线图
+
+- **节次表**：列头 `1/2/3/4` → 官方「第1节/第2节/第3节/第4节/总分」（OT 列显示「加时N」），数值列宽 30→40dp；行首加 20dp 队标（matchInfo 队标优先、赛程卡兜底）。
+- **走势折线**：无官方端点（8 个命名猜测全 404），由 playbyplay 事件 `score`（"客-主" 累计分）+ `quarter`/`time` 客户端推导：`trendPoints()` 把节内剩余时间换成已打分钟（Q1-4 各 12min、OT 各 5min），Canvas 画双折线；纵轴 0..ceil(max/10)*10 网格，队色取 matchInfo `homeTeamDayColor/awayTeamDayColor`，缺省走主题色。BOX tab 加载时顺带补取 pbp（不置 pbpServed，PLAY 记账独立）。
+- 单测：`TrendPointsTest` 2 例（正常序列分钟换算、稀疏/脏数据拒绝）。回退：revert 本 commit。
