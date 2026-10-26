@@ -7,12 +7,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -40,6 +42,8 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -63,6 +67,9 @@ import com.kudo.android.hupu.pickTopicSortKey
 import com.kudo.android.hupu.SortTab
 import com.kudo.android.hupuui.components.*
 import androidx.compose.foundation.layout.PaddingValues
+
+/** 批N-4：官方虎扑品牌红（顶栏「搜索」按钮底色） */
+private val HUPU_RED = Color(0xFFC01E2F)
 
 /** 首页：全站热帖（默认）+ 热门话题流（单选切换、排序、无限滚动） */
 @Composable
@@ -482,15 +489,49 @@ private fun FeedContent(
         // ---------- 顶栏（浮空；背景由骨架统一负责） ----------
         header = {
         PageHeader(title = "虎扑") {
-            // 1.223：搜索键升级为与返回键同源的液态玻璃按钮（同款落影 + 按压手感）
-            // 与标题的竖直对齐由 PageHeader 统一处理（标题与右侧内容同一竖直中心）。
-            // 1.223b：图标放大到 24dp——20dp 时放大镜的「镜圈」偏小，看着像羽毛球拍。
-            LiquidIconButton(
-                icon = HupuIcons.SearchOutlined,
-                contentDescription = "搜索",
-                onClick = { searchOpen = true },
-                iconSize = 24.dp,
-            )
+            // 批N-4：官方首页顶栏搜索条——灰底圆角框（放大镜+提示词）+ 红底「搜索」按钮；
+            // 只改样式，入口不变（仍开 SearchPage 盖入页）
+            Row(
+                Modifier
+                    .height(36.dp)
+                    .width(190.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                    .clickable { searchOpen = true },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Spacer(Modifier.width(12.dp))
+                Icon(
+                    HupuIcons.SearchOutlined,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "搜索",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f),
+                )
+                Box(
+                    Modifier
+                        .height(36.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(HUPU_RED)
+                        .padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "搜索",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White,
+                        maxLines = 1,
+                    )
+                }
+            }
         }
         // 话题横滑条：固定在标题栏下方，单选切换内容流（再点已选返回热帖）
         TopicBar(effectiveTopics, selected, showHot) {
