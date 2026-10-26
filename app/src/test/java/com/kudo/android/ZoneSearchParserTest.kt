@@ -88,4 +88,44 @@ class ZoneSearchParserTest {
         val (l3, n3) = HupuParser.parseTopicSearchPage("not-json")
         assertTrue(l3.isEmpty()); assertFalse(n3)
     }
+
+    // ---------- 批Zfix：帖子搜索降级源（search2 type=posts） ----------
+
+    /** 字段照抄 2026-10-28 匿名实测（replies/lights 为 int；addTimeDisplay 不下发由 addtime 合成）。 */
+    @Test
+    fun `post search json maps fields and synthesizes time`() {
+        val json = """{"data":{"result":{"count":500,"totalPage":25,"type":"posts","hasNextPage":1,"data":[
+            {"id":643302580,"replies":0,"lights":3,"puid":99742586,"fid":1,
+             "title":"#<font color='var(--primary_button)'>Lakers</font>，东子强势带队",
+             "content":"77今天50+8+10","pic":true,"picture":"https://i1.hoopchina.com.cn/p.png",
+             "lastPostTime":1792986498,"itemid":"post_643302580","display_type":"threads",
+             "username":"老张永远的神","addtime":${'$'}{ADDTIME},"forum_name":"湖人专区"},
+            {"id":643155293,"replies":5,"lights":0,"title":"旧帖","content":"",
+             "username":"u2","addtime":1,"forum_name":"步行街主干道"}
+        ]}}}"""
+            .replace("${'$'}{ADDTIME}", (System.currentTimeMillis() / 1000 - 7200).toString())
+        val page = HupuParser.parsePostSearchJson(json, 1)!!
+        assertEquals(2, page.items.size)
+        assertEquals(500L, page.count)
+        assertEquals(25, page.totalPages)
+        assertEquals(1, page.page)
+        val it = page.items[0]
+        assertEquals("643302580", it.tid)
+        assertEquals("#Lakers，东子强势带队", it.title)   // 高亮 font 标签已剥
+        assertEquals("77今天50+8+10", it.desc)
+        assertEquals(3, it.lights)
+        assertEquals("湖人专区", it.forumName)
+        assertEquals("老张永远的神", it.username)
+        assertEquals("https://i1.hoopchina.com.cn/p.png", it.picture)
+        assertTrue(it.addTimeDisplay.endsWith("小时前"))  // 2 小时前的 addtime → 合成相对时间
+        assertTrue(page.items[1].addTimeDisplay.startsWith("1970"))  // addtime=1 超 30 天 → 回落日期文案
+    }
+
+    @Test
+    fun `post search json degrades on empty and malformed payloads`() {
+        assertEquals(0, HupuParser.parsePostSearchJson(
+            """{"data":{"result":{"count":0,"data":[]}}}""", 1)!!.items.size)
+        assertEquals(null, HupuParser.parsePostSearchJson("not-json", 1))
+        assertEquals(null, HupuParser.parsePostSearchJson("""{"data":{}}""", 1))
+    }
 }

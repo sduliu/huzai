@@ -2,6 +2,9 @@ package com.kudo.android.hupu
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * 从虎扑 SSR HTML 中提取内嵌 JSON 并映射为数据模型。
@@ -559,6 +562,59 @@ object HupuParser {
             totalPages = sr.optInt("totalPage", 0),
             count = sr.optLong("count", 0L),
         )
+    }
+
+    /**
+     * 批Zfix：search2 type=posts → HupuSearchPage（桌面搜索 HTML 通道的降级备用源）。
+     * 匿名实测（2026-10-28）：count=500、totalPage=25、hasNextPage=1、20 条/页。
+     * 与桌面通道差异：sortby/topicId 无等价参数（实测传入被忽略），仅默认相关度序；
+     * addTimeDisplay 不下发，由 addtime（unix 秒）合成相对时间文案。
+     */
+    fun parsePostSearchJson(json: String, page: Int): HupuSearchPage? {
+        val root = try { JSONObject(json) } catch (e: Exception) { return null }
+        val rs = root.optJSONObject("data")?.optJSONObject("result") ?: return null
+        val arr = rs.optJSONArray("data") ?: return null
+
+        val items = mutableListOf<HupuSearchItem>()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            val addtime = o.optLong("addtime", 0L)
+            items += HupuSearchItem(
+                tid = o.optString("id"),
+                title = stripHighlight(o.optString("title")),
+                desc = stripHighlight(o.optString("content")),
+                picture = o.optString("picture").ifEmpty { null },
+                replies = o.optString("replies").toIntOrNull() ?: 0,
+                lights = o.optString("lights").toIntOrNull() ?: 0,
+                addtime = addtime,
+                addTimeDisplay = o.optString("addTimeDisplay").ifEmpty { relTimeDesc(addtime) },
+                fid = o.optString("fid"),
+                forumName = o.optString("forum_name"),
+                username = o.optString("username"),
+            )
+        }
+
+        return HupuSearchPage(
+            items = items,
+            page = page,
+            totalPages = rs.optInt("totalPage", 0),
+            count = rs.optLong("count", 0L),
+        )
+    }
+
+    /** 相对时间文案（对齐官方 addTimeDisplay：x分钟前/x小时前/x天前；超 30 天回落日期） */
+    private fun relTimeDesc(ts: Long): String {
+        if (ts <= 0) return ""
+        val diff = System.currentTimeMillis() / 1000 - ts
+        return when {
+            diff < 60 -> "刚刚"
+            diff < 3600 -> "${diff / 60}分钟前"
+            diff < 86400 -> "${diff / 3600}小时前"
+            diff < 86400 * 30 -> "${diff / 86400}天前"
+            else -> try {
+                SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).format(Date(ts * 1000))
+            } catch (e: Exception) { "" }
+        }
     }
 
     /**

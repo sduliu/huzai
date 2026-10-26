@@ -513,8 +513,19 @@ class HupuRepository {
     /** 搜索页（桌面版 SSR，20 条/页；sortby 六种排序；topicId 专区过滤） */
     suspend fun search(query: String, topicId: String? = null, sortby: String = "general", page: Int = 1, refresh: Boolean = false): HupuSearchPage? {
         val html = HupuApi.fetchSearchHtml(query, topicId, sortby, page, forceNetwork = refresh)
-            ?: return null
-        return withContext(Dispatchers.Default) { HupuParser.parseSearchPage(html) }
+        if (html != null) {
+            val parsed = withContext(Dispatchers.Default) { HupuParser.parseSearchPage(html) }
+            if (parsed != null) return parsed
+        }
+        // 批Zfix：桌面通道整体失败（请求失败或 $$data 结构变化）时的降级源。
+        // 仅在未启用排序/专区筛选时启用——search2 无 sortby/topicId 等价参数（实测传入被忽略），
+        // 带筛选降级会以未过滤结果冒充过滤结果，故此时仍显式失败交页内错误态。
+        if (!topicId.isNullOrEmpty() || sortby != "general") return null
+        val q = java.net.URLEncoder.encode(query, "UTF-8")
+        val json = HupuApi.getMobileJson(
+            "/api/v2/search2?keyword=$q&puid=0&type=posts&topicId=0&page=$page",
+        ) ?: return null
+        return withContext(Dispatchers.Default) { HupuParser.parsePostSearchJson(json, page) }
     }
 
     /** 比赛赛程评分（6 大电竞项目）。businessId 如 lol/kog/val/cs2/pubgmobile/pubg */
