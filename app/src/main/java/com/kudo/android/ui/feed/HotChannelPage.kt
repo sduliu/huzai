@@ -45,7 +45,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.kudo.android.data.CommunityRepository
 import com.kudo.android.data.HupuIds
 import com.kudo.android.hupu.HupuBoardPage
@@ -207,10 +206,9 @@ fun HotChannelPage(
                                     .padding(horizontal = 6.dp, vertical = 12.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
-                                AsyncImage(
+                                com.kudo.android.hupuui.components.HupuIconImage(
                                     model = info.logo, contentDescription = null,
-                                    modifier = Modifier.size(44.dp).clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                                    modifier = Modifier.size(44.dp).clip(CircleShape),
                                     contentScale = ContentScale.Crop,
                                 )
                                 Text(
@@ -354,7 +352,7 @@ private fun TagFeedOverlay(
                                 ),
                         ) {
                             if (info.banner.isNotBlank()) {
-                                AsyncImage(
+                                com.kudo.android.hupuui.components.HupuThumbImage(
                                     model = info.banner, contentDescription = null,
                                     modifier = Modifier.fillMaxSize(),
                                     contentScale = ContentScale.Crop,
@@ -408,7 +406,7 @@ private fun TagThreadRow(t: com.kudo.android.hupu.HupuTagThread, onClick: () -> 
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (t.header.isNotBlank()) {
-                AsyncImage(
+                com.kudo.android.hupuui.components.HupuAvatarImage(
                     model = t.header, contentDescription = null,
                     modifier = Modifier.size(20.dp).clip(CircleShape),
                     contentScale = ContentScale.Crop,
@@ -433,7 +431,7 @@ private fun TagThreadRow(t: com.kudo.android.hupu.HupuTagThread, onClick: () -> 
             }
             t.pics.firstOrNull()?.let { pic ->
                 Spacer(Modifier.width(10.dp))
-                AsyncImage(
+                com.kudo.android.hupuui.components.HupuThumbImage(
                     model = pic, contentDescription = null,
                     modifier = Modifier.size(72.dp).clip(RoundedCornerShape(8.dp)),
                     contentScale = ContentScale.Crop,

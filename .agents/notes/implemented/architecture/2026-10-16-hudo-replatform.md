@@ -398,3 +398,14 @@ Muse 找不到内嵌视频帖是「样本难找」而非链路不通。用 2026-
 - 详情链零改动；外链视频仍走链接不出块；`NestedThreadOverlay` 复用 ThreadDetailOverlay 自动继承。
 - 测试 `VideoMarkerTest`：toTopic hasVideo 透传 + 视频帖 cover 保留（角标依赖图块存在）。
 - 记录：搜索结果 `HupuSearchItem` 是另一模型未带视频字段——搜索列表不标，记缺口不伪造。
+
+## 批G-2：图片兜底真机证据——等价验证 + 覆盖面扩展
+
+真机路径对执行者关闭：redroid `127.0.0.1:5555` 在线但规则禁装/卸/清（`am instrument` 需装测试 APK），`emulator-5554` 未授权。**结论写死：兜底真机渲染本批未验到**，证据由等价链路补齐，真机执行留给 Muse：`adb install -r -t app-debug-androidTest.apk && adb shell am instrument -w -e class com.kudo.android.FallbackImagesUiTest com.huzai.kudo.test/androidx.test.runner.AndroidJUnitRunner`。
+
+等价验证三层：
+- error 槽契约：`SubcomposeAsyncImage(error=...)` 是 coil 库稳定契约（coil3 `Error` state → error 槽渲染），我方责任面=error 槽内渲什么——已收敛为纯函数 `fallbackIcon`/`fallbackTag`（批E `FallbackImagesTest` 3 例全绿）。
+- 调用点审计（2026-10-26 全库扫描）：兜底包装 `HupuAvatarImage/HupuIconImage/HupuThumbImage` 共 **49 处**正文/头像/徽标调用全走 error 槽；裸 `AsyncImage` 44 处分布在 28 文件，逐文件核查=表情/贴纸网格（HupuEmoji/StickerSearch/ThreadDetail 表情面板）、小徽标角标（heroIcon/teamLogo 18-20dp 装饰标）、本地 URI 选图预览（ReplyAttachment）、视频 poster（HupuVideoPlayer）——均非帖子正文/头像主链路，失败空白洞影响为「小图标消失」级，刻意不套兜底（表情格子塞灰块更难看），如实记为残余面。
+- 本批扩面：批F `TagFeedOverlay`/`hotTopics` 4 处裸 AsyncImage（banner/logo/头像/pic）补齐为对应兜底包装——新写代码不再新增透明洞。
+
+取舍：`UserProfilePage` 封面缩略图「失败整块撤除」维持批E 判定不变（84×60 灰洞压窄标题换行，撤块优于空洞）。
