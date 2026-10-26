@@ -68,16 +68,22 @@ fun HotChannelPage(
     /** 评分榜卡片点击 → 打开「比赛」Tab 的虎扑评分频道（score/common 二级页） */
     openRatings: () -> Unit = {},
 ) {
-    val page by produceState<HupuBoardPage?>(initialValue = null) {
-        value = repository.boardPage("/all-gambia")
+    // 批Z-2：整页与热榜分别给显式失败/空态（原 boardPage 失败=无限 spinner、hotTags 空=静默缺席）
+    var retryTick by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    var pageFailed by remember { mutableStateOf(false) }
+    val page by produceState<HupuBoardPage?>(initialValue = null, retryTick) {
+        val p = runCatching { repository.boardPage("/all-gambia") }.getOrNull()
+        pageFailed = (p == null)
+        value = p
     }
     // 评分榜：虎扑通用评分主题（score-home SSR，与「比赛」Tab 虎扑评分同源）
     val subjects by produceState<List<com.kudo.android.hupu.HupuCommonSubject>>(initialValue = emptyList()) {
         value = runCatching { com.kudo.android.hupu.HupuRepository().commonSubjects() }.getOrDefault(emptyList())
     }
     // 批F-4：官方热榜（m.hupu.com/hot——微博式热搜 tag 榜，与官方「热榜」内容形态对齐）
-    val hotTags by produceState<List<HupuHotTag>>(initialValue = emptyList()) {
-        value = runCatching { repository.hotTags() }.getOrDefault(emptyList())
+    // 批Z-2：null=加载中；空表=为空或取数失败（仓储失败即空表，显式空态+重试）
+    val hotTags by produceState<List<HupuHotTag>?>(initialValue = null, retryTick) {
+        value = runCatching { repository.hotTags() }.getOrNull()
     }
     // 批F-4：tag 点击 → 聚合页盖入层（m.hupu.com/tag/{id} 匿名 SSR + tagThreads 分页）
     var openTag by remember { mutableStateOf<HupuHotTag?>(null) }
@@ -86,15 +92,41 @@ fun HotChannelPage(
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
         if (p == null) {
             Box(Modifier.fillMaxWidth().height(240.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+                if (pageFailed) {
+                    // 批Z-2：整页取数失败显式态+重试（原无限 spinner）
+                    Text(
+                        "加载失败，点击重试", fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.clickable { retryTick++ },
+                    )
+                } else {
+                    CircularProgressIndicator()
+                }
             }
             return@Column
         }
         // 批F-4：虎扑热榜（官方同形态：排名 + 话题词 + 🔥热度；点击进 tag 聚合页）
-        if (hotTags.isNotEmpty()) {
+        val tags = hotTags
+        if (tags != null && tags.isEmpty()) {
+            // 批Z-2：榜单为空或取数失败 → 显式空态+重试（原静默缺席）
             SectionTitle("虎扑热榜")
             SectionCard {
-                hotTags.forEachIndexed { i, tag ->
+                Box(
+                    Modifier.fillMaxWidth().padding(vertical = 22.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        "热榜暂不可用，点击重试", fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.clickable { retryTick++ },
+                    )
+                }
+            }
+        }
+        if (!tags.isNullOrEmpty()) {
+            SectionTitle("虎扑热榜")
+            SectionCard {
+                tags.forEachIndexed { i, tag ->
                     if (i > 0) Divider()
                     Row(
                         Modifier.fillMaxWidth()
@@ -185,10 +217,17 @@ fun HotChannelPage(
                                 Text(it, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
-                        Text(
-                            "👍${t.lights}  💬${t.replies}",
-                            fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        // 批Z-2：meta 对齐官方扁平行「{replies}回复 {lights}亮回复」；
+                        // 🔥 沿用批U-0c 口径——亮回复≥50（官方「50亮回复」封顶=热帖标志）才显示
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (t.lights >= 50) {
+                                Text("🔥", fontSize = 11.sp)
+                            }
+                            Text(
+                                "${t.replies}回复  ${t.lights}亮回复",
+                                fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }
