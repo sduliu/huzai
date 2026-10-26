@@ -191,7 +191,7 @@ class HupuDataParserTest {
         val json = """{"success":true,"result":{"planChartItemList":[
             {"planChartNumber":"0-0","teamId":"t1","teamName":"凯尔特人","teamLogo":"l1","score":"4","rank":"1",
              "oppoTeamId":"t8","oppoTeamName":"热火","oppoTeamLogo":"l8","oppoScore":"1","winnerTeamId":"t1"},
-            {"planChartNumber":"6-3","teamId":"t4","teamName":"掘金","teamLogo":"","score":"3","rank":"",
+            {"planChartNumber":"3-6","teamId":"t4","teamName":"掘金","teamLogo":"","score":"3","rank":"",
              "oppoTeamId":"t5","oppoTeamName":"森林狼","oppoTeamLogo":"","oppoScore":"3","winnerTeamId":""}
         ]}}"""
         val b = HupuDataParser.parseAgainstChart(json)!!
