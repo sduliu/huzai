@@ -325,19 +325,19 @@ internal fun StandingsBoardView(league: String, showSeasonBar: Boolean = true) {
                     // 30+ 项须可滚动）
                     LazyColumn(
                         Modifier
-                            .width(84.dp)
+                            .width(96.dp)
                             .fillMaxSize(),
-                        contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 100.dp),
+                        contentPadding = PaddingValues(start = 4.dp, end = 4.dp, bottom = 100.dp),
                     ) {
                         items(cats, key = { it.id }) { c ->
                             val sel = c.id == catSel
                             Text(
                                 c.title,
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
                                 fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal,
                                 color = if (sel) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
@@ -346,7 +346,7 @@ internal fun StandingsBoardView(league: String, showSeasonBar: Boolean = true) {
                                         else MaterialTheme.colorScheme.surface.copy(alpha = 0f)
                                     )
                                     .clickable { catSel = c.id }
-                                    .padding(horizontal = 10.dp, vertical = 11.dp),
+                                    .padding(horizontal = 8.dp, vertical = 11.dp),
                             )
                         }
                     }
@@ -513,18 +513,18 @@ internal fun PlayerRankView(league: String) {
                 // 批X8：官方版式=左栏统计项目录 + 右栏全部统计卡堆叠，点左栏滚动定位到卡
                 Row(Modifier.fillMaxSize()) {
                     LazyColumn(
-                        Modifier.width(84.dp).fillMaxSize(),
-                        contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 100.dp),
+                        Modifier.width(96.dp).fillMaxSize(),
+                        contentPadding = PaddingValues(start = 4.dp, end = 4.dp, bottom = 100.dp),
                     ) {
                         items(dim?.items.orEmpty(), key = { it.key }) { it ->
                             val sel = it.key == statSel
                             Text(
                                 it.name,
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
                                 fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal,
                                 color = if (sel) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
@@ -537,7 +537,7 @@ internal fun PlayerRankView(league: String) {
                                         val idx = dim?.items?.indexOfFirst { x -> x.key == it.key } ?: -1
                                         if (idx >= 0) scope.launch { listState.animateScrollToItem(idx) }
                                     }
-                                    .padding(horizontal = 10.dp, vertical = 11.dp),
+                                    .padding(horizontal = 8.dp, vertical = 11.dp),
                             )
                         }
                     }
@@ -570,13 +570,13 @@ internal fun PlayerRankView(league: String) {
                                             "球队", fontSize = 10.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                            modifier = Modifier.width(42.dp),
+                                            modifier = Modifier.width(40.dp),
                                         )
                                         Text(
                                             "数据", fontSize = 10.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                            modifier = Modifier.width(44.dp),
+                                            modifier = Modifier.width(40.dp),
                                         )
                                     }
                                     item.leaders.forEach { e ->
@@ -616,14 +616,14 @@ internal fun PlayerRankView(league: String) {
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                                modifier = Modifier.width(42.dp),
+                                                modifier = Modifier.width(40.dp),
                                             )
                                             // 官方数据值黑色加粗
                                             Text(
                                                 e.value, fontSize = 15.sp, fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onSurface,
                                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                                modifier = Modifier.width(44.dp),
+                                                modifier = Modifier.width(40.dp),
                                             )
                                         }
                                     }
@@ -907,14 +907,14 @@ internal fun DraftView(league: String) {
                     ?: b.rounds.first().first
                 Row(Modifier.fillMaxSize()) {
                     LazyColumn(
-                        Modifier.width(84.dp).fillMaxSize(),
-                        contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 100.dp),
+                        Modifier.width(72.dp).fillMaxSize(),
+                        contentPadding = PaddingValues(start = 4.dp, end = 4.dp, bottom = 100.dp),
                     ) {
                         items(b.rounds, key = { it.first }) { (round, _) ->
                             val s = round == sel
                             Text(
                                 "第${round}轮",
-                                fontSize = 13.sp,
+                                fontSize = 12.sp,
                                 fontWeight = if (s) FontWeight.SemiBold else FontWeight.Normal,
                                 color = if (s) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1056,14 +1056,14 @@ internal fun InjuryView(league: String) {
             Row(Modifier.fillMaxSize()) {
                 // 左栏：最新 + 各队（接口给的队序）
                 LazyColumn(
-                    Modifier.width(84.dp).fillMaxSize(),
-                    contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 100.dp),
+                    Modifier.width(96.dp).fillMaxSize(),
+                    contentPadding = PaddingValues(start = 4.dp, end = 4.dp, bottom = 100.dp),
                 ) {
                     items(gs, key = { it.first }) { (name, _) ->
                         val sel = name == grpSel
                         Text(
                             name.ifEmpty { "未标注球队" },
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                             fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal,
                             color = if (sel) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1080,7 +1080,7 @@ internal fun InjuryView(league: String) {
                                     val idx = gs.indexOfFirst { it.first == name }
                                     if (idx >= 0) scope.launch { listState.animateScrollToItem(idx) }
                                 }
-                                .padding(horizontal = 10.dp, vertical = 11.dp),
+                                .padding(horizontal = 8.dp, vertical = 11.dp),
                         )
                     }
                 }
@@ -1114,13 +1114,13 @@ internal fun InjuryView(league: String) {
                                         "伤停", fontSize = 10.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                        modifier = Modifier.width(52.dp),
+                                        modifier = Modifier.width(48.dp),
                                     )
                                     Text(
                                         "最新进展", fontSize = 10.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                        modifier = Modifier.width(60.dp),
+                                        modifier = Modifier.width(56.dp),
                                     )
                                 }
                                 val shown = if (name in expanded) rows else rows.take(5)
@@ -1155,7 +1155,7 @@ internal fun InjuryView(league: String) {
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             maxLines = 2, overflow = TextOverflow.Ellipsis,
                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                            modifier = Modifier.width(52.dp),
+                                            modifier = Modifier.width(48.dp),
                                         )
                                         // 最新进展=纯文字（zhDetail 优先，缺省 injuryStatus），官方无 pill/日期
                                         Text(
@@ -1163,7 +1163,7 @@ internal fun InjuryView(league: String) {
                                             color = MaterialTheme.colorScheme.onSurface,
                                             maxLines = 2, overflow = TextOverflow.Ellipsis,
                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                            modifier = Modifier.width(60.dp),
+                                            modifier = Modifier.width(56.dp),
                                         )
                                     }
                                 }
