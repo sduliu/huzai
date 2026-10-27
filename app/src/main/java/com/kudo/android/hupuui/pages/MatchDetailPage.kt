@@ -1386,12 +1386,14 @@ internal fun matchInfoDateTime(info: com.kudo.android.hupu.HupuMatchInfo): Pair<
 
 /** 批U-2：官方详情 Tab 集合（篮球场）——战报/虎扑评分/统计/讨论；直播属排除项不接。 */
 private val MatchJrsBlue = Color(0xFF3B82F6)
+/** 批X7：官方 Tab 选中下划线红（虎扑主色）。 */
+private val MatchHupuRed = Color(0xFFC01E2F)
 
 private enum class MatchTopTab(val label: String) {
     RECAP("战报"), RATING("虎扑评分"), STATS("统计"), DISCUSS("讨论"),
 }
 
-/** 官方文本 Tab 条：等宽四格、选中蓝字+底部蓝指示条（区别于旧玻璃 chip）。 */
+/** 官方文本 Tab 条：等宽四格、选中黑粗字+底部红指示条（虎扑红 #C01E2F）。 */
 @Composable
 private fun MatchTopTabBar(selected: MatchTopTab, onSelect: (MatchTopTab) -> Unit) {
     Row(
@@ -1413,7 +1415,7 @@ private fun MatchTopTabBar(selected: MatchTopTab, onSelect: (MatchTopTab) -> Uni
                     tab.label,
                     fontSize = 14.sp,
                     fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (on) MatchJrsBlue else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (on) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(6.dp))
                 Box(
@@ -1421,7 +1423,7 @@ private fun MatchTopTabBar(selected: MatchTopTab, onSelect: (MatchTopTab) -> Uni
                         .width(22.dp)
                         .height(3.dp)
                         .clip(RoundedCornerShape(2.dp))
-                        .background(if (on) MatchJrsBlue else Color.Transparent),
+                        .background(if (on) MatchHupuRed else Color.Transparent),
                 )
             }
         }
