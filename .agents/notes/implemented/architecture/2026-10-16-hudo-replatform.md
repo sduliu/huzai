@@ -1104,3 +1104,9 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **落点兑现走 `pendingExpandAll`**（LaunchedEffect 一次性消费）而非 `rememberBoardState` 构造参数：一次消费语义能尊重用户手动收起（重进同频道不被强开），代价是兑现前约一帧的「近期比赛」区闪现——目标频道 boardState 本身经 `selectedGame` 效应创建已有一帧延迟，差异不可感知。回退=revert 本 commit。
 - **`SportChannelHeader` 拆回调**：新增 `onOpenFullSchedule`（默认回落 `onOpenSchedule`）——热门行单独走 `score/{g}?full=1`；快捷行「赛程」图标维持 `onOpenSchedule`→中转页（任务划出外，未连带改动）。调用点仅 KudoApp 一处。
 - **不接**：soccer/无板块频道（`HUPU_BOARDS` 无 cfg）无 `boardState` → `full=1` 静默无效落中转页（该形态本就只有全赛程视图可退而求其次）；「赛程」图标、`查看全部赛程`就地展开、各数据 tab 渲染均不动。回退：revert 本 commit。
+
+### 批X4-2：直达落点返回语义——返回直退频道，不退中转页
+
+- **语义分叉**：`BoardContent` 的 `BackHandler` 原语义=就地展开返回先收起（批A-3）。直达入口（`expandByEntry`）下官方落点=赛程列表页本身，返回应整页退出回频道——`BackHandler(enabled=showAllMatches)` 分叉为 `expandByEntry && onBackDirect!=null → onBackDirect()`，否则维持收起；`onBackDirect` 由宿主透传 `ScorePage.onBack`（= `nav.popBackStack`），非路由用法 null 自动回落就地语义。
+- **标记生命周期**：`expandByEntry` 仅在直达兑现时置位；「收起/查看全部赛程」手动切换点同步清标记——收起回中转形态后再展开即回到就地收起语义，`onBackDirect` 不会被误用（返回路径实证：BoardScheduleExpandUiTest 三用例——直达展开返回退页不收起、就地展开返回收起、手动收起清标记后重展仍就地）。
+- 回退：revert 本 commit。

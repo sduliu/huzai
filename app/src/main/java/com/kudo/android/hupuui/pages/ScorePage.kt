@@ -965,6 +965,7 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
                 onOpenMatch = { openMatch(it) },
                 hostSchedule = days,
                 topInset = topInset,
+                onBackDirect = onBack,
             )
         } else {
         val pullState = rememberPullToRefreshState()
