@@ -1029,87 +1029,156 @@ internal fun DraftView(league: String) {
 @Composable
 internal fun InjuryView(league: String) {
     val repo = remember { HupuRepository() }
-    var list by remember { mutableStateOf<List<HupuInjury>?>(null) }
+    // 批X8：官方分组结构——「最新」组 + 各队分组（队序按接口文档序）
+    var groups by remember { mutableStateOf<List<Pair<String, List<HupuInjury>>>?>(null) }
     var loading by remember { mutableStateOf(true) }
     var tick by remember { mutableIntStateOf(0) }
     LaunchedEffect(league, tick) {
         loading = true
-        list = repo.injuries(league, refresh = tick > 0)
+        groups = repo.injuryGroups(league, refresh = tick > 0)
         loading = false
     }
+    val gs = groups
     when {
-        list == null && loading -> SkeletonHome()
-        list == null -> ErrorRetry { tick++ }
-        list!!.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        gs == null && loading -> SkeletonHome()
+        gs == null -> ErrorRetry { tick++ }
+        gs.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("暂无伤病报告", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
         }
         else -> {
-            // 按队分组（保留接口顺序），队名头 + 伤病行
-            val grouped = list!!.groupBy { it.teamName }
-            LazyColumn(
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 100.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                grouped.forEach { (team, rows) ->
-                    item(key = "it-$team") {
+            val listState = rememberLazyListState()
+            val scope = rememberCoroutineScope()
+            var grpSel by remember { mutableStateOf("") }
+            // 已展开「查看全部」的组
+            val expanded = remember { mutableStateListOf<String>() }
+            Row(Modifier.fillMaxSize()) {
+                // 左栏：最新 + 各队（接口给的队序）
+                LazyColumn(
+                    Modifier.width(84.dp).fillMaxSize(),
+                    contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 100.dp),
+                ) {
+                    items(gs, key = { it.first }) { (name, _) ->
+                        val sel = name == grpSel
                         Text(
-                            team.ifEmpty { "未标注球队" },
-                            fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(top = 4.dp),
+                            name.ifEmpty { "未标注球队" },
+                            fontSize = 13.sp,
+                            fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (sel) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    if (sel) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                                    else MaterialTheme.colorScheme.surface.copy(alpha = 0f)
+                                )
+                                .clickable {
+                                    grpSel = name
+                                    val idx = gs.indexOfFirst { it.first == name }
+                                    if (idx >= 0) scope.launch { listState.animateScrollToItem(idx) }
+                                }
+                                .padding(horizontal = 10.dp, vertical = 11.dp),
                         )
                     }
-                    item(key = "itb-$team") {
-                        Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(MaterialTheme.colorScheme.surface)
-                                .padding(horizontal = 12.dp, vertical = 4.dp),
-                        ) {
-                            rows.forEach { r ->
+                }
+                LazyColumn(
+                    state = listState,
+                    contentPadding = PaddingValues(end = 8.dp, bottom = 100.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.weight(1f).fillMaxSize(),
+                ) {
+                    gs.forEach { (name, rows) ->
+                        item(key = "ig-$name") {
+                            Column(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                            ) {
+                                // 卡头=组名 + 官方列头「伤停」「最新进展」
                                 Row(
-                                    Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                    Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    AsyncImage(
-                                        model = normalizeCover(r.photo), contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.size(34.dp).clip(CircleShape),
+                                    Text(
+                                        name.ifEmpty { "未标注球队" },
+                                        fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.weight(1f),
                                     )
-                                    Spacer(Modifier.width(10.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text(
-                                            r.name, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    Text(
+                                        "伤停", fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                        modifier = Modifier.width(52.dp),
+                                    )
+                                    Text(
+                                        "最新进展", fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                        modifier = Modifier.width(60.dp),
+                                    )
+                                }
+                                val shown = if (name in expanded) rows else rows.take(5)
+                                shown.forEach { r ->
+                                    Row(
+                                        Modifier.fillMaxWidth().padding(vertical = 7.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        AsyncImage(
+                                            model = normalizeCover(r.photo), contentDescription = null,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.size(30.dp).clip(CircleShape),
                                         )
-                                        val sub = listOf(r.part, r.detail).filter { it.isNotEmpty() }.joinToString(" · ")
-                                        if (sub.isNotEmpty()) {
+                                        Spacer(Modifier.width(8.dp))
+                                        Column(Modifier.weight(1f)) {
                                             Text(
-                                                sub, fontSize = 10.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                r.name, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurface,
                                                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                                             )
+                                            if (r.teamName.isNotEmpty()) {
+                                                Text(
+                                                    r.teamName, fontSize = 10.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                )
+                                            }
                                         }
-                                    }
-                                    Column(horizontalAlignment = Alignment.End) {
+                                        // 伤停=伤情部位
                                         Text(
-                                            r.status, fontSize = 10.sp,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(50))
-                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
-                                                .padding(horizontal = 7.dp, vertical = 2.dp),
+                                            r.part, fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                            modifier = Modifier.width(52.dp),
                                         )
-                                        if (r.date.isNotEmpty()) {
-                                            Spacer(Modifier.height(3.dp))
-                                            Text(
-                                                r.date, fontSize = 9.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
+                                        // 最新进展=纯文字（zhDetail 优先，缺省 injuryStatus），官方无 pill/日期
+                                        Text(
+                                            r.detail.ifEmpty { r.status }, fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                            modifier = Modifier.width(60.dp),
+                                        )
+                                    }
+                                }
+                                // 分组末「查看全部」展开剩余行（组内 >5 行才出现）
+                                if (rows.size > 5 && name !in expanded) {
+                                    Box(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .clickable { expanded += name }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            "查看全部",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
                                     }
                                 }
                             }

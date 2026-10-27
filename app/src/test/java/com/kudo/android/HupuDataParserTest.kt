@@ -137,6 +137,21 @@ class HupuDataParserTest {
         assertEquals("无法出场", m[0].status)
     }
 
+    @Test fun injuryGroups_latestFirstAndTeamOrderPreserved() {
+        // 批X8：分组结构=「最新」+ 各队；teamMap 键序按 JSON 文档序保留（JSONObject.keys() 无序不可用）
+        fun pl(name: String, team: String) =
+            """{"playerId":"x","playerName":"$name","photo":"","teamName":"$team","injuryPart":"膝伤","injuryStatus":"无法出场","injuryDate":"2026-10-27"}"""
+        val json = """{"success":true,"result":{
+            "playerInjuryDTOList":[${pl("甲", "湖人")},${pl("乙", "勇士")}],
+            "teamInjuryPlayerListMap":{"湖人":[${pl("甲", "湖人")}],"勇士":[${pl("乙", "勇士")}],"马刺":[${pl("丙", "马刺")}]}
+        }}"""
+        val gs = HupuDataParser.parseInjuryGroups(json)
+        assertEquals(listOf("最新", "湖人", "勇士", "马刺"), gs.map { it.first })
+        assertEquals(2, gs[0].second.size)
+        assertEquals("丙", gs[3].second[0].name)
+        assertTrue(HupuDataParser.parseInjuryGroups("not-json").isEmpty())
+    }
+
     @Test fun awards_parsesGroupsWinnersAndStatLine() {
         // 批Y：allPlayerAwardList 真实结构（2026-10-27 匿名实测）——20 奖项 × top5 获奖者
         val json = """{"success":true,"result":{"playerAwardMapDTOList":[

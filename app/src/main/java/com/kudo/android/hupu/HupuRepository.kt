@@ -661,6 +661,12 @@ class HupuRepository {
         return withContext(Dispatchers.Default) { HupuDataParser.parseInjuries(json) }
     }
 
+    /** 批X8：伤病分组表（「最新」+ 各队，队序按接口文档序）。 */
+    suspend fun injuryGroups(leagueType: String, refresh: Boolean = false): List<Pair<String, List<HupuInjury>>> {
+        val json = HupuDataApi.fetchInjuries(leagueType, forceNetwork = refresh) ?: return emptyList()
+        return withContext(Dispatchers.Default) { HupuDataParser.parseInjuryGroups(json) }
+    }
+
     /** 批Y：荣誉榜整版（allPlayerAwardList，20 奖项 × top5 获奖者）。 */
     suspend fun playerAwards(leagueType: String, refresh: Boolean = false): List<HupuAward> {
         val json = HupuDataApi.fetchPlayerAwards(leagueType, forceNetwork = refresh) ?: return emptyList()

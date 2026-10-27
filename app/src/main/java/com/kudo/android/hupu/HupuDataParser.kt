@@ -300,31 +300,75 @@ object HupuDataParser {
         }
     }
 
+    private fun injuryRow(o: JSONObject) = HupuInjury(
+        playerId = o.optString("playerId"),
+        name = o.optString("playerName"),
+        photo = o.optString("photo"),
+        teamName = o.optString("teamName"),
+        part = o.optString("injuryPart"),
+        status = o.optString("injuryStatus"),
+        date = o.optString("injuryDate").take(10),
+        detail = o.optString("zhDetail").takeIf { it != "null" }.orEmpty(),
+    )
+
     /** allInjuryList → 平铺伤病表（DTO 主列表优先；空时回退 teamMap 聚合）。 */
     fun parseInjuries(json: String): List<HupuInjury> {
-        fun from(o: JSONObject) = HupuInjury(
-            playerId = o.optString("playerId"),
-            name = o.optString("playerName"),
-            photo = o.optString("photo"),
-            teamName = o.optString("teamName"),
-            part = o.optString("injuryPart"),
-            status = o.optString("injuryStatus"),
-            date = o.optString("injuryDate").take(10),
-            detail = o.optString("zhDetail").takeIf { it != "null" }.orEmpty(),
-        )
         return try {
             val r = JSONObject(json).optJSONObject("result") ?: return emptyList()
             val out = mutableListOf<HupuInjury>()
             r.optJSONArray("playerInjuryDTOList")?.let { arr ->
-                for (i in 0 until arr.length()) arr.optJSONObject(i)?.let { out += from(it) }
+                for (i in 0 until arr.length()) arr.optJSONObject(i)?.let { out += injuryRow(it) }
             }
             if (out.isEmpty()) {
                 r.optJSONObject("teamInjuryPlayerListMap")?.let { m ->
                     for (k in m.keys()) {
                         m.optJSONArray(k)?.let { arr ->
-                            for (i in 0 until arr.length()) arr.optJSONObject(i)?.let { out += from(it) }
+                            for (i in 0 until arr.length()) arr.optJSONObject(i)?.let { out += injuryRow(it) }
                         }
                     }
+                }
+            }
+            out
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /**
+     * 批X8：allInjuryList → 「最新」+ 各队分组（官方伤病页形态）。
+     * teamInjuryPlayerListMap 键序须按 JSON 文档序保留——org.json JSONObject 内部 HashMap
+     * keys() 无序，故从原始串定位该对象区间、按 `"key":[` 出现序取队名。
+     */
+    fun parseInjuryGroups(json: String): List<Pair<String, List<HupuInjury>>> {
+        return try {
+            val r = JSONObject(json).optJSONObject("result") ?: return emptyList()
+            val out = mutableListOf<Pair<String, List<HupuInjury>>>()
+            r.optJSONArray("playerInjuryDTOList")?.let { arr ->
+                val rows = (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.let(::injuryRow) }
+                if (rows.isNotEmpty()) out += "最新" to rows
+            }
+            r.optJSONObject("teamInjuryPlayerListMap")?.let { m ->
+                val anchor = json.indexOf("\"teamInjuryPlayerListMap\"")
+                val keys: List<String> = if (anchor >= 0) {
+                    val start = json.indexOf('{', anchor)
+                    var depth = 0
+                    var end = start
+                    while (end < json.length) {
+                        when (json[end]) {
+                            '{' -> depth++
+                            '}' -> { depth--; if (depth == 0) break }
+                        }
+                        end++
+                    }
+                    Regex("\"([^\"]+)\"\\s*:\\s*\\[")
+                        .findAll(json.substring(start, end + 1))
+                        .map { it.groupValues[1] }
+                        .toList()
+                } else m.keys().asSequence().toList()
+                for (team in keys) {
+                    val arr = m.optJSONArray(team) ?: continue
+                    val rows = (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.let(::injuryRow) }
+                    if (rows.isNotEmpty()) out += team to rows
                 }
             }
             out
