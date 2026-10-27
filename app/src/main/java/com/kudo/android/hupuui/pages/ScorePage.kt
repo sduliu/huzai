@@ -97,9 +97,10 @@ import com.kudo.android.hupu.ScoreCommentState
 import com.kudo.android.hupu.mergeWithOptimistic
 import com.kudo.android.hupu.nbaBeijingDate
 import com.kudo.android.hupu.isNbaStatsSupported
+import com.kudo.android.hupuui.components.CenteredTopBar
 import com.kudo.android.hupuui.components.Chip
 import com.kudo.android.hupuui.components.ErrorRetry
-import com.kudo.android.hupuui.components.PageHeader
+import androidx.compose.ui.platform.testTag
 import com.kudo.android.hupuui.glass.FrostedHeaderLayout
 import com.kudo.android.hupuui.components.SecondaryPage
 import com.kudo.android.hupuui.components.SkeletonHome
@@ -804,6 +805,13 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
         // 整组隐藏，落点只剩「返回 + 数据tab(赛程) + 全赛程列表」与官方一致；
         // 用户手动收起后标记失效，中转形态自然恢复
         val entryExpanded = boardState?.expandByEntry == true && boardState.showAllMatches
+        // 批X5-1：顶栏官方化——标题 = 当前赛事展示名（GAMES 名表 → 板块 cfg 名 → key 兜底），
+        // 「虎扑评分」频道落「虎扑评分」；CenteredTopBar 为全库二级页同款骨架
+        // （左返回箭头 + 居中标题 + 右动作槽），替代通用「比赛」左对齐大标题。
+        val pageTitle = if (commonOpen) "虎扑评分"
+        else HupuMatchApi.GAMES.firstOrNull { it.first == selectedGame }?.second
+            ?: HUPU_BOARDS[selectedGame]?.name
+            ?: selectedGame
         FrostedHeaderLayout(
             modifier = Modifier
                 .fillMaxSize()
@@ -812,9 +820,11 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
                     onNext = { swipeScoreTab(1) },
                 )),
             header = {
-            // fork：页头同步「比赛」命名（官方同名页）；二级页用法时左挂返回钮
-            PageHeader(title = "比赛", onBack = onBack) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            CenteredTopBar(
+                title = pageTitle,
+                onBack = { onBack?.invoke() },
+                modifier = Modifier.testTag("score-topbar"),
+                actions = {
                 // 1.199：热门赛事是混装聚合 → 右上角给「筛选项目」入口
                 //     （组件与首页搜索键同源：LiquidIconButton 液态玻璃圆钮，24dp 图标）
                 //     过滤生效时图标转主题色，避免「明明有比赛却看不到」的困惑
@@ -829,8 +839,8 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
                         else MaterialTheme.colorScheme.primary,
                     )
                 }
-                }
-            }
+                },
+            )
         // 项目横滑条（与首页/专区同款裁剪）——首项为通用评分（虎扑评分，非赛事体系）
         val barState = rememberLazyListState()
         // 1.192: 虎扑评分被隐藏时，赛事 chip 的下标整体前移 1
