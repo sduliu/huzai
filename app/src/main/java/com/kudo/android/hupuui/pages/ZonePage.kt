@@ -396,11 +396,7 @@ fun ZonePage(modifier: Modifier = Modifier) {
                             modifier = Modifier.fillMaxSize(),
                         ) {
                             gridItems(favTopics, key = { it.topicId + it.url }) { t ->
-                                TopicCell(t,
-                                    isFavorite = true,
-                                    onClick = { openTopic(t) },
-                                    onToggleFavorite = { toggleFav(t) },
-                                )
+                                TopicCell(t, onClick = { openTopic(t) })
                             }
                         }
                     }
@@ -433,11 +429,7 @@ fun ZonePage(modifier: Modifier = Modifier) {
                                 modifier = Modifier.weight(1f).fillMaxSize(),
                             ) {
                                 gridItems(topics, key = { it.topicId + it.url }) { t ->
-                                    TopicCell(t,
-                                        isFavorite = favTopics.any { it.url == t.url },
-                                        onClick = { openTopic(t) },
-                                        onToggleFavorite = { toggleFav(t) },
-                                    )
+                                    TopicCell(t, onClick = { openTopic(t) })
                                 }
                             }
                         }
@@ -1049,22 +1041,19 @@ private suspend fun topicFeed(
     )
 }
 
-/** 版块格子：圆形 logo + 名称 + 热度；右上角星标即「关注」（同步首页频道与综合过滤） */
+/**
+ * 版块格子（批X9-3 官方扁平项）：圆形 logo + 名称 + 指标，无卡片底、无星标。
+ * 关注能力去向：版块盖入页顶栏星标（TopicFeedOverlay actions）+ 顶部「关注」tab 列表。
+ */
 @Composable
-private fun TopicCell(t: HupuTopicInfo, isFavorite: Boolean, onClick: () -> Unit, onToggleFavorite: () -> Unit) {
-    Box(
+private fun TopicCell(t: HupuTopicInfo, onClick: () -> Unit) {
+    Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surface),
+            .clickable(onClick = onClick)
+            .padding(horizontal = 6.dp, vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(horizontal = 12.dp, vertical = 14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
             HupuIconImage(
                 model = normalizeCover(t.logo),
                 contentDescription = null,
@@ -1107,24 +1096,6 @@ private fun TopicCell(t: HupuTopicInfo, isFavorite: Boolean, onClick: () -> Unit
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        }
-        Box(
-            Modifier
-                .align(Alignment.TopEnd)
-                .padding(4.dp)
-                .size(30.dp)
-                .clip(CircleShape)
-                .clickable(onClick = onToggleFavorite),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                HupuIcons.StarRate,
-                contentDescription = if (isFavorite) "取消关注" else "关注",
-                modifier = Modifier.size(18.dp),
-                tint = if (isFavorite) MaterialTheme.colorScheme.primary
-                       else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-            )
-        }
     }
 }
 
