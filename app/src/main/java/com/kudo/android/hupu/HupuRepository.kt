@@ -91,6 +91,48 @@ class HupuRepository {
     }
 
     /**
+     * 批X9-1：官方专区目录——m.hupu.com/zone SSR 分组为骨架（含「推荐」聚合组，
+     * 按官方 sort 排序），与 /all-gambia web 目录按 topicId 合并：
+     * - url 本接口不下发 → web 目录 slug 回填，web 缺失（仅二次元 4 版块）用
+     *   "/{topicId}" 兜底（实测 bbs.hupu.com/64 直达版块流，与 topicFeed 链路兼容）；
+     * - 关注数文案（topicList.count → HupuTopicInfo.followText）仅 m 站源携带；
+     * - 仅存在于 web 目录的大类（英雄联盟，cateId=40）插入官方左栏对应位置
+     *   （影视娱乐 与 游戏 之间，官方截图同位）；
+     * - m 站源拉取失败 → 回落 web 目录（页面可用，指标位留空）。
+     */
+    suspend fun zoneDirectory(refresh: Boolean = false): List<HupuCategory> {
+        val web = categories(refresh)
+        val html = HupuApi.fetchMobileHtml("/zone", forceNetwork = refresh) ?: return web
+        val groups = withContext(Dispatchers.Default) { HupuParser.parseZoneDirectory(html) }
+        if (groups.isEmpty()) return web
+        val urlById = mutableMapOf<String, String>()
+        web.forEach { c -> c.topics.forEach { t -> if (t.url.isNotEmpty()) urlById[t.topicId] = t.url } }
+        val covered = mutableSetOf<String>()
+        val merged = groups.map { g ->
+            g.copy(
+                topics = g.topics.mapNotNull { t ->
+                    if (t.name.isBlank()) return@mapNotNull null
+                    val tid = t.topicId
+                    if (tid.isNotEmpty()) covered += tid
+                    t.copy(url = urlById[tid] ?: "/$tid")
+                },
+            )
+        }.toMutableList()
+        // web-only 大类（m 站未下发）：官方左栏「英雄联盟」位于 影视娱乐 与 游戏 之间
+        val webOnly = web.filter { c ->
+            c.topics.any { it.topicId.isNotEmpty() } &&
+                c.topics.all { it.topicId !in covered }
+        }
+        if (webOnly.isNotEmpty()) {
+            val insertAt = merged.indexOfFirst { it.name == "游戏" }
+                .takeIf { it >= 0 } ?: merged.size
+            merged.addAll(insertAt, webOnly)
+        }
+        if (merged.isNotEmpty()) HupuPrefs.saveZoneCategories(merged)
+        return merged
+    }
+
+    /**
      * 批L-2：版块档案补充信息（JRs 成员数等）。
      * 数据在 m站 zone 页 pageProps.zoneData；走 Next.js _next/data JSON 端点，
      * buildId 随部署变化——先取 /zone/{id} 页提取 buildId 缓存复用，404 时重取一次。

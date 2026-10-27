@@ -1174,3 +1174,12 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 ### 批X6-6：行渲染回归覆盖
 
 - `BoardScheduleFullUiTest` 新增 `matchRowsRenderOfficialThreeStates`：直挂 `ScheduleDaySection`（绕过 LazyColumn 锚定、与设备日期解耦）断言——dateBlock 组头直出、已结束「已结束+N万人评分」、进行中「实时钟+进行中」、未开始「- + 预约」、行内无日期重复（"10月24日 22:00" 全串消失）。`fakeDays` 改远未来日修复既有用例的锚定日期耦合。回退：revert 本 commit。
+
+### 批X9-1：专区目录换官方 m 站源（m.hupu.com/zone SSR）
+
+- **背景**：web `/all-gambia` 目录缺官方左栏「推荐」聚合组、无关注数字段，分组顺序与官方不符。
+- **新源**：`m.hupu.com/zone` SSR `__NEXT_DATA__.props.pageProps.data[]`（实测 15 组：热门0/步行街1/NBA2/CBA3/国际足球4/中国足球5/综合体育6/影视娱乐7/游戏8/数码9/汽车10/足球装备11/篮球装备12/装备13/站务管理14，顺序即官方左栏）；每组 `topicList[{topicId,topicName,cateId,topicLogo,count}]`，`count` 为网格「👍N万」文案直出 → `HupuTopicInfo.followText`。`热门`（categoryId=0）按官方 UI 文案改写为「推荐」（官方 App 显示名，m 站数据名不同）。
+- **合并**：`HupuRepository.zoneDirectory()` = m 站骨架 + web 目录按 topicId join 回填 url；m 站独有的 4 个二次元版块（web 目录无 slug）用 `/{topicId}` 兜底（实测 `bbs.hupu.com/64` 直达新版版块流，topicFeed 链路兼容）；web 独有「英雄联盟」大类（23 话题）插到官方左栏同位（影视娱乐 与 游戏 之间）。m 站源失败回落纯 web 目录（页面可用、指标空）。
+- **缓存**：`zone_categories_v1` 编码加 `followText` 字段；ZonePage 冷启仅恢复首项 `cateId=="z0"`（推荐组）的新形态缓存，旧 web 形态缓存不再上屏，一次刷新即替换为新形态。
+- **cateId 命名空间**：m 站组用 `"z{categoryId}"`（推荐="z0"），web-only 组沿用原 cateId——选择稳定性与缓存形态判别共用此约定。
+- 回退：revert 本 commit（ZonePage 回 categories()，模型 followText 可留空字段）。

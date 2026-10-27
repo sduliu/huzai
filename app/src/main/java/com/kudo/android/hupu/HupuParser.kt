@@ -184,6 +184,51 @@ object HupuParser {
         return result
     }
 
+    /**
+     * 批X9-1：官方专区目录（m.hupu.com/zone SSR __NEXT_DATA__.props.pageProps.data[]）。
+     * 每组：{categoryId, name, sort, topicList[{topicId, topicName, cateId, topicLogo, count}]}。
+     * `count` = 网格「👍N万」关注数文案直出（如 "132.0万"），映射进 HupuTopicInfo.followText；
+     * 组按 sort 升序。「热门」组（categoryId=0）即官方左栏首项「推荐」——显示名按官方 UI 文案改写；
+     * topic url 本接口不下发，由调用方按 topicId 回填（web categories slug 或 "/{topicId}" 兜底）。
+     */
+    fun parseZoneDirectory(html: String): List<HupuCategory> {
+        return try {
+            val root = extractNextData(html) ?: return emptyList()
+            val groups = root.optJSONObject("props")?.optJSONObject("pageProps")
+                ?.optJSONArray("data") ?: return emptyList()
+            val out = mutableListOf<HupuCategory>()
+            for (i in 0 until groups.length()) {
+                val g = groups.optJSONObject(i) ?: continue
+                val topics = mutableListOf<HupuTopicInfo>()
+                g.optJSONArray("topicList")?.let { tl ->
+                    for (j in 0 until tl.length()) {
+                        val t = tl.optJSONObject(j) ?: continue
+                        val tid = t.optString("topicId")
+                        if (tid.isEmpty()) continue
+                        topics += HupuTopicInfo(
+                            topicId = tid,
+                            name = t.optString("topicName"),
+                            url = "", // 由 repo 按 topicId 回填
+                            logo = t.optString("topicLogo").ifEmpty { null },
+                            followText = t.optString("count"),
+                        )
+                    }
+                }
+                val name = g.optString("name")
+                out += HupuCategory(
+                    cateId = "z${g.optInt("categoryId", -1)}",
+                    // 官方左栏首项显示「推荐」（m 站数据名「热门」，categoryId=0 同一聚合组）
+                    name = if (g.optInt("categoryId", -1) == 0) "推荐" else name,
+                    topics = topics,
+                )
+            }
+            // data[] 顺序即官方 sort 升序（热门0/步行街1/NBA2/…/站务管理14），原样返回
+            out
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     // ---------- 列表页：具体话题 /topic-{n} ----------
 
     fun parseTopicPage(html: String): HupuTopicPage? {
