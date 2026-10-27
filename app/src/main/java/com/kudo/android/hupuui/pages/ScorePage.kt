@@ -121,9 +121,6 @@ data class ScoreNavRequest(
     val nonce: Long = 0L,
     /** 批B-4：预选数据 tab 的 kind（player/draft/injury/team/global），null=默认赛程 */
     val dataTab: String? = null,
-    /** 批X4-1：频道「查看近期N场热门比赛」直达落点——进入即全赛程展开态
-     * （隐藏赛事 chip 条/近期比赛卡，返回直退频道），对应官方赛程列表页 */
-    val fullSchedule: Boolean = false,
 )
 
 @Composable
@@ -350,17 +347,6 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
     }
     /** 批B-4：外部请求预选的数据 tab kind（快捷行深链），应用后清空 */
     var pendingDataTab by remember { mutableStateOf<String?>(null) }
-    /** 批X4-1：外部请求直达全赛程（热门行深链），boardState 兑现后清空 */
-    var pendingExpandAll by remember { mutableStateOf(false) }
-    // 直达展开兑现：boardState 按 selectedGame 重建——须等目标频道的实例就绪再置位；
-    // 未兑现完前用户先手动收起也尊重（不再强开）
-    LaunchedEffect(boardState, pendingExpandAll) {
-        val bs = boardState ?: return@LaunchedEffect
-        if (!pendingExpandAll || bs.showAllMatches) { pendingExpandAll = false; return@LaunchedEffect }
-        bs.showAllMatches = true
-        bs.expandByEntry = true
-        pendingExpandAll = false
-    }
     LaunchedEffect(selectedGame, commonOpen) {
         if (commonOpen) return@LaunchedEffect
         dataTabSel = ""
@@ -450,8 +436,6 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
         commonOpen = false
         // 批B-4：快捷行深链预选数据 tab（leagueTabs 加载效应负责兑现）
         pendingDataTab = r.dataTab
-        // 批X4-1：直达全赛程入口——boardState 生成/复用后由下方效应兑现展开
-        pendingExpandAll = r.fullSchedule
         if (selectedGame != r.game) {
             selectedGame = r.game
             if (!schedules.containsKey(r.game)) loadingGame = r.game
@@ -846,7 +830,6 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
                 onOpenMatch = { openMatch(it) },
                 hostSchedule = days,
                 topInset = topInset,
-                onBackDirect = onBack,
             )
         } else {
         val pullState = rememberPullToRefreshState()
