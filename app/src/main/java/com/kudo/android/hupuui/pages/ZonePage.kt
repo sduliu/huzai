@@ -404,10 +404,10 @@ fun ZonePage(modifier: Modifier = Modifier) {
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(3),
                             contentPadding = PaddingValues(
-                                start = 10.dp, end = 10.dp,
+                                start = 8.dp, end = 8.dp,
                                 top = topInset + 10.dp, bottom = 140.dp,
                             ),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                             modifier = Modifier.fillMaxSize(),
                         ) {
@@ -439,8 +439,8 @@ fun ZonePage(modifier: Modifier = Modifier) {
                         } else {
                             LazyVerticalGrid(
                                 columns = GridCells.Fixed(3),
-                                contentPadding = PaddingValues(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 140.dp),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 10.dp, bottom = 140.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier.weight(1f).fillMaxSize(),
                             ) {
@@ -1101,7 +1101,7 @@ internal fun TopicCell(t: HupuTopicInfo, onClick: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 10.dp),
+            .padding(horizontal = 2.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
             HupuIconImage(
@@ -1111,9 +1111,11 @@ internal fun TopicCell(t: HupuTopicInfo, onClick: () -> Unit) {
                 modifier = Modifier.size(56.dp).clip(CircleShape),
             )
             Spacer(Modifier.height(8.dp))
+            // 批X10-2：名 13→12sp + 格内水平边距 6→2dp——6 字名（步行街主干道 ~72dp）
+            // 在 ~360dp 屏可全显；更长名仍 Ellipsis
             Text(
                 t.name,
-                fontSize = 13.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
