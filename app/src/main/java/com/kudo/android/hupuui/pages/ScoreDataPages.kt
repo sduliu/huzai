@@ -842,13 +842,46 @@ internal fun DraftView(league: String) {
 
     Column(Modifier.fillMaxSize()) {
         val years = board?.years.orEmpty()
+        // 批X8：官方年份下拉「2026年 ▾」（菜单新年份在上）
         if (years.size > 1) {
-            LazyRow(
-                modifier = Modifier.fillMaxWidth().chipBarClip().padding(vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(years, key = { it }) { y ->
-                    Chip(text = "${y}年", selected = y == yearSel) { if (y != yearSel) yearSel = y }
+            var open by remember { mutableStateOf(false) }
+            Box(Modifier.padding(start = 16.dp, top = 2.dp, bottom = 6.dp)) {
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { open = true }
+                        .padding(horizontal = 4.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "${yearSel ?: years.last()}年",
+                        fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Icon(
+                        Icons.Rounded.KeyboardArrowDown,
+                        contentDescription = "选择年份",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+                androidx.compose.material3.DropdownMenu(
+                    expanded = open,
+                    onDismissRequest = { open = false },
+                ) {
+                    years.sortedDescending().forEach { y ->
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "${y}年",
+                                    fontWeight = if (y == yearSel) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = if (y == yearSel) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurface,
+                                )
+                            },
+                            onClick = { open = false; if (y != yearSel) yearSel = y },
+                        )
+                    }
                 }
             }
         }
@@ -860,67 +893,127 @@ internal fun DraftView(league: String) {
             b.rounds.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("该年暂无选秀数据", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
             }
-            else -> LazyColumn(
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 100.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                b.rounds.forEach { (round, picks) ->
-                    item(key = "rd-$round") {
-                        Text(
-                            "第${round}轮", fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(top = 4.dp),
-                        )
+            else -> {
+                // 批X8：左栏轮次（第一轮/第二轮），点击滚动定位；卡头「第N轮 | 球队 | 数据」
+                val listState = rememberLazyListState()
+                val scope = rememberCoroutineScope()
+                var roundSel by remember { mutableIntStateOf(0) }
+                Row(Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        Modifier.width(84.dp).fillMaxSize(),
+                        contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 100.dp),
+                    ) {
+                        items(b.rounds, key = { it.first }) { (round, _) ->
+                            val sel = round == roundSel
+                            Text(
+                                "第${round}轮",
+                                fontSize = 13.sp,
+                                fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (sel) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(
+                                        if (sel) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                                        else MaterialTheme.colorScheme.surface.copy(alpha = 0f)
+                                    )
+                                    .clickable {
+                                        roundSel = round
+                                        val idx = b.rounds.indexOfFirst { it.first == round }
+                                        if (idx >= 0) scope.launch { listState.animateScrollToItem(idx) }
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 11.dp),
+                            )
+                        }
                     }
-                    item(key = "rdt-$round") {
-                        Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(MaterialTheme.colorScheme.surface)
-                                .padding(horizontal = 12.dp, vertical = 4.dp),
-                        ) {
-                            picks.forEach { p ->
-                                Row(
-                                    Modifier.fillMaxWidth().padding(vertical = 7.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
+                    LazyColumn(
+                        state = listState,
+                        contentPadding = PaddingValues(end = 8.dp, bottom = 100.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.weight(1f).fillMaxSize(),
+                    ) {
+                        b.rounds.forEach { (round, picks) ->
+                            item(key = "rdt-$round") {
+                                Column(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(MaterialTheme.colorScheme.surface)
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
                                 ) {
-                                    Text(
-                                        "${p.rank}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.width(28.dp),
-                                    )
-                                    AsyncImage(
-                                        model = normalizeCover(p.photo), contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.size(30.dp).clip(CircleShape),
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Column(Modifier.weight(1f)) {
+                                    // 卡头=「第N轮」+ 官方列头「球队」「数据」
+                                    Row(
+                                        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
                                         Text(
-                                            p.name, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                                            "第${round}轮", fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                                             color = MaterialTheme.colorScheme.onSurface,
-                                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f),
                                         )
                                         Text(
-                                            buildString {
-                                                if (p.position.isNotEmpty()) append(p.position)
-                                                if (p.heightCm > 0) {
-                                                    if (isNotEmpty()) append(" · ")
-                                                    append("${p.heightCm}cm")
-                                                }
-                                            },
-                                            fontSize = 10.sp,
+                                            "球队", fontSize = 10.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 1,
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                            modifier = Modifier.width(48.dp),
+                                        )
+                                        Text(
+                                            "数据", fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                            modifier = Modifier.width(72.dp),
                                         )
                                     }
-                                    Text(
-                                        p.teamName, fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                    )
+                                    picks.forEach { p ->
+                                        Row(
+                                            Modifier.fillMaxWidth().padding(vertical = 7.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            // 官方顺位黑色
+                                            Text(
+                                                "${p.rank}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                modifier = Modifier.width(24.dp),
+                                            )
+                                            AsyncImage(
+                                                model = normalizeCover(p.photo), contentDescription = null,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier.size(30.dp).clip(CircleShape),
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                p.name, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f),
+                                            )
+                                            // 球队居中列
+                                            Text(
+                                                p.teamName, fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                                modifier = Modifier.width(48.dp),
+                                            )
+                                            // 官方数据列「前锋 2.06米」
+                                            Text(
+                                                buildString {
+                                                    if (p.position.isNotEmpty()) append(p.position)
+                                                    if (p.heightCm > 0) {
+                                                        if (isNotEmpty()) append(" ")
+                                                        append(String.format("%.2f米", p.heightCm / 100f))
+                                                    }
+                                                },
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                                modifier = Modifier.width(72.dp),
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
