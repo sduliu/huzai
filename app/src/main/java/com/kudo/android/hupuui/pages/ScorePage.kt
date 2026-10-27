@@ -29,10 +29,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.rememberLazyListState
-import com.kudo.android.hupuui.components.animateChipCenterTo
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -105,14 +101,12 @@ import com.kudo.android.hupuui.glass.FrostedHeaderLayout
 import com.kudo.android.hupuui.components.SecondaryPage
 import com.kudo.android.hupuui.components.SkeletonHome
 import com.kudo.android.hupuui.components.normalizeCover
-import com.kudo.android.hupuui.components.tabSwipeSwitch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import com.kudo.android.hupuui.components.chipBarClip
 import com.kudo.android.hupuui.components.HuzaiToast
 
 /**
@@ -143,21 +137,10 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
         drawRect(dialogBg)
         drawContent()
     }
-    // 评分频道（即时生效）：订阅 scoreGamesVersion——ScorePickerPage 每次保存后
-    // version+1，此处 remember 重算，横滑条立即增删/重排，无需重启或重进页面
-    val effectiveGames = remember(HupuPrefs.scoreGamesVersion) {
-        HupuPrefs.effectiveScoreGames(HupuMatchApi.GAMES)
-    }
-    // 1.192: 「虎扑评分」隐藏开关——隐藏后横滑条不再显示它
-    // （设置页已保证「虎扑评分 + 已选赛事」≥1；这里再兜底：赛事为空时仍显示，页面不会 0 tab）
-    val commonHidden = remember(HupuPrefs.scoreGamesVersion) { HupuPrefs.isScoreCommonHidden() }
-    val showCommon = !commonHidden || effectiveGames.isEmpty()
-    // 项目横滑条单选：默认落在**用户列表的第一栏**（此前恒为热门赛事——若用户把它排在
-    // 后面，首屏内容和首枚 chip 对不上）；列表为空时回落「热门赛事」。
-    var selectedGame by remember { mutableStateOf(effectiveGames.firstOrNull()?.first ?: HupuMatchApi.GAMES.first().first) }
-    // 首页频道外部定位：pinned 的频道不受「不在自选列表→回落」重置影响；用户在频道条上
-    // 手动切换后失效
-    var externalPinned by remember { mutableStateOf<String?>(null) }
+    // 批X5-2：赛事 chip 横滑条/管理入口整体移除（官方赛程页无此条）——频道自定义
+    // 偏好（effectiveScoreGames/isScoreCommonHidden）不再影响本页；切赛事走返回频道重进。
+    // selectedGame 只由 score/{game} 路由请求驱动；初值仅覆盖请求生效前的首帧。
+    var selectedGame by remember { mutableStateOf(HupuMatchApi.GAMES.first().first) }
     // 各项目的赛程缓存（切回不重载）
     val schedules = remember { mutableStateMapOf<String, List<HupuMatchDay>>() }
     // 电竞项目赛程的加载态：进电竞 chip 时由 onClick/LaunchedEffect 同步置位
@@ -172,8 +155,6 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
     var openedMatch by remember { mutableStateOf<HupuMatch?>(null) }
     /** 比赛详情 → 记分板点队名/队标 → 盖出的球队页请求 */
     var openedTeam by remember { mutableStateOf<TeamPageRequest?>(null) }
-    /** 频道条右端「管理」入口 → 频道自定义页（选择+排序） */
-    var pickerOpen by remember { mutableStateOf(false) }
     // 1.192: 本层「已计数」标记——连点多个条目时 enter 只发生一次，防 Tab 栏计数泄漏
     var matchEntered by remember { mutableStateOf(false) }
     var detailClosing by remember { mutableStateOf(false) }
@@ -464,11 +445,9 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
         // 「common」= 外部请求定位到虎扑评分频道（热榜「评分榜」入口）
         if (r.game == "common") {
             commonOpen = true
-            externalPinned = null
             return@LaunchedEffect
         }
         commonOpen = false
-        externalPinned = r.game
         // 批B-4：快捷行深链预选数据 tab（leagueTabs 加载效应负责兑现）
         pendingDataTab = r.dataTab
         // 批X4-1：直达全赛程入口——boardState 生成/复用后由下方效应兑现展开
@@ -584,23 +563,8 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
         if (HupuUiSignals.scoreTabShown == 0) return@LaunchedEffect
         if (commonOpen && commonSubjects.isEmpty() && !commonLoading) loadCommonSubjects()
     }
-    // 评分频道自定义：当前选中的赛事项目被移除 → 回落到虎扑评分
-    // （effectiveGames 即上面的订阅值，保存后立即重跑）
-    LaunchedEffect(effectiveGames) {
-        if (commonOpen) return@LaunchedEffect
-        if (selectedGame == externalPinned) return@LaunchedEffect
-        if (effectiveGames.none { it.first == selectedGame }) commonOpen = true
-    }
-    // 1.192: 「虎扑评分」被隐藏后不允许停在它上面 → 回落到第一个赛事
-    LaunchedEffect(showCommon, effectiveGames) {
-        if (showCommon || effectiveGames.isEmpty()) return@LaunchedEffect
-        if (commonOpen) commonOpen = false
-        if (selectedGame == externalPinned) return@LaunchedEffect
-        if (effectiveGames.none { it.first == selectedGame }) {
-            selectedGame = effectiveGames.first().first
-            if (!schedules.containsKey(selectedGame)) loadingGame = selectedGame
-        }
-    }
+    // 批X5-2：频道自定义回落效应（赛事被移出自选→回落评分/第一赛事）随 chip 条一并
+    // 删除——本页不再读用户频道偏好，selectedGame 恒为路由指定的赛事。
 
     // 服务端分组：树就绪后加载分组定义+全部成员，全部完成才一次性写入状态（分类条与内容
         // 同帧出现，无中途闪态/插入跳动）。维度：flat=比赛维度；CS2 等 common_sports 三层=
@@ -756,33 +720,6 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
         if (loadingGame == selectedGame) loadingGame = null
     }
 
-    // 1.186: 顶部 Tab 左右滑动切换（仅本大页面内；顺序与横滑条一致：虎扑评分 + 各赛事项目）
-    fun swipeScoreTab(delta: Int) {
-        // 1.192: 偏移随「虎扑评分」是否显示而变（隐藏时第一个赛事就是下标 0）
-        val offset = if (showCommon) 1 else 0
-        val cur = if (commonOpen) 0 else {
-            val i = effectiveGames.indexOfFirst { it.first == selectedGame }
-            if (i < 0) 0 else i + offset
-        }
-        val ni = cur + delta
-        if (ni < 0 || ni > offset + effectiveGames.size - 1) return
-        if (ni == 0 && showCommon) {
-            if (commonOpen) return
-            commonOpen = true
-            if (commonSubjects.isEmpty() && !commonFailed) commonLoading = true
-            if (commonSubjects.isEmpty()) loadCommonSubjects()
-        } else {
-            val gi = ni - offset
-            if (gi !in effectiveGames.indices) return
-            val id = effectiveGames[gi].first
-            if (!commonOpen && selectedGame == id) return
-            commonOpen = false
-            externalPinned = null
-            selectedGame = id
-            if (!schedules.containsKey(id)) loadingGame = id
-        }
-    }
-
     Box(modifier.fillMaxSize()) {
         // 1.198：顶栏浮空（可选效果，默认关；关闭时退回原形态）
         // 1.224l：热门赛事的「项目筛选」—— **改为持久化**。
@@ -801,10 +738,6 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
         val isHotChannel = !commonOpen && selectedGame == HupuMatchApi.COMMON_HOT_SPORTS_ID
         // 批B-3：当前频道的数据 tab（header 轨道与 content 分派共用）
         val curTabs = leagueTabs[selectedGame].orEmpty()
-        // 批X4-1：热门行直达展开态——中转形态（赛事 chip 横滑条/管理钮/横滑切赛事）
-        // 整组隐藏，落点只剩「返回 + 数据tab(赛程) + 全赛程列表」与官方一致；
-        // 用户手动收起后标记失效，中转形态自然恢复
-        val entryExpanded = boardState?.expandByEntry == true && boardState.showAllMatches
         // 批X5-1：顶栏官方化——标题 = 当前赛事展示名（GAMES 名表 → 板块 cfg 名 → key 兜底），
         // 「虎扑评分」频道落「虎扑评分」；CenteredTopBar 为全库二级页同款骨架
         // （左返回箭头 + 居中标题 + 右动作槽），替代通用「比赛」左对齐大标题。
@@ -813,12 +746,7 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
             ?: HUPU_BOARDS[selectedGame]?.name
             ?: selectedGame
         FrostedHeaderLayout(
-            modifier = Modifier
-                .fillMaxSize()
-                .then(if (entryExpanded) Modifier else Modifier.tabSwipeSwitch(
-                    onPrevious = { swipeScoreTab(-1) },
-                    onNext = { swipeScoreTab(1) },
-                )),
+            modifier = Modifier.fillMaxSize(),
             header = {
             CenteredTopBar(
                 title = pageTitle,
@@ -841,66 +769,9 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
                 }
                 },
             )
-        // 项目横滑条（与首页/专区同款裁剪）——首项为通用评分（虎扑评分，非赛事体系）
-        val barState = rememberLazyListState()
-        // 1.192: 虎扑评分被隐藏时，赛事 chip 的下标整体前移 1
-        val selIdx = if (commonOpen) 0
-        else (if (showCommon) 1 else 0) + effectiveGames.indexOfFirst { it.first == selectedGame }
-        LaunchedEffect(commonOpen, selectedGame) { if (selIdx >= 0) barState.animateChipCenterTo(selIdx) }
-        if (!entryExpanded) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-        LazyRow(
-            state = barState,
-            modifier = Modifier
-                .weight(1f)
-                // 1.197：裁剪边界退到 8dp，给首个/末个 chip 的浮起阴影留空间（内容仍从 16dp 起）
-                .chipBarClip()
-                .padding(bottom = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            // 1.192: 「虎扑评分」可在设置页隐藏
-            if (showCommon) {
-            item(key = "common") {
-                Chip(
-                    text = "虎扑评分",
-                    selected = commonOpen,
-                ) {
-                    if (commonOpen) return@Chip
-                    commonOpen = true
-                    // 同步置位：首次切换骨架屏第一帧出现，不闪「加载失败」
-                    if (commonSubjects.isEmpty() && !commonFailed) commonLoading = true
-                    if (commonSubjects.isEmpty()) loadCommonSubjects()
-                }
-            }
-            }
-            items(effectiveGames, key = { it.first }) { (id, name) ->
-                Chip(text = name, selected = !commonOpen && selectedGame == id) {
-                    if (!commonOpen && selectedGame == id) return@Chip
-                    commonOpen = false
-                    selectedGame = id
-                    // 同步置位（频道页同款）：无缓存的项目切过去骨架屏第一帧出现，
-                    // 不闪「加载失败」；有缓存则直接出内容
-                    if (!schedules.containsKey(id)) loadingGame = id
-                }
-            }
-}
-            // 官方同款：频道条右端常驻「管理」入口（固定不随横滑走）——关注哪些频道、谁排第一
-            Box(
-                Modifier
-                    .padding(end = 12.dp, bottom = 10.dp)
-                    .clip(RoundedCornerShape(50))
-                    .clickable { pickerOpen = true }
-                    .padding(8.dp),
-            ) {
-                Icon(
-                    HupuIcons.Tune,
-                    contentDescription = "频道管理",
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        }
+        // 批X5-2：多赛事 chip 横滑条 + 右端「管理」入口整组移除（官方赛程页无此条）。
+        // 页内不再切赛事：切赛事 = 返回频道页后从另一频道进入（与官方一致）；
+        // 「虎扑评分」频道仍走 score/common 路由（热榜「评分榜」入口）不受本删除影响。
         // 批B-3：联赛数据 tab 轨道（接口返回 >1 个 tab 才显示；官方 tab 序原样）
         if (!commonOpen && curTabs.size > 1) {
             LeagueDataTabBar(
@@ -1202,11 +1073,6 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
                 onOpenMatch = { m -> openMatch(m) },
                 onBack = { openedTeam = null },
             )
-        }
-
-        // ---------- 频道自定义页（频道条右端「管理」入口，盖入式；同 zIndex 时组合序决定层叠 → 放最后） ----------
-        if (pickerOpen) {
-            ScorePickerPage(onClose = { pickerOpen = false })
         }
 
         // ---------- 虎扑通用评分主题详情（盖入式，zIndex 2；叶子详情 3 盖其上） ----------
