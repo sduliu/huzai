@@ -1156,3 +1156,10 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **星标去向**（未丢功能）：关注/取关保留在 ① 版块盖入页 `TopicFeedOverlay` 顶栏星标（`isFavorite` 选中态+toast）；② 顶部「关注」tab 仍列出 `favTopics` 全量收藏并可进入版块页管理。网格层不再直接收藏——与官方一致（官方网格项无星标，关注在版块页内完成）。
 - 代价：取消关注需先进入版块页（多一步）；收藏列表在「关注」tab 展示逻辑不变。
 - 回退：revert 本 commit（TopicCell 恢复卡片+星标签名）。
+
+### 批X9-4：专区顶栏官方化
+
+- `PageHeader("专区")+SortBar(胶囊)` → 单行官方顶栏：`ic_hupu` logo（既有资源，首页复用同款）+ 「广场/关注」文字 tab（`ZoneTopTab`：选中 16sp 黑粗+3dp 红下划线 0xFFC01E2F，与批X5-3 数据 tab 同色；`selectable(role=Tab)`）+ 右端搜索钮（40dp 槽位对齐其它页）。
+- `zoneTab` 状态键不变（"plaza"/"follow"），关注页=本地收藏版块网格逻辑不变；左栏滑动切大类 `tabSwipeSwitch` 保留。
+- 关注空态文案随星标迁移改为「进入版块页点亮星标即可关注」。
+- 回退：revert 本 commit。
