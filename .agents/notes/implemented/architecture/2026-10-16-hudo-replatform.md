@@ -1163,3 +1163,9 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - `zoneTab` 状态键不变（"plaza"/"follow"），关注页=本地收藏版块网格逻辑不变；左栏滑动切大类 `tabSwipeSwitch` 保留。
 - 关注空态文案随星标迁移改为「进入版块页点亮星标即可关注」。
 - 回退：revert 本 commit。
+
+### 批X9-5：专区页回归测试
+
+- 新增 `ZonePageChromeUiTest`：`zoneTopTabsRenderAndSwitch`（文字 tab 选中态/点切）+ `topicCellShowsFollowCountAndHotFallback`（扁平项=名+👍关注数直出；缺字段回落热度文案；点击仍走打开回调）。`ZoneTopTab`/`TopicCell` 提为 `internal` 供直挂（与 `ScheduleDaySection` 先例一致）。
+- 存量面核对：`CommunityUiTest` 的「专区」断言全部针对底栏 GlassNavigation 文本（批Q 基线未动）；`CommunityDirectoryUiTest` 走 Discourse `CommunityDirectoryScreen`，与本页无关——零交集。
+- 回退：revert 本 commit。
