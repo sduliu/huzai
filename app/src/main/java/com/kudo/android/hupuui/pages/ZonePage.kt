@@ -6,6 +6,7 @@ import androidx.compose.animation.core.Animatable
 import kotlin.coroutines.cancellation.CancellationException
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
@@ -51,6 +53,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -72,11 +76,11 @@ import com.kudo.android.hupu.HupuTopicInfo
 import com.kudo.android.hupu.HupuUiSignals
 import com.kudo.android.hupu.HupuTopicPage
 import com.kudo.android.hupu.pickTopicSortKey
+import com.kudo.android.R
 import com.kudo.android.hupu.SortTab
 import com.kudo.android.hupuui.components.ErrorRetry
 import com.kudo.android.hupuui.components.FeedList
 import com.kudo.android.hupuui.components.HupuIcons
-import com.kudo.android.hupuui.components.PageHeader
 import com.kudo.android.hupuui.glass.FrostedHeaderLayout
 import com.kudo.android.hupuui.components.SecondaryPage
 import com.kudo.android.hupuui.components.SortBar
@@ -349,23 +353,33 @@ fun ZonePage(modifier: Modifier = Modifier) {
                     onNext = { swipeCate(1) },
                 ),
             header = {
-                PageHeader(title = "专区") {
-                    // 批L-1：本页版块搜索入口（官方专区页同款位置）
-                    LiquidIconButton(
-                        icon = HupuIcons.SearchOutlined,
-                        contentDescription = "搜索版块",
-                        onClick = { boardSearchOpen = true },
-                        iconSize = 24.dp,
+                // 批X9-4：官方专区顶栏——虎扑 logo + 广场/关注 文字 tab（选中黑粗+红下划线）+ 搜索钮
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Image(
+                        painterResource(R.drawable.ic_hupu),
+                        contentDescription = "虎扑",
+                        modifier = Modifier.size(26.dp).clip(CircleShape),
                     )
+                    Spacer(Modifier.width(16.dp))
+                    ZoneTopTab(title = "广场", selected = zoneTab == "plaza") { zoneTab = "plaza" }
+                    Spacer(Modifier.width(20.dp))
+                    ZoneTopTab(title = "关注", selected = zoneTab == "follow") { zoneTab = "follow" }
+                    Spacer(Modifier.weight(1f))
+                    Box(Modifier.height(40.dp), contentAlignment = Alignment.Center) {
+                        LiquidIconButton(
+                            icon = HupuIcons.SearchOutlined,
+                            contentDescription = "搜索版块",
+                            onClick = { boardSearchOpen = true },
+                            iconSize = 24.dp,
+                        )
+                    }
                 }
-                // 批L-1：官方「广场/关注」切换（关注=本地收藏板块，匿名可用）
-                SortBar(
-                    sorts = listOf(
-                        SortTab(id = 0, title = "广场", url = "plaza"),
-                        SortTab(id = 1, title = "关注", url = "follow"),
-                    ),
-                    selected = zoneTab,
-                ) { zoneTab = it }
             },
         ) { topInset ->
             when {
@@ -378,7 +392,7 @@ fun ZonePage(modifier: Modifier = Modifier) {
                     if (favTopics.isEmpty()) {
                         Box(Modifier.fillMaxSize().padding(top = topInset), contentAlignment = Alignment.Center) {
                             Text(
-                                "还没有关注板块\n在广场里点亮版块右上角的星标即可关注",
+                                "还没有关注板块\n进入版块页点亮星标即可关注",
                                 fontSize = 14.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
@@ -1039,6 +1053,34 @@ private suspend fun topicFeed(
         totalPages = 1,
         sortTabs = emptyList(),
     )
+}
+
+/** 批X9-4：顶栏「广场/关注」文字 tab——官方同款：选中黑粗+红色下划线，未选中灰字。 */
+@Composable
+private fun ZoneTopTab(title: String, selected: Boolean, onClick: () -> Unit) {
+    Column(
+        Modifier
+            .selectable(selected = selected, role = Role.Tab) { onClick() }
+            .padding(vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            title,
+            fontSize = 16.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            color = if (selected) MaterialTheme.colorScheme.onSurface
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        // 选中下划线：占位常驻避免行高跳动；红色与数据 tab（批X5-3 HUPU_TAB_RED）同色
+        Box(
+            Modifier
+                .padding(top = 3.dp)
+                .height(3.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(2.dp))
+                .background(if (selected) Color(0xFFC01E2F) else Color.Transparent),
+        )
+    }
 }
 
 /**
