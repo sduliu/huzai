@@ -1057,7 +1057,7 @@ private suspend fun topicFeed(
 
 /** 批X9-4：顶栏「广场/关注」文字 tab——官方同款：选中黑粗+红色下划线，未选中灰字。 */
 @Composable
-private fun ZoneTopTab(title: String, selected: Boolean, onClick: () -> Unit) {
+internal fun ZoneTopTab(title: String, selected: Boolean, onClick: () -> Unit) {
     Column(
         Modifier
             .selectable(selected = selected, role = Role.Tab) { onClick() }
@@ -1088,7 +1088,7 @@ private fun ZoneTopTab(title: String, selected: Boolean, onClick: () -> Unit) {
  * 关注能力去向：版块盖入页顶栏星标（TopicFeedOverlay actions）+ 顶部「关注」tab 列表。
  */
 @Composable
-private fun TopicCell(t: HupuTopicInfo, onClick: () -> Unit) {
+internal fun TopicCell(t: HupuTopicInfo, onClick: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
