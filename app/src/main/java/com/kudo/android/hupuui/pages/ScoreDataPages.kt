@@ -165,6 +165,10 @@ internal fun DataTabContent(
         tab.linkType == "oddsSchedule" -> GlobalScheduleView(oddsCode(tab), topInset, onOpenMatch)
         else -> {
             val kind = nativeDataTabKind(tab.url)
+            // 批X11-1：浮空顶栏下原生数据页必须从 topInset（顶栏+tab轨道实测高）起画，
+            // 否则赛季下拉/列头/首行被栏遮（GlobalScheduleView 内部自处理，此处不外移）。
+            // 浮空关闭时 topInset=0，内容与栏正常邻接，padding 为零开销。
+            Box(Modifier.fillMaxSize().padding(top = topInset)) {
             when (kind?.second) {
                 "team" -> StandingsBoardView(kind.first)
                 "player" -> PlayerRankView(kind.first)
@@ -174,6 +178,7 @@ internal fun DataTabContent(
                 "history" -> CareerRankView(kind.first)
                 "against" -> AgainstView(kind.first)
                 else -> Box(Modifier.fillMaxSize()) // 不应到达：h5 在宿主层已开 embed
+            }
             }
         }
     }
