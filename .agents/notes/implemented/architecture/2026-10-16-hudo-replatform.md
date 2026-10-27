@@ -1143,3 +1143,10 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **实现**：新增共享 `ScheduleDaySection`（ScorePageSchedule.kt）= 负向 padding 抵消列表 16dp contentPadding 成全宽灰条 + 当日 `MatchRow` 平铺。`ScheduleList`（非板块频道+全球 oddsSchedule tab）由「日期头 item+日卡 item」改为 item-per-day 调同一 section；`BoardContent`（板块频道赛程区）删每日圆角卡容器、同换 `ScheduleDaySection`（`BoardMatchRow`→`MatchRow`，左列 `startTimeText.substringAfter(' ')` 即纯时间）。
 - **锚定保留**：两处 LazyColumn 均为「每日一个 item」→ 锚点=锚定日下标（今天→最近过往日→首日）；`ScheduleList.targetItemIndex` 相应简化为直返日下标（旧式 `1+matches.size` 累加早已与实际 item 数脱节，顺带修正）。
 - 回退：revert 本 commit。
+
+### 批X6-2：比赛行官方三列版式 + 通栏分隔线
+
+- **官方对照**：行=左列（时间/实时钟 + 下方灰字赛事名）、中列（上下两行「队标+队名」，比分右对齐）、右列（状态），中右列间细竖线分隔；行间细分隔线；列表通栏无圆角卡片；未开始比分为「-」。
+- **落地**：`MatchRow` 中右列间插 0.5dp×38dp 竖线（outlineVariant 0.6 alpha）；右列 10dp 左距右对齐。`ScheduleDaySection` 行间补 0.5dp 横线。板块频道因 X6-1 换到 `MatchRow`（每队行独立右对齐比分），旧 `BoardMatchRow` 的 "-:-" 合并比分自然消除——服务端未开赛 `memberBaseScore` 即 "-"，逐行直出。
+- **说明**：`MatchCard`/`BoardMatchRow` 保留原样——前者已无调用方，后者仍服务 MatchDetailPage「相关比赛」紧凑表（不同版面，不在本批范围）。
+- 回退：revert 本 commit。

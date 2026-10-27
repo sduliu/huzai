@@ -155,13 +155,23 @@ internal fun ScheduleDaySection(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp),
             )
         }
-        day.matches.forEach { m ->
+        // 批X6-2：行间细分隔线（官方通栏列表行间距线）
+        day.matches.forEachIndexed { i, m ->
             MatchRow(m, onOpen = onOpenMatch)
+            if (i < day.matches.lastIndex) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(0.5.dp)
+                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                )
+            }
         }
     }
 }
 
-/** 官方赛程中心紧凑行：左「开赛时间+赛事名」、中「队徽+队名+比分」两行、右「状态+评分人数」。 */
+/** 官方赛程行：左「开赛时间/实时钟+赛事名」、中「队徽+队名+比分」两行（比分右对齐）、
+ *  右「状态+评分人数/预约」，中右列间细竖线分隔。 */
 @Composable
 internal fun MatchRow(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
     val openable = m.scoreBizNo != null || m.scoreBizType == HupuMatchApi.FOOTBALL_MATCH
@@ -173,7 +183,7 @@ internal fun MatchRow(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 左列：开赛时间（HH:mm）+ 赛事名
-        Column(Modifier.width(60.dp)) {
+        Column(Modifier.width(64.dp)) {
             Text(
                 m.startTimeText.substringAfter(' ', m.startTimeText),
                 fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
@@ -189,7 +199,7 @@ internal fun MatchRow(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
         // 中列：两队迷你行（多队赛事显示单场赛事名）
         val multiTeam = (m.home == null && m.away == null) ||
             (m.home?.name.isNullOrBlank() && m.away?.name.isNullOrBlank())
-        Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+        Column(Modifier.weight(1f).padding(start = 10.dp, end = 12.dp)) {
             if (multiTeam) {
                 Text(
                     m.matchName.ifBlank { m.introduction },
@@ -202,9 +212,16 @@ internal fun MatchRow(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
                 MiniTeamScore(m.away, m.winnerMemberId == m.away?.memberId)
             }
         }
+        // 批X6-2：中右列间细竖线（官方三列分隔）
+        Box(
+            Modifier
+                .width(0.5.dp)
+                .height(38.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+        )
         // 右列：状态 + 评分人数
         val subscribable = m.subscribe?.show == true
-        Column(horizontalAlignment = Alignment.End) {
+        Column(Modifier.padding(start = 10.dp), horizontalAlignment = Alignment.End) {
             // 批V-2：官方未开始行右列=「🔔预约」单入口（订阅位），不再重复显示「未开始」状态字；
             // 进行中仍显示状态蓝字。
             if (!subscribable || m.status == "INPROGRESS") {
