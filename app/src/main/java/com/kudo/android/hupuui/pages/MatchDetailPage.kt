@@ -1534,7 +1534,7 @@ private fun BasketballRatingRow(
         Row(verticalAlignment = Alignment.Top) {
             // 批X7：官方大方图（约 56dp 照片位）
             HeroBadgeAvatar(avatar = p.image, heroIcon = null, size = 56.dp)
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
                 Text(
                     p.name,
@@ -1558,14 +1558,16 @@ private fun BasketballRatingRow(
                 if (statLine.isNotBlank()) {
                     Text(
                         statLine,
-                        fontSize = 12.sp,
+                        // 批X13：12→11sp + 头像间距/右列间距/星列收宽，六项整串
+                        // （「19分 5板 9助 2断 3失误 5犯规」~161dp）在 ~182dp 左列内全显
+                        fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(6.dp))
             // 右侧列：五枚灰星（官方形态，不随分填充）→ 蓝色大分 → 「9087JRs评分」原始计数
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 RatingStars()
@@ -1628,7 +1630,7 @@ private fun BasketballRatingRow(
     }
 }
 
-/** 星级行：官方详情页为五枚灰星（不随分填充）。 */
+/** 星级行：官方详情页为五枚灰星（不随分填充）。批X13：14→12dp 给数据行让位。 */
 @Composable
 private fun RatingStars() {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1637,7 +1639,7 @@ private fun RatingStars() {
                 Icons.Rounded.Star,
                 contentDescription = null,
                 tint = Color(0xFFC7CCD4),
-                modifier = Modifier.size(14.dp),
+                modifier = Modifier.size(12.dp),
             )
         }
     }
