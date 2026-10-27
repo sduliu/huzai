@@ -92,11 +92,11 @@ object HupuDataParser {
                     rank = o.optString("rank"),
                     team = o.optString("teamShortName").ifEmpty { o.optString("teamName") },
                     teamLogo = o.optString("logoLink"),
-                    // 批X8：官方列头「胜-负/胜率/胜场差/近况」——胜负合并一格「3-0」，近况=连胜/连败文案
+                    // 批X11：官方列头「胜-负/胜率/胜场差/近况」中胜率与胜场差同格「75.0%/0.5」，
+                    // 胜负合并一格「3-0」，近况=连胜/连败文案
                     cells = listOf(
                         "${o.optString("won")}-${o.optString("lost")}",
-                        o.optString("winRate"),
-                        o.optString("gb"),
+                        "${o.optString("winRate")}/${o.optString("gb")}",
                         strkDesc,
                     ),
                 )
@@ -105,7 +105,7 @@ object HupuDataParser {
                 if (arr == null || arr.length() == 0) return null
                 val rows = (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.let(::row) }
                 return if (rows.isEmpty()) null
-                else HupuStandingGroup(title, listOf("胜-负", "胜率", "胜场差", "近况"), rows)
+                else HupuStandingGroup(title, listOf("胜-负", "胜率/胜场差", "近况"), rows)
             }
 
             val categories = mutableListOf<HupuRankCategory>()

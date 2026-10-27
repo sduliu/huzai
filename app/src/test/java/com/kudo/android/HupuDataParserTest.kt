@@ -55,9 +55,9 @@ class HupuDataParserTest {
         val west = b.categories.first { it.id == "W" }
         assertEquals("西部", west.title)
         assertEquals("雷霆", west.groups[0].rows[0].team)
-        // 批X8：胜-负合并一格，列头对齐官方「胜-负/胜率/胜场差/近况」
-        assertEquals(listOf("胜-负", "胜率", "胜场差", "近况"), west.groups[0].columns)
-        assertEquals(listOf("5-3", "62.5%", "-", "2连胜"), west.groups[0].rows[0].cells)
+        // 批X8+X11：胜-负合并一格，胜率/胜场差同格「62.5%/-」，列头对齐官方
+        assertEquals(listOf("胜-负", "胜率/胜场差", "近况"), west.groups[0].columns)
+        assertEquals(listOf("5-3", "62.5%/-", "2连胜"), west.groups[0].rows[0].cells)
         val div = b.categories.first { it.id == "divRank" }
         assertEquals("西北分区", div.groups[0].title)
     }

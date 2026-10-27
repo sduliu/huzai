@@ -402,7 +402,8 @@ private fun StandingGroupTable(g: HupuStandingGroup, playoffColors: Boolean) {
                     c, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.width(42.dp),
+                    // 批X11：胜率/胜场差合并列内容「100.0%/0.0」需更宽，其余列收紧让位
+                    modifier = Modifier.width(if (c.contains('/')) 64.dp else 40.dp),
                 )
             }
         }
@@ -432,12 +433,15 @@ private fun StandingGroupTable(g: HupuStandingGroup, playoffColors: Boolean) {
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                r.cells.forEach { c ->
+                r.cells.forEachIndexed { i, c ->
                     Text(
                         c, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        modifier = Modifier.width(42.dp),
+                        // 与表头同规则：合并列 64dp，其余 40dp
+                        modifier = Modifier.width(
+                            if (g.columns.getOrNull(i)?.contains('/') == true) 64.dp else 40.dp
+                        ),
                     )
                 }
             }
