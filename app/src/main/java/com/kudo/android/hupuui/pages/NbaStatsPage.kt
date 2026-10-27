@@ -511,7 +511,13 @@ private fun NbaQuarterCard(
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Spacer(Modifier.weight(1f))
+            // 批X7：官方表头首列为「球队」（数据行该列只渲队标不渲队名）
+            Text(
+                "球队",
+                modifier = Modifier.weight(1f),
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             for (i in 0 until quarterCount) {
                 Text(
                     if (i < 4) "第${i + 1}节" else "加时${i - 3}",
@@ -543,23 +549,25 @@ private fun NbaQuarterLine(
     quarterCount: Int,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
+        // 批X7：官方「球队」列只渲队标；logo 缺失才回落队名占位
         if (logo != null) {
             HupuIconImage(
                 model = normalizeCover(logo),
-                contentDescription = null,
+                contentDescription = name,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.size(20.dp),
             )
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.weight(1f))
+        } else {
+            Text(
+                name,
+                modifier = Modifier.weight(1f),
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
         }
-        Text(
-            name,
-            modifier = Modifier.weight(1f),
-            fontSize = 13.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
         for (i in 0 until quarterCount) {
             Text(
                 quarters.getOrElse(i) { "" },
@@ -1141,16 +1149,16 @@ private fun NbaScoreTrendChart(
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
-            "比分走势",
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        val maxScore = (pts.maxOf { maxOf(it.away, it.home) } / 10 + 1) * 10
+        // 批X7：官方走势图无卡标题，图例在图内左上
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            TrendLegend(awayC, awayName)
+            TrendLegend(homeC, homeName)
+        }
+        // 纵轴标签步长：目标 ≤6 个刻度（150→30、90→20、50→10），顶取整到步长倍数（官方 0-150 步30 口径）
+        val rawMax = (pts.maxOf { maxOf(it.away, it.home) } / 10 + 1) * 10
+        val yStep = ((rawMax / 5 + 9) / 10) * 10
+        val maxScore = ((rawMax + yStep - 1) / yStep) * yStep
         val maxMin = pts.last().minute.coerceAtLeast(48f)
-        // 纵轴标签步长：目标 ≤6 个刻度（150→30、90→20、50→10）
-        val yStep = ((maxScore / 5 + 9) / 10) * 10
         // 横轴节次：第1~4节各 12min，之后每个加时 5min
         val otCount = ((maxMin - 48f) / 5f).toInt().coerceAtLeast(0)
         val xLabels = buildList {
@@ -1195,11 +1203,6 @@ private fun NbaScoreTrendChart(
             }
             drawPath(path { it.away }, awayC, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4f))
             drawPath(path { it.home }, homeC, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4f))
-        }
-        // 图例
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            TrendLegend(awayC, awayName)
-            TrendLegend(homeC, homeName)
         }
     }
 }
