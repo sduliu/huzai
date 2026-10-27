@@ -198,6 +198,11 @@ data class HupuTopicInfo(
     val desc: String = "",
     val hotText: String = "",
     val logo: String? = null,
+    /**
+     * 批X9-2：官方专区网格的关注数文案（m.hupu.com/zone SSR topicList.count，
+     * 如 "132.0万"/"1577"——真实字段直出，非热度换算）。无字段时为空串。
+     */
+    val followText: String = "",
 )
 
 /** 版块大类（如"步行街"），含话题列表 */

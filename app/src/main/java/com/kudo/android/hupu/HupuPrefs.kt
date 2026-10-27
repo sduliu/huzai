@@ -1276,6 +1276,7 @@ internal fun encodeZoneCategoriesJson(list: List<HupuCategory>): String {
             to.put("url", t.url)
             if (t.desc.isNotEmpty()) to.put("desc", t.desc)
             if (t.hotText.isNotEmpty()) to.put("hotText", t.hotText)
+            if (t.followText.isNotEmpty()) to.put("followText", t.followText)
             t.logo?.let { to.put("logo", it) }
             ts.put(to)
         }
@@ -1305,6 +1306,7 @@ internal fun decodeZoneCategoriesJson(json: String): List<HupuCategory> {
                         desc = to.optString("desc"),
                         hotText = to.optString("hotText"),
                         logo = to.optString("logo").ifEmpty { null },
+                        followText = to.optString("followText"),
                     )
                 }
             }
