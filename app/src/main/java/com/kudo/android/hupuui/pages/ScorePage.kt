@@ -126,6 +126,9 @@ data class ScoreNavRequest(
     val nonce: Long = 0L,
     /** 批B-4：预选数据 tab 的 kind（player/draft/injury/team/global），null=默认赛程 */
     val dataTab: String? = null,
+    /** 批X4-1：频道「查看近期N场热门比赛」直达落点——进入即全赛程展开态
+     * （隐藏赛事 chip 条/近期比赛卡，返回直退频道），对应官方赛程列表页 */
+    val fullSchedule: Boolean = false,
 )
 
 @Composable
@@ -365,6 +368,17 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
     }
     /** 批B-4：外部请求预选的数据 tab kind（快捷行深链），应用后清空 */
     var pendingDataTab by remember { mutableStateOf<String?>(null) }
+    /** 批X4-1：外部请求直达全赛程（热门行深链），boardState 兑现后清空 */
+    var pendingExpandAll by remember { mutableStateOf(false) }
+    // 直达展开兑现：boardState 按 selectedGame 重建——须等目标频道的实例就绪再置位；
+    // 未兑现完前用户先手动收起也尊重（不再强开）
+    LaunchedEffect(boardState, pendingExpandAll) {
+        val bs = boardState ?: return@LaunchedEffect
+        if (!pendingExpandAll || bs.showAllMatches) { pendingExpandAll = false; return@LaunchedEffect }
+        bs.showAllMatches = true
+        bs.expandByEntry = true
+        pendingExpandAll = false
+    }
     LaunchedEffect(selectedGame, commonOpen) {
         if (commonOpen) return@LaunchedEffect
         dataTabSel = ""
@@ -456,6 +470,8 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
         externalPinned = r.game
         // 批B-4：快捷行深链预选数据 tab（leagueTabs 加载效应负责兑现）
         pendingDataTab = r.dataTab
+        // 批X4-1：直达全赛程入口——boardState 生成/复用后由下方效应兑现展开
+        pendingExpandAll = r.fullSchedule
         if (selectedGame != r.game) {
             selectedGame = r.game
             if (!schedules.containsKey(r.game)) loadingGame = r.game
@@ -784,13 +800,17 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
         val isHotChannel = !commonOpen && selectedGame == HupuMatchApi.COMMON_HOT_SPORTS_ID
         // 批B-3：当前频道的数据 tab（header 轨道与 content 分派共用）
         val curTabs = leagueTabs[selectedGame].orEmpty()
+        // 批X4-1：热门行直达展开态——中转形态（赛事 chip 横滑条/管理钮/横滑切赛事）
+        // 整组隐藏，落点只剩「返回 + 数据tab(赛程) + 全赛程列表」与官方一致；
+        // 用户手动收起后标记失效，中转形态自然恢复
+        val entryExpanded = boardState?.expandByEntry == true && boardState.showAllMatches
         FrostedHeaderLayout(
             modifier = Modifier
                 .fillMaxSize()
-                .tabSwipeSwitch(
+                .then(if (entryExpanded) Modifier else Modifier.tabSwipeSwitch(
                     onPrevious = { swipeScoreTab(-1) },
                     onNext = { swipeScoreTab(1) },
-                ),
+                )),
             header = {
             // fork：页头同步「比赛」命名（官方同名页）；二级页用法时左挂返回钮
             PageHeader(title = "比赛", onBack = onBack) {
@@ -817,6 +837,7 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
         val selIdx = if (commonOpen) 0
         else (if (showCommon) 1 else 0) + effectiveGames.indexOfFirst { it.first == selectedGame }
         LaunchedEffect(commonOpen, selectedGame) { if (selIdx >= 0) barState.animateChipCenterTo(selIdx) }
+        if (!entryExpanded) {
         Row(verticalAlignment = Alignment.CenterVertically) {
         LazyRow(
             state = barState,
@@ -868,6 +889,7 @@ fun ScorePage(modifier: Modifier = Modifier, request: ScoreNavRequest? = null, o
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
         }
         // 批B-3：联赛数据 tab 轨道（接口返回 >1 个 tab 才显示；官方 tab 序原样）
         if (!commonOpen && curTabs.size > 1) {

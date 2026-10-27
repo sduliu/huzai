@@ -125,6 +125,9 @@ internal class BoardUiState(
     var embedPage by mutableStateOf<HupuEmbed?>(null)
     var standingsOpen by mutableStateOf(false)
     var showAllMatches by mutableStateOf(false)
+    // 批X4-1：展开态由外部直达（频道「查看近期N场热门比赛」深链）——该入口下
+    // 中转形态隐藏；批X4-2 同标记负责返回直退频道，手动收起后失效回落就地语义
+    var expandByEntry by mutableStateOf(false)
 
     // ---------- 赛程（复用频道数据源） ----------
     var days by mutableStateOf<List<HupuMatchDay>?>(null)
