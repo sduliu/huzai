@@ -1093,3 +1093,14 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **代码核查**：`openUser = if (post.author.id != 0) { user(post.author.username) }`——头像 Box 与作者标签（`authorLabel`=`「丙 回复 乙」`形态）两处各挂 `clickable(enabled)`，与顶栏同口径；`post.author` 经 `toMember` 产出即带 pageId。
 - **UI 覆盖**：`NestedReplyActionsUiTest.discussionAuthorRowOpensUserProfile`（标签+头像两点按断言 `user("second")`）；`discussionAuthorStaysDeadWhenMemberHasNoRoutableId`（id=0 双缺作者点按静默——不接错页的负向断言）。
 - 纯测试与调用点跟进，无运行代码改动。
+
+## 批X4：频道热门行落点修正（直达全赛程列表，不过 ScorePage 中转）
+
+### 批X4-1：「🔥 查看近期N场热门比赛」直达全赛程展开态
+
+- **官方对照**：点按直接进入该赛事完整赛程列表（日期组头+比赛行、锚定当前比赛日），无中转页；酷DO 旧实现走 `score/{key}` 落到 ScorePage 中转形态（赛事 chip 条+数据 tab+「近期比赛」≤4 卡+「查看全部赛程 ›」），需再点一次才到真赛程。
+- **实现（不另起列表，复用就地展开态）**：`score` 路由加 `full=1` query → `ScoreNavRequest.fullSchedule` → `pendingExpandAll` → 目标频道 `boardState` 就绪后 `showAllMatches=true + expandByEntry=true`。列表渲染、日期组头、进行中/未开始/预约行、锚定逻辑全部沿用 `BoardContent` 既有 `showAllMatches` 分支（锚定=今天/最近过往日/首日，scrollToItem(1+anchor)），数据 tab 默认即赛程（`linkType=="schedule"` 优先）。
+- **中转形态整组隐藏**：`entryExpanded = boardState.expandByEntry && showAllMatches` 时——赛事 chip 横滑条+「管理」钮不渲染、`tabSwipeSwitch` 横滑切赛事禁用（chips 隐藏后滑动换台会落进邻频道中转页）；`PageHeader(比赛)` 返回钮与数据 tab 轨道保留。用户手动「收起」→ `expandByEntry` 失效 → 中转形态自然恢复（就地展开语义原样）。
+- **落点兑现走 `pendingExpandAll`**（LaunchedEffect 一次性消费）而非 `rememberBoardState` 构造参数：一次消费语义能尊重用户手动收起（重进同频道不被强开），代价是兑现前约一帧的「近期比赛」区闪现——目标频道 boardState 本身经 `selectedGame` 效应创建已有一帧延迟，差异不可感知。回退=revert 本 commit。
+- **`SportChannelHeader` 拆回调**：新增 `onOpenFullSchedule`（默认回落 `onOpenSchedule`）——热门行单独走 `score/{g}?full=1`；快捷行「赛程」图标维持 `onOpenSchedule`→中转页（任务划出外，未连带改动）。调用点仅 KudoApp 一处。
+- **不接**：soccer/无板块频道（`HUPU_BOARDS` 无 cfg）无 `boardState` → `full=1` 静默无效落中转页（该形态本就只有全赛程视图可退而求其次）；「赛程」图标、`查看全部赛程`就地展开、各数据 tab 渲染均不动。回退：revert 本 commit。
