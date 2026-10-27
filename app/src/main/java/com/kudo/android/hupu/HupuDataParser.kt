@@ -230,6 +230,9 @@ object HupuDataParser {
         teamName = e.optString("teamShortName").ifEmpty { e.optString("teamName") },
         photo = e.optString("photo"),
         value = e.optString("value"),
+        pts = e.optString("pts"),
+        reb = e.optString("reb"),
+        ast = e.optString("ast"),
     )
 
     /** 批F-1：playerSingleDimensionSeasonRank → 单维度单页榜；成功响应空页返回空 leaders（=榜尾），非 JSON/失败才 null。 */
