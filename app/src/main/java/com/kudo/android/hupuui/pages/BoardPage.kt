@@ -398,21 +398,13 @@ internal fun BoardContent(
                     // 频道（epl/soccer）由频道快捷行「积分榜」图标 → standings/{g}
                     // 独立路由承载（StandingsRoutePage 自含渲染，不依赖本文件盖入页）。
                     if (effDays.orEmpty().any { it.matches.isNotEmpty() }) {
-                        // 全部赛程：按日分块平铺（每日一张圆角面，行仍是紧凑行）
+                        // 批X6-1：官方形态——灰条日期组头（dateBlock 服务端直出）+ 通栏行，
+                        // 与赛程中心 ScheduleList 同一 ScheduleDaySection，不另起列表；
+                        // item=日分区，锚点语义不变（scrollToItem(锚定日下标)）。
                         effDays.orEmpty().forEach { d ->
                             if (d.matches.isNotEmpty()) {
                                 item(key = "day-${d.dayTime}") {
-                                    Column(
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(16.dp))
-                                            .background(MaterialTheme.colorScheme.surface)
-                                            .padding(horizontal = 12.dp, vertical = 4.dp),
-                                    ) {
-                                        d.matches.forEach { m ->
-                                            BoardMatchRow(m) { onOpenMatch(m) }
-                                        }
-                                    }
+                                    ScheduleDaySection(d, onOpenMatch = onOpenMatch)
                                 }
                             }
                         }

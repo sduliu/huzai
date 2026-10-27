@@ -99,7 +99,7 @@ internal fun ScheduleList(
     onOpenMatch: (HupuMatch) -> Unit,
 ) {
     val today = remember { java.time.LocalDate.now().toString() }
-    // 目标定位项索引：日期头 + 当日比赛卡的累计偏移
+    // 批X6-1：item=日分区（组头灰条+当日行），锚点即锚定日的下标
     fun targetItemIndex(): Int {
         var todayIdx = -1
         var lastPastIdx = -1
@@ -107,14 +107,11 @@ internal fun ScheduleList(
             if (d.dayTime == today) todayIdx = i
             if (d.dayTime <= today) lastPastIdx = i
         }
-        val dayIdx = when {
+        return when {
             todayIdx >= 0 -> todayIdx       // 当天有比赛
             lastPastIdx >= 0 -> lastPastIdx // 当天无比赛 → 最近的过往日（含今天之前最后一天）
             else -> 0                       // 全是未来赛程 → 第一天
         }
-        var item = 0
-        for (i in 0 until dayIdx) item += 1 + days[i].matches.size
-        return item
     }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = targetItemIndex())
     // 数据变化（首次加载/切换项目/下拉刷新）→ 重新定位到目标日期
@@ -128,34 +125,38 @@ internal fun ScheduleList(
         modifier = Modifier.fillMaxSize(),
     ) {
         days.forEach { day ->
-            // 日期头（今天高亮标注）
-            val isToday = day.dayTime == today
             item(key = "day-${day.dayTime}") {
-                Text(
-                    day.dateBlock,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 6.dp),
-                )
+                ScheduleDaySection(day, onOpenMatch = onOpenMatch)
             }
-            // 当日赛程卡：官方式一张卡内多行紧凑赛程（行间隔细分隔线）
-            item(key = "daycard-${day.dayTime}") {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .padding(horizontal = 14.dp),
-                ) {
-                    day.matches.forEachIndexed { i, m ->
-                        MatchRow(m, onOpen = onOpenMatch)
-                        if (i < day.matches.lastIndex) {
-                            Box(Modifier.fillMaxWidth().height(0.5.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
-                        }
-                    }
-                }
-            }
+        }
+    }
+}
+
+/** 批X6-1：官方赛程日分区——通栏灰条组头（dateBlock 服务端直出「昨天 周一/
+ *  10月29日 周四」）+ 当日比赛行平铺；组头负向 padding 抵消列表两侧 contentPadding
+ *  成全宽灰条，行容器无圆角卡片。 */
+@Composable
+internal fun ScheduleDaySection(
+    day: HupuMatchDay,
+    onOpenMatch: (HupuMatch) -> Unit,
+) {
+    Column(Modifier.fillMaxWidth()) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = (-16).dp)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+        ) {
+            Text(
+                day.dateBlock,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp),
+            )
+        }
+        day.matches.forEach { m ->
+            MatchRow(m, onOpen = onOpenMatch)
         }
     }
 }

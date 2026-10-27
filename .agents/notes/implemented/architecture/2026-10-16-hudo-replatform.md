@@ -1133,3 +1133,13 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **积分榜入口核实**（getDataTabList 实测）：nba=全球/赛程/球队榜/球员榜/选秀/日榜/新秀榜/伤病/对阵图/荣誉榜/历史榜（球队榜→StandingsBoardView 同源覆盖）、cba 同有球队榜；epl 仅赛程、soccer 空列表——后两者无球队榜 tab，但频道快捷行「积分榜」图标→`standings/{g}`→`StandingsRoutePage`（自含 StandingList 渲染，不依赖被删盖入页）仍在，入口不失联。与官方口径一致（官方同页同样只经数据 tab 进榜）。
 - **测试改写**：`BoardScheduleExpandUiTest`（断言被删状态机）→ `BoardScheduleFullUiTest`（直出日分组无中转件 + 返回即 finishing=无拦截）。
 - 回退：revert 本批 X5-1..X5-5 各 commit。
+
+## 批X6：赛程页比赛行官方化（日分区灰条/三列行/真实字段）
+
+### 批X6-1：日期组头灰条化 + 行内纯时间
+
+- **官方对照**：赛程列表按日分组，组头=通栏灰条（浅灰底深灰字），文案为服务端 `dateBlock` 直出「昨天 周一/今天 周二/明天 周三/10月29日 周四」（含相对日与周序，免客户端拼装）；组内行左列只显示开赛时间（不再重复日期）。
+- **数据源核实**（getScheduleListByTagForH5 实网响应）：`dayGameData[].dateBlock` 逐日给出与官方逐字一致的组头文案；`dayTime`=ISO 日串（今天判定不变）。soccer SSR 源的 `date_block` 同槽流入同一渲染。
+- **实现**：新增共享 `ScheduleDaySection`（ScorePageSchedule.kt）= 负向 padding 抵消列表 16dp contentPadding 成全宽灰条 + 当日 `MatchRow` 平铺。`ScheduleList`（非板块频道+全球 oddsSchedule tab）由「日期头 item+日卡 item」改为 item-per-day 调同一 section；`BoardContent`（板块频道赛程区）删每日圆角卡容器、同换 `ScheduleDaySection`（`BoardMatchRow`→`MatchRow`，左列 `startTimeText.substringAfter(' ')` 即纯时间）。
+- **锚定保留**：两处 LazyColumn 均为「每日一个 item」→ 锚点=锚定日下标（今天→最近过往日→首日）；`ScheduleList.targetItemIndex` 相应简化为直返日下标（旧式 `1+matches.size` 累加早已与实际 item 数脱节，顺带修正）。
+- 回退：revert 本 commit。
