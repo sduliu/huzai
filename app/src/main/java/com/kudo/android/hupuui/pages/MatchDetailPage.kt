@@ -228,21 +228,28 @@ fun MatchDetailOverlay(
             .tapGuard(),
     ) {
         Column(Modifier.fillMaxSize()) {
-            // 顶栏：返回 + 比赛名 + 总评分人数
-            CenteredTopBar(
-                title = title,
-                onBack = { onBack() },
-                subtitle = tree?.let { "${formatCount(it.scorePersonCount)}人评分" },
-            )
-
             // 1.198：记分板（赛制 / 状态 / 两队 / 比分或开赛时间）
             // 1.201：上提到内容区之外——各组内容（评分/数据统计/文字实录）共用同一块记分板，且不随列表滚走
             // 批U-1：basketball matchInfo 到位 → 官方深色头（队标/大比分/已结束/日期时间/排名行/分享钮）；
             // 批V-6：football_match 树 infoJson 同构头兜底（篮球源优先）；都无 → 旧浅色记分板
+            // 批X7：深色头内嵌返回+分享（官方形态），此时不再画浅色 CenteredTopBar；
+            // 无深色头信息（电竞等）→ 浅色顶栏 + ScoreboardBanner 旧路径不变
             val dInfo = basketballInfo ?: tree?.matchInfo
             if (dInfo != null) {
-                MatchDarkHeader(dInfo, onTeam = onOpenTeam, homeId = scoreboard?.homeId ?: "", awayId = scoreboard?.awayId ?: "")
+                MatchDarkHeader(
+                    dInfo,
+                    onTeam = onOpenTeam,
+                    homeId = scoreboard?.homeId ?: "",
+                    awayId = scoreboard?.awayId ?: "",
+                    onBack = { onBack() },
+                )
             } else {
+                // 顶栏：返回 + 比赛名 + 总评分人数
+                CenteredTopBar(
+                    title = title,
+                    onBack = { onBack() },
+                    subtitle = tree?.let { "${formatCount(it.scorePersonCount)}人评分" },
+                )
                 scoreboard?.let { ScoreboardBanner(it, onTeam = onOpenTeam) }
             }
 
@@ -1227,17 +1234,29 @@ private fun MatchDarkHeader(
     onTeam: (String, String, String?) -> Unit,
     homeId: String,
     awayId: String,
+    onBack: () -> Unit,
 ) {
     val context = LocalContext.current
-    val dateText = remember(info.chinaStartTime, info.matchTime) { matchInfoDateText(info) }
+    // 官方深色头内嵌返回（左上）+ 分享（右上 icon+「分享」字），无独立浅色顶栏
+    val (dateText, timeText) = remember(info.chinaStartTime, info.matchTime) { matchInfoDateTime(info) }
     Column(
         Modifier
             .fillMaxWidth()
             .background(MatchDarkBg)
-            .padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 16.dp),
+            .statusBarsPadding()
+            .padding(start = 4.dp, end = 8.dp, top = 4.dp, bottom = 16.dp),
     ) {
-        // 分享钮：右上角（系统分享面板，不含登录态动作）
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.material3.IconButton(onClick = onBack) {
+                Icon(
+                    Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = "返回",
+                    tint = MatchDarkText,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            // 分享钮：右上（系统分享面板，不含登录态动作）；官方 icon+「分享」字
             androidx.compose.material3.IconButton(
                 onClick = {
                     val text = buildString {
@@ -1253,7 +1272,10 @@ private fun MatchDarkHeader(
                     context.startActivity(android.content.Intent.createChooser(send, null))
                 },
             ) {
-                Icon(Icons.Rounded.Share, contentDescription = "分享比赛", tint = MatchDarkSub, modifier = Modifier.size(20.dp))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Rounded.Share, contentDescription = "分享比赛", tint = MatchDarkText, modifier = Modifier.size(18.dp))
+                    Text("分享", fontSize = 10.sp, color = MatchDarkText)
+                }
             }
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -1265,17 +1287,17 @@ private fun MatchDarkHeader(
                 modifier = Modifier.weight(1f),
                 onClick = if (awayId.isNotBlank()) ({ onTeam(awayId, info.awayTeamName, info.awayTeamLogo) }) else null,
             )
-            // 中央：大比分 + 状态 + 日期
-            Column(Modifier.width(128.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                val hasScore = info.awayScore.isNotBlank() && info.homeScore.isNotBlank()
-                if (hasScore) {
-                    Text(
-                        "${info.awayScore}  :  ${info.homeScore}",
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MatchDarkText,
-                    )
-                }
+            // 官方：大比分分居中列两侧（客分 | 状态/日期/时间 | 主分）
+            val hasScore = info.awayScore.isNotBlank() && info.homeScore.isNotBlank()
+            if (hasScore) {
+                Text(
+                    info.awayScore,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MatchDarkText,
+                )
+            }
+            Column(Modifier.width(92.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 if (info.matchStatusChinese.isNotBlank()) {
                     Text(info.matchStatusChinese, fontSize = 12.sp, color = MatchDarkSub)
                 }
@@ -1285,6 +1307,17 @@ private fun MatchDarkHeader(
                 if (dateText.isNotBlank()) {
                     Text(dateText, fontSize = 12.sp, color = MatchDarkSub)
                 }
+                if (timeText.isNotBlank()) {
+                    Text(timeText, fontSize = 12.sp, color = MatchDarkSub)
+                }
+            }
+            if (hasScore) {
+                Text(
+                    info.homeScore,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MatchDarkText,
+                )
             }
             // 主队（右）
             MatchDarkTeamSide(
@@ -1336,18 +1369,19 @@ private fun MatchDarkTeamSide(
 
 /** 「客/西部第4」排名行——area 或 rank 任一缺失即不显示（官方 null 场不编名次）。 */
 private fun matchRankLine(tag: String, area: String, rank: String): String =
-    if (area.isNotBlank() && rank.isNotBlank()) "$tag/$area${rank}名" else ""
+    // rank 字段自带「第」（如 "第4"）——官方行即「客/西部第4」，旧版多叠的「名」字去掉
+    if (area.isNotBlank() && rank.isNotBlank()) "$tag/$area$rank" else ""
 
-/** chinaStartTime →「10月26日 01:00」；缺时间戳时取 matchTime 原串的月日+时分。 */
-internal fun matchInfoDateText(info: com.kudo.android.hupu.HupuMatchInfo): String {
+/** chinaStartTime →「10月26日 / 01:00」两行（first=日期 second=时间）；缺时间戳时取 matchTime 原串拆分。 */
+internal fun matchInfoDateTime(info: com.kudo.android.hupu.HupuMatchInfo): Pair<String, String> {
     if (info.chinaStartTime > 0L) {
         val zdt = java.time.Instant.ofEpochMilli(info.chinaStartTime)
             .atZone(java.time.ZoneId.systemDefault())
-        return "${zdt.monthValue}月${zdt.dayOfMonth}日 %02d:%02d".format(zdt.hour, zdt.minute)
+        return "${zdt.monthValue}月${zdt.dayOfMonth}日" to "%02d:%02d".format(zdt.hour, zdt.minute)
     }
-    // "2026-10-24 04:00:00" → "10月24日 04:00"
-    val m = Regex("(\\d{4})-(\\d{2})-(\\d{2}) (\\d{2}):(\\d{2})").find(info.matchTime) ?: return ""
-    return "${m.groupValues[2].toInt()}月${m.groupValues[3].toInt()}日 ${m.groupValues[4]}:${m.groupValues[5]}"
+    // "2026-10-24 04:00:00" → "10月24日" / "04:00"
+    val m = Regex("(\\d{4})-(\\d{2})-(\\d{2}) (\\d{2}):(\\d{2})").find(info.matchTime) ?: return "" to ""
+    return "${m.groupValues[2].toInt()}月${m.groupValues[3].toInt()}日" to "${m.groupValues[4]}:${m.groupValues[5]}"
 }
 
 /** 批U-2：官方详情 Tab 集合（篮球场）——战报/虎扑评分/统计/讨论；直播属排除项不接。 */
