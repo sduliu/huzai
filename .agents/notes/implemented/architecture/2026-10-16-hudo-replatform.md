@@ -1159,3 +1159,9 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
   - 未开赛 `memberBaseScore`="-"（逐队），`againstInfo.winnerMemberId` 为胜方 memberId。
 - **行内着色**（官方三态实测）：进行中=左列实时钟红 + 比分红 + 右列红「进行中」；已结束=胜方比分黑粗/负方灰（onSurfaceVariant）、右列黑「已结束」+ 灰「N万人评分」；未开始=时间黑、右列黑「预约」+ 黑铃铛（原主题色改 onSurface）。soccer/无节次字段的进行中回落=左列开赛时间红 + 右列红「进行中」（数据缺口如实回落，不编造时钟）。
 - 回退：revert 本 commit。
+
+### 批X6-4：已结束行胜方小三角（winnerMemberId 驱动）
+
+- **语义核实**（两张官方截图交叉验证）：左指实心小三角恒贴**胜方**比分右侧——10-26 场主队胜→三角在上行比分旁，10-27 场客队胜→三角在下行比分旁；非战报/视频标识（`customDescInfo/extraInfo/liveSourceInfos/liveRoomLink` 实测均 null/空或与在场状态无关）。数据源=`againstInfo.winnerMemberId`（真实字段，soccer 源由比分推导同填）。
+- **落地**：`MiniTeamScore` 已结束+胜方时比分右侧 5dp Canvas 左指三角，色同比分（胜方黑）。进行中/未开始/平局（winnerMemberId null）不绘。
+- 回退：revert 本 commit。

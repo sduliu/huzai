@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import com.kudo.android.hupuui.components.AutoFitScore
 import com.kudo.android.hupuui.components.animateChipCenterTo
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -317,6 +319,21 @@ private fun MiniTeamScore(t: HupuMatchTeam?, isWinner: Boolean, status: String) 
             fontWeight = if (isWinner) FontWeight.Bold else FontWeight.Normal,
             color = scoreColor,
         )
+        // 批X6-4：已结束行胜方比分右侧的左指小三角（官方胜方指示标记）。
+        // 语义实证：对照截图两场已结束赛，三角恒贴胜方比分（主胜→上行、客胜→下行），
+        // 数据源=真实字段 winnerMemberId（soccer 源由比分推导同填）；非战报/视频标。
+        if (status == "COMPLETED" && isWinner) {
+            Spacer(Modifier.width(5.dp))
+            Canvas(Modifier.size(5.dp)) {
+                val p = Path().apply {
+                    moveTo(size.width, 0f)
+                    lineTo(size.width, size.height)
+                    lineTo(0f, size.height / 2f)
+                    close()
+                }
+                drawPath(p, androidx.compose.ui.graphics.SolidColor(scoreColor))
+            }
+        }
     }
 }
 
