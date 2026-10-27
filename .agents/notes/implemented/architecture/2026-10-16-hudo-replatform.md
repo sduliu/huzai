@@ -1170,3 +1170,7 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 
 - `BoardMatchCard` 底行 INPROGRESS 由「进行中」状态字改为 `liveClockText`（红，与赛程行同一 midGameStageInfo 源，如「第四节剩2:50」）；字段缺失（soccer SSR 等无节次字段）回落 statusDesc——两处共用同一字段决策，不一处编一处空。比分红着色原有逻辑不变。
 - 回退：revert 本 commit。
+
+### 批X6-6：行渲染回归覆盖
+
+- `BoardScheduleFullUiTest` 新增 `matchRowsRenderOfficialThreeStates`：直挂 `ScheduleDaySection`（绕过 LazyColumn 锚定、与设备日期解耦）断言——dateBlock 组头直出、已结束「已结束+N万人评分」、进行中「实时钟+进行中」、未开始「- + 预约」、行内无日期重复（"10月24日 22:00" 全串消失）。`fakeDays` 改远未来日修复既有用例的锚定日期耦合。回退：revert 本 commit。

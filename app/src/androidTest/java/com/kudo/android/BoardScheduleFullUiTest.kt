@@ -31,26 +31,38 @@ class BoardScheduleFullUiTest {
         baseScore = "0", extraScore = null, bigScore = null,
     )
 
-    private fun match(id: String, home: String, away: String) = HupuMatch(
+    private fun match(
+        id: String,
+        home: String,
+        away: String,
+        status: String = "COMPLETED",
+        statusDesc: String = "已结束",
+        scoreCountText: String = "3.5万人评分",
+        liveClockText: String? = null,
+        winnerMemberId: String? = null,
+    ) = HupuMatch(
         matchId = id,
-        statusDesc = "已结束",
-        status = "COMPLETED",
+        statusDesc = statusDesc,
+        status = status,
         introduction = "NBA常规赛",
         matchName = "NBA常规赛",
         startTimeText = "10月24日 22:00",
         startTimestamp = 0L,
-        scoreCountText = "3.5万人评分",
+        scoreCountText = scoreCountText,
         home = team(home),
         away = team(away),
-        winnerMemberId = null,
+        winnerMemberId = winnerMemberId,
         playerScore = null,
         scoreBizType = null,
         scoreBizNo = null,
+        liveClockText = liveClockText,
     )
 
+    // 批X6：dayTime 用远未来日——锚定逻辑（今天→最近过往日→首日）恒落首日不滚动，
+    // 两日分区均在视口内，断言不受测试设备当前日期影响。
     private fun fakeDays() = listOf(
-        HupuMatchDay("2026-10-24", "10月24日 周六", listOf(match("m1", "热火", "黄蜂"))),
-        HupuMatchDay("2026-10-25", "10月25日 周日", listOf(match("m2", "湖人", "爵士"))),
+        HupuMatchDay("2099-10-24", "10月24日 周六", listOf(match("m1", "热火", "黄蜂"))),
+        HupuMatchDay("2099-10-25", "10月25日 周日", listOf(match("m2", "湖人", "爵士"))),
     )
 
     private fun boardState(): BoardUiState =
@@ -87,5 +99,57 @@ class BoardScheduleFullUiTest {
         compose.waitForIdle()
         compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
         compose.runOnIdle { assertTrue(compose.activity.isFinishing) }
+    }
+
+    /**
+     * 批X6-1/2/3：官方三态行渲染——灰条 dateBlock 组头直出、行内纯时间；
+     * 已结束=「已结束」+「N万人评分」（scoreCountText 真实字段）；
+     * 进行中=左列实时钟（midGameStageInfo 拼接）+右列「进行中」；
+     * 未开始=逐队「-」+可订阅行「预约」铃铛位（黑色，不改文案断言）。
+     */
+    @Test fun matchRowsRenderOfficialThreeStates() {
+        // 直接挂日分区组件断言行渲染——不经过 LazyColumn 锚定（与设备日期解耦）。
+        val day = HupuMatchDay(
+            "2099-10-26", "昨天 周一",
+            listOf(
+                match("d1", "湖人", "爵士", winnerMemberId = "湖人"),
+                match("d2", "勇士", "掘金", status = "INPROGRESS",
+                    statusDesc = "进行中", scoreCountText = "",
+                    liveClockText = "第四节剩17秒"),
+                HupuMatch(
+                    matchId = "d3", statusDesc = "未开始", status = "NOTSTARTED",
+                    introduction = "NBA常规赛", matchName = "NBA常规赛",
+                    startTimeText = "10月27日 08:30", startTimestamp = 0L,
+                    scoreCountText = "",
+                    home = HupuMatchTeam("篮网", "篮网", null, "-", null, null),
+                    away = HupuMatchTeam("凯尔特人", "凯尔特人", null, "-", null, null),
+                    winnerMemberId = null, playerScore = null,
+                    scoreBizType = null, scoreBizNo = null,
+                    subscribe = com.kudo.android.hupu.HupuSubscribe(
+                        show = true, subscribed = false,
+                        title = "篮网 vs 凯尔特人", desc = "篮网 vs 凯尔特人",
+                    ),
+                ),
+            ),
+        )
+        compose.setContent {
+            KudoTheme(DisplaySettings()) {
+                com.kudo.android.hupuui.pages.ScheduleDaySection(day, onOpenMatch = {})
+            }
+        }
+        compose.waitForIdle()
+        // X6-1：灰条组头 dateBlock 直出（含相对日文案）
+        compose.onNodeWithText("昨天 周一").assertIsDisplayed()
+        // X6-3：已结束=状态字+真实评分计数字段
+        compose.onNodeWithText("已结束").assertIsDisplayed()
+        compose.onNodeWithText("3.5万人评分").assertIsDisplayed()
+        // X6-3：进行中=实时钟直出（非编造的「进行中」占位）+右列状态字
+        compose.onNodeWithText("第四节剩17秒").assertIsDisplayed()
+        compose.onNodeWithText("进行中").assertIsDisplayed()
+        // X6-2/3：未开始=逐队「-」比分 + 「预约」订阅位（铃铛为图标，无文本断言）
+        compose.onNodeWithText("预约").assertIsDisplayed()
+        // 行内不再重复日期（旧「10月24日 22:00」全串消失，只剩纯时间「22:00」）
+        compose.onNodeWithText("10月24日 22:00").assertDoesNotExist()
+        compose.onNodeWithText("22:00", substring = false).assertIsDisplayed()
     }
 }
