@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -354,6 +355,7 @@ fun ZonePage(modifier: Modifier = Modifier) {
                 ),
             header = {
                 // 批X9-4：官方专区顶栏——虎扑 logo + 广场/关注 文字 tab（选中黑粗+红下划线）+ 搜索钮
+                // 批X10-1：tab 对居中（logo 左/搜索右，两侧 weight 夹中），修复旧左排布局
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -366,9 +368,9 @@ fun ZonePage(modifier: Modifier = Modifier) {
                         contentDescription = "虎扑",
                         modifier = Modifier.size(26.dp).clip(CircleShape),
                     )
-                    Spacer(Modifier.width(16.dp))
+                    Spacer(Modifier.weight(1f))
                     ZoneTopTab(title = "广场", selected = zoneTab == "plaza") { zoneTab = "plaza" }
-                    Spacer(Modifier.width(20.dp))
+                    Spacer(Modifier.width(28.dp))
                     ZoneTopTab(title = "关注", selected = zoneTab == "follow") { zoneTab = "follow" }
                     Spacer(Modifier.weight(1f))
                     Box(Modifier.height(40.dp), contentAlignment = Alignment.Center) {
@@ -1055,11 +1057,17 @@ private suspend fun topicFeed(
     )
 }
 
-/** 批X9-4：顶栏「广场/关注」文字 tab——官方同款：选中黑粗+红色下划线，未选中灰字。 */
+/**
+ * 批X9-4：顶栏「广场/关注」文字 tab——官方同款：选中黑粗+红色下划线，未选中灰字。
+ * 批X10-1：下划线只盖文字宽——Column 取 IntrinsicSize.Min（列宽=文字固有宽），
+ * 下划线 Box 撑满列宽即短线；旧实现 fillMaxWidth 把列撑到整行剩余宽，
+ * 导致后一 tab 被挤出屏幕右缘截断、下划线拉满整宽。
+ */
 @Composable
 internal fun ZoneTopTab(title: String, selected: Boolean, onClick: () -> Unit) {
     Column(
         Modifier
+            .width(IntrinsicSize.Min)
             .selectable(selected = selected, role = Role.Tab) { onClick() }
             .padding(vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
