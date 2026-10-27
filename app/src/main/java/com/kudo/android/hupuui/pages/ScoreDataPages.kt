@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -211,7 +212,7 @@ private fun GlobalScheduleView(code: String, topInset: Dp, onOpenMatch: (HupuMat
 
 // ==================== 球队榜（teamStandingList + teamSeasonStatsAllRank + 赛季选择器） ====================
 
-/** 赛季 chip 条：rankType 枚举派生自联赛（NBA_TEAM_RANK / CBA_TEAM_RANK / …）。 */
+/** 批X8：官方赛季下拉（「2026-27常规赛 ▾」点击展开 DropdownMenu）。无可选赛季不渲染。 */
 @Composable
 private fun SeasonChips(
     seasons: List<HupuSeasonOption>,
@@ -219,18 +220,46 @@ private fun SeasonChips(
     onSelect: (HupuSeasonOption) -> Unit,
 ) {
     if (seasons.size <= 1) return // 无可选赛季不渲染选择器（官方无数据不编）
-    LazyRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .chipBarClip()
-            .padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        items(seasons, key = { "${it.season}-${it.seasonType}" }) { s ->
-            Chip(
-                text = "${s.shortSeason} ${s.seasonTypeName}",
-                selected = s == selected,
-            ) { onSelect(s) }
+    var open by remember { mutableStateOf(false) }
+    Box(Modifier.padding(start = 16.dp, top = 2.dp, bottom = 6.dp)) {
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { open = true }
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                selected?.let { "${it.shortSeason}${it.seasonTypeName}" }
+                    ?: seasons.first().let { "${it.shortSeason}${it.seasonTypeName}" },
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Icon(
+                Icons.Rounded.KeyboardArrowDown,
+                contentDescription = "选择赛季",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        androidx.compose.material3.DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+        ) {
+            seasons.forEach { s ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text = {
+                        Text(
+                            "${s.shortSeason}${s.seasonTypeName}",
+                            fontWeight = if (s == selected) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (s == selected) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface,
+                        )
+                    },
+                    onClick = { open = false; onSelect(s) },
+                )
+            }
         }
     }
 }
@@ -287,22 +316,23 @@ internal fun StandingsBoardView(league: String, showSeasonBar: Boolean = true) {
             else -> {
                 val cats = allCategories(b)
                 Row(Modifier.fillMaxSize()) {
-                    // 左栏类别（官方左栏：东/西/分区/技术统计，接口给什么放什么）
-                    Column(
+                    // 左栏类别（官方左栏：东/西/分区排行 + 技术统计逐项铺开，接口给什么放什么；
+                    // 30+ 项须可滚动）
+                    LazyColumn(
                         Modifier
-                            .width(96.dp)
-                            .fillMaxSize()
-                            .padding(horizontal = 8.dp),
+                            .width(84.dp)
+                            .fillMaxSize(),
+                        contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 100.dp),
                     ) {
-                        cats.forEach { c ->
+                        items(cats, key = { it.id }) { c ->
                             val sel = c.id == catSel
                             Text(
                                 c.title,
-                                fontSize = 14.sp,
+                                fontSize = 13.sp,
                                 fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal,
                                 color = if (sel) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
@@ -315,22 +345,16 @@ internal fun StandingsBoardView(league: String, showSeasonBar: Boolean = true) {
                             )
                         }
                     }
-                    // 右侧分组表
-                    val groups = cats.firstOrNull { it.id == catSel }?.groups.orEmpty()
+                    // 右侧分组表（组名进表内做首列表头；积分榜行着色，技术统计不着色）
+                    val selCat = cats.firstOrNull { it.id == catSel }
+                    val playoffColors = selCat != null && !selCat.id.startsWith("stat-")
                     LazyColumn(
-                        contentPadding = PaddingValues(end = 16.dp, bottom = 100.dp),
+                        contentPadding = PaddingValues(end = 8.dp, bottom = 100.dp),
                         modifier = Modifier.weight(1f).fillMaxSize(),
                     ) {
-                        groups.forEach { g ->
-                            item(key = "gt-${g.title}") {
-                                Text(
-                                    g.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(vertical = 6.dp),
-                                )
-                            }
-                            item(key = "gtb-${g.title}") { StandingGroupTable(g) }
-                            item(key = "gs-${g.title}") { Spacer(Modifier.height(14.dp)) }
+                        selCat?.groups.orEmpty().forEach { g ->
+                            item(key = "gtb-${selCat?.id}-${g.title}") { StandingGroupTable(g, playoffColors) }
+                            item(key = "gs-${selCat?.id}-${g.title}") { Spacer(Modifier.height(14.dp)) }
                         }
                     }
                 }
@@ -339,30 +363,41 @@ internal fun StandingsBoardView(league: String, showSeasonBar: Boolean = true) {
     }
 }
 
-/** categories + statCategories 合成统一类别表（技术统计作为最后一个类别）。 */
+/**
+ * categories + statCategories 合成统一类别表。
+ * 批X8：技术统计逐项扁平为独立左栏类别（官方左栏即每项统计一名，非「技术统计」一档）。
+ */
 private fun allCategories(b: HupuStandingsBoard): List<HupuRankCategory> =
-    if (b.statCategories.isEmpty()) b.categories
-    else b.categories + HupuRankCategory("stats", "技术统计", b.statCategories)
+    b.categories + b.statCategories.map { g -> HupuRankCategory("stat-${g.title}", g.title, listOf(g)) }
 
-/** 一张分组表：列头 + 排名行（列头随 group.columns）。 */
+/**
+ * 一张分组表：首列表头=组名（官方「东部排行」直接做列头）+ 数据列头随 group.columns。
+ * playoffColors：积分榜（东/西/分区）排名 1-6 红、7+ 金；技术统计不着色。
+ * 批X8：数据列宽 42dp（「100.0%」「-0.5」等长值须放下），首列 rank+logo+队名 weight 填满。
+ */
 @Composable
-private fun StandingGroupTable(g: HupuStandingGroup) {
+private fun StandingGroupTable(g: HupuStandingGroup, playoffColors: Boolean) {
+    val rankColor = Color(0xFFC01E2F)  // 官方红
+    val playInColor = Color(0xFFB8860B) // 官方金
     Column(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("#", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(24.dp))
-            Text("队名", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+            Text(
+                g.title, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                modifier = Modifier.weight(1f),
+            )
             g.columns.forEach { c ->
                 Text(
                     c, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.width(34.dp),
+                    modifier = Modifier.width(42.dp),
                 )
             }
         }
@@ -371,17 +406,20 @@ private fun StandingGroupTable(g: HupuStandingGroup) {
                 Modifier.fillMaxWidth().padding(vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val rankN = r.rank.toIntOrNull()
                 Text(
                     r.rank, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.width(24.dp),
+                    color = if (playoffColors && rankN != null) {
+                        if (rankN <= 6) rankColor else playInColor
+                    } else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.width(20.dp),
                 )
                 if (r.teamLogo.isNotEmpty()) {
                     AsyncImage(
                         model = r.teamLogo, contentDescription = null,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(16.dp),
                     )
-                    Spacer(Modifier.width(5.dp))
+                    Spacer(Modifier.width(4.dp))
                 }
                 Text(
                     r.team, fontSize = 12.sp, fontWeight = FontWeight.Medium,
@@ -394,7 +432,7 @@ private fun StandingGroupTable(g: HupuStandingGroup) {
                         c, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        modifier = Modifier.width(34.dp),
+                        modifier = Modifier.width(42.dp),
                     )
                 }
             }
