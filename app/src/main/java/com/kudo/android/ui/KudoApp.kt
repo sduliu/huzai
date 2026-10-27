@@ -234,8 +234,6 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                                             com.kudo.android.ui.feed.SportChannelHeader(key, app.repository,
                                                 // 二级页打开赛程中心（可返回），不再切底栏 Tab
                                                 onOpenSchedule = { g -> nav.navigate("score/$g") },
-                                                // 批X4-1：热门行直达全赛程列表（官方落点，无中转页）
-                                                onOpenFullSchedule = { g -> nav.navigate("score/$g?full=1") },
                                                 onOpenMatch = { m -> nav.navigate("score/$key?match=${m.matchId}") },
                                                 onOpenStandings = { g -> nav.navigate("standings/$g") },
                                                 // 批B-4：数据 tab 深链（积分榜/球员榜/选秀/伤病 → 赛程中心对应 tab）
@@ -305,21 +303,18 @@ fun KudoApp(app: AppContainer, incomingUrl: String? = null, linkSequence: Long =
                     }
                     // 赛事频道「查看全部赛程/比赛卡」→ 赛程中心二级页（预选该赛事，可返回）
                     composable(
-                        "score/{game}?match={match}&dtab={dtab}&full={full}",
+                        "score/{game}?match={match}&dtab={dtab}",
                         arguments = listOf(
                             navArgument("game") { defaultValue = "" },
                             navArgument("match") { nullable = true; defaultValue = null },
                             navArgument("dtab") { nullable = true; defaultValue = null },
-                            // 批X4-1：热门行直达全赛程落点（full=1）
-                            navArgument("full") { nullable = true; defaultValue = null },
                         ),
                     ) { entry ->
                         val g = entry.arguments?.getString("game").orEmpty()
                         val m = entry.arguments?.getString("match")
                         val d = entry.arguments?.getString("dtab")
-                        val f = entry.arguments?.getString("full")
                         com.kudo.android.hupuui.pages.ScorePage(
-                            request = com.kudo.android.hupuui.pages.ScoreNavRequest(g, m, System.nanoTime(), dataTab = d, fullSchedule = f == "1"),
+                            request = com.kudo.android.hupuui.pages.ScoreNavRequest(g, m, System.nanoTime(), dataTab = d),
                             onBack = { nav.popBackStack() },
                         )
                     }

@@ -55,8 +55,6 @@ fun SportChannelHeader(
     sportKey: String,
     repository: CommunityRepository,
     onOpenSchedule: (String) -> Unit,
-    /** 批X4-1：「🔥 查看近期N场热门比赛」直达全赛程列表（官方落点，无中转页） */
-    onOpenFullSchedule: (String) -> Unit = onOpenSchedule,
     onOpenMatch: (HupuMatch) -> Unit,
     onOpenStandings: (String) -> Unit = {},
     /** 批B-4：数据 tab 深链（sportKey → kind：player/draft/injury/team/global） */
@@ -121,7 +119,7 @@ fun SportChannelHeader(
             Row(
                 Modifier.fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
-                    .clickable(role = Role.Button) { onOpenFullSchedule(sportKey) }
+                    .clickable(role = Role.Button) { onOpenSchedule(sportKey) }
                     .semantics(mergeDescendants = true) {
                         contentDescription = "查看近期${recentCount}场热门比赛"
                     }

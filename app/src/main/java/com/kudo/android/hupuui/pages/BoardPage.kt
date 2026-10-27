@@ -100,13 +100,12 @@ private val JrsBlue = androidx.compose.ui.graphics.Color(0xFF3B82F6)
 /**
  * board：赛事板块视图（官方板块形态的复刻）——**内嵌在「比赛」Tab 频道内容区**。
  *
- * 结构对齐官方 App 赛事板块（频道本体即板块页，无中间入口）：
- *   「近期比赛」标题行（右侧：积分榜 chip? + 查看全部赛程 ›，就地展开/收起）
- *   近期比赛紧凑行（≤4 场热门：进行中优先+锚定日填充）→ 点比赛走宿主的 MatchDetailOverlay
+ * 结构（批X5-4 起对齐官方赛程页）：
+ *   完整日分组赛程列表（锚定当前比赛日）→ 点比赛走宿主的 MatchDetailOverlay
  *   资讯流（basketballapi/news/v2/newsList 或 soccer SSR / 专区话题兜底；
  *          tid 帖 → ThreadDetailOverlay，LINK 运营位 → 解 huputiyu://webview url 进 EmbedWebPage）
  *
- * 内部 overlay（帖子详情/嵌入页/积分榜）照常盖出并计数 SecondaryPage；
+ * 内部 overlay（帖子详情/嵌入页）照常盖出并计数 SecondaryPage；
  * 比赛区「常驻占位」——赛程异步落地后原地替换，不把视口顶下去。
  */
 /**
@@ -123,13 +122,8 @@ internal class BoardUiState(
     // ---------- 页面态 ----------
     var openedThread by mutableStateOf<HupuThread?>(null)
     var embedPage by mutableStateOf<HupuEmbed?>(null)
-    var standingsOpen by mutableStateOf(false)
-    var showAllMatches by mutableStateOf(false)
-    // 批X4-1：展开态由外部直达（频道「查看近期N场热门比赛」深链）——该入口下
-    // 中转形态隐藏；批X4-2 同标记负责返回直退频道，手动收起后失效回落就地语义
-    var expandByEntry by mutableStateOf(false)
 
-    // ---------- 赛程（复用频道数据源） ----------
+    // ---------- 赛程（复用频道数据源；批X5-4 起恒为完整日分组列表，无展开/收起态） ----------
     var days by mutableStateOf<List<HupuMatchDay>?>(null)
 
     // ---------- 资讯流 ----------
@@ -141,11 +135,6 @@ internal class BoardUiState(
     var newsPreCount by mutableIntStateOf(0)
     var newsHasMore by mutableStateOf(false)
     var refreshTick by mutableIntStateOf(0)
-
-    // ---------- 积分榜 ----------
-    var standings by mutableStateOf<HupuStandings?>(null)
-    var standingsLoading by mutableStateOf(false)
-    var standingsFailed by mutableStateOf(false)
 
     // ---------- 帖子详情 ----------
     var threadClosing by mutableStateOf(false)
@@ -212,31 +201,6 @@ internal class BoardUiState(
             newsFailed = false
             newsLoading = false
             newsLoadingMore = false
-        }
-    }
-
-    fun loadStandings() {
-        scope.launch {
-            standingsLoading = true
-            standingsFailed = false
-            val s = when (cfg.standing) {
-                HupuBoardStanding.NBA -> repo.nbaStandings()
-                HupuBoardStanding.SOCCER_API -> repo.soccerStandings(cfg.standingCompId)
-                HupuBoardStanding.NONE -> null
-            }
-            if (s != null) standings = s else standingsFailed = true
-            standingsLoading = false
-        }
-    }
-
-    /** 「积分榜」chip：有原生实现开原生页，否则回落 standingsUrl 的 WebView。
-     *  批B-3：NBA 走 LeagueStandingsOverlay（自拉 basketballapi），不再预载 SSR 榜。 */
-    fun openStandings() {
-        if (cfg.standing != HupuBoardStanding.NONE) {
-            standingsOpen = true
-            if (cfg.standing != HupuBoardStanding.NBA && standings == null && !standingsLoading) loadStandings()
-        } else if (cfg.standingsUrl.isNotEmpty()) {
-            embedPage = HupuEmbed(type = "board", url = cfg.standingsUrl, matchId = "", label = "积分榜")
         }
     }
 
@@ -318,8 +282,12 @@ internal fun rememberBoardState(boardId: String): BoardUiState? {
 }
 
 /**
- * 板块视图：「近期比赛 ≤4 场紧凑行（查看全部赛程就地展开）」+ 下方资讯流。
- * 内嵌在「比赛」Tab 频道内容区；内部 overlay 由 [BoardOverlays] 挂宿主根层。
+ * 板块视图：完整日分组赛程列表 + 下方资讯流。
+ * 批X5-4：赛程区恒为完整日分组列表（官方赛程页形态）——「近期比赛」标题行、
+ * 积分榜 pill、「查看全部赛程 ›」与 ≤4 张热门卡的收起态整组移除；
+ * 返回键无就地收起态，系统返回即退页回频道（批X4-2 直达落点的返回语义
+ * 在本形态下天然等价）。内嵌在「比赛」Tab 频道内容区；内部 overlay 由
+ * [BoardOverlays] 挂宿主根层。
  */
 @Composable
 internal fun BoardContent(
@@ -329,8 +297,6 @@ internal fun BoardContent(
     hostSchedule: List<HupuMatchDay>? = null,
     /** 浮空顶栏（页头+频道条）占位——内容从这里开始才不钻进栏底 */
     topInset: androidx.compose.ui.unit.Dp,
-    /** 批X4-2：直达展开态的返回出口（宿主整页返回=回频道）；null 时回落就地收起 */
-    onBackDirect: (() -> Unit)? = null,
 ) = with(state) {
     LaunchedEffect(state, refreshTick) {
         days = null
@@ -338,32 +304,9 @@ internal fun BoardContent(
         loadNews(first = true, force = refreshTick > 0)
     }
 
-    // 批A-3：「查看全部赛程」是就地展开态（非导航层），返回键先收起再退页——
-    // 否则展开态按返回会直接弹出整个二级页，实测落回频道首页
-    // 批X4-2：直达展开入口反转语义——返回直接退页回频道（官方落点行为）；
-    // 用户手动收起/重开后的展开仍走就地收起
-    BackHandler(enabled = showAllMatches) {
-        if (expandByEntry && onBackDirect != null) onBackDirect() else showAllMatches = false
-    }
-
-    // 顶部热门比赛（官方式：≤4 场）——进行中优先，锚定日（今天/最近过往日/首日）起填充；
-    // 数据源：本页拉到的 days 优先，未落地前用宿主频道的 hostSchedule 首帧直出
+    // 赛程数据源：本页拉到的 days 优先，未落地前用宿主频道的 hostSchedule 首帧直出
     val today = remember { LocalDate.now().toString() }
     val effDays = days ?: hostSchedule
-    val hotMatches = remember(days, hostSchedule) {
-        val ds = effDays.orEmpty()
-        if (ds.isEmpty()) emptyList() else {
-            val live = ds.flatMap { it.matches }.filter { it.status == "INPROGRESS" }
-            val todayIdx = ds.indexOfFirst { it.dayTime == today }
-            val lastPast = ds.indexOfLast { it.dayTime <= today }
-            val start = when {
-                todayIdx >= 0 -> todayIdx
-                lastPast >= 0 -> lastPast
-                else -> 0
-            }
-            (live + ds.drop(start).flatMap { it.matches }).distinctBy { it.matchId }.take(4)
-        }
-    }
 
     // 帖子详情数据加载（懒拉 + 缓存 + 后台刷新）
     LaunchedEffect(openedThread?.tid) {
@@ -412,16 +355,13 @@ internal fun BoardContent(
                     )
                 },
             ) {
-                // 列表状态随 boardState 实例重建（切频道=全新滚动位置）+ 首帧强制置顶：
-                // 「近期比赛」永远是最先看到的内容，异步赛程落位不会把视口顶下去
+                // 列表状态随 boardState 实例重建（切频道=全新滚动位置）
                 val listState = remember(state) { LazyListState() }
                 LaunchedEffect(state) { listState.scrollToItem(0) }
-                // 「查看全部赛程」展开 → 定位到当前比赛日（频道版 ScheduleList 同款锚定：
+                // 批X5-4：赛程落地即定位到当前比赛日（频道版 ScheduleList 同款锚定：
                 // 今天有比赛→今天；无→最近过往日；全是未来→首日），上滑过去、下滑未来。
-                // item 布局：0=标题行，1..n=日块（每日一个 item）→ 锚点 = 1 + 锚定日下标
-                LaunchedEffect(showAllMatches, effDays) {
-                    // 收起回顶：深滚动位置收起后无效，回到「近期比赛」开头
-                    if (!showAllMatches) { listState.scrollToItem(0); return@LaunchedEffect }
+                // item 布局：0..k-1=非空日块（每日一个 item）→ 锚点 = 锚定日下标
+                LaunchedEffect(effDays) {
                     val ds = effDays.orEmpty().filter { it.matches.isNotEmpty() }
                     if (ds.isEmpty()) return@LaunchedEffect
                     val todayIdx = ds.indexOfFirst { it.dayTime == today }
@@ -431,7 +371,7 @@ internal fun BoardContent(
                         lastPast >= 0 -> lastPast
                         else -> 0
                     }
-                    listState.scrollToItem(1 + anchor)
+                    listState.scrollToItem(anchor)
                 }
                 val shouldLoadMore by remember {
                     derivedStateOf {
@@ -451,42 +391,13 @@ internal fun BoardContent(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    // 比赛区标题行：「近期比赛」 … [积分榜 chip] 「查看全部赛程 ›」（展开后变「全部赛程/收起」）
-                    item(key = "schedule-header") {
-                        Row(
-                            Modifier.fillMaxWidth().padding(top = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            BoardSectionHeader(if (showAllMatches) "全部赛程" else "近期比赛")
-                            Spacer(Modifier.weight(1f))
-                            if (cfg.standing != HupuBoardStanding.NONE ||
-                                cfg.standingsUrl.isNotEmpty()
-                            ) {
-                                Chip(text = "积分榜", selected = false) { openStandings() }
-                                Spacer(Modifier.width(6.dp))
-                            }
-                            Row(
-                                Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { showAllMatches = !showAllMatches; expandByEntry = false }
-                                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    if (showAllMatches) "收起" else "查看全部赛程",
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                                Icon(
-                                    Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp),
-                                )
-                            }
-                        }
-                    }
-                    if (showAllMatches) {
+                    // 批X5-4：赛程区恒为完整日分组平铺（沿用原「全部赛程」分支渲染，
+                    // 不另起列表）；「近期比赛」标题行/积分榜 pill/查看全部赛程/≤4 卡
+                    // 收起态整组移除。积分榜入口：有「球队榜」数据 tab 的频道（NBA/CBA 等，
+                    // tab→StandingsBoardView 同源球队榜）由该 tab 承载；无数据 tab 的
+                    // 频道（epl/soccer）由频道快捷行「积分榜」图标 → standings/{g}
+                    // 独立路由承载（StandingsRoutePage 自含渲染，不依赖本文件盖入页）。
+                    if (effDays.orEmpty().any { it.matches.isNotEmpty() }) {
                         // 全部赛程：按日分块平铺（每日一张圆角面，行仍是紧凑行）
                         effDays.orEmpty().forEach { d ->
                             if (d.matches.isNotEmpty()) {
@@ -505,30 +416,11 @@ internal fun BoardContent(
                                 }
                             }
                         }
-                    } else if (hotMatches.isNotEmpty()) {
-                        // 顶部热门比赛（官方式大卡：赛事名+大比分+评分人数，≤4 场，点卡进详情）
-                        item(key = "schedule-strip") {
-                            Column(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(MaterialTheme.colorScheme.surface)
-                                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                            ) {
-                                hotMatches.forEachIndexed { i, m ->
-                                    if (i > 0) Box(
-                                        Modifier.fillMaxWidth().height(0.5.dp)
-                                            .background(MaterialTheme.colorScheme.outlineVariant)
-                                    )
-                                    BoardMatchCard(m) { onOpenMatch(m) }
-                                }
-                            }
-                        }
                     } else {
                         // 占位常驻：赛程异步落地后原地替换，不会因插入条目把视口顶下去
                         item(key = "schedule-empty") {
                             Text(
-                                if (effDays == null) "赛程加载中…" else "近期暂无比赛",
+                                if (effDays == null) "赛程加载中…" else "暂无比赛",
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(vertical = 6.dp),
@@ -669,20 +561,6 @@ internal fun BoardOverlays(state: BoardUiState) = with(state) {
                 EmbedWebPage(e) { embedPage = null }
             }
         }
-        // 积分榜原生页（批B-3：NBA 升级为 basketballapi 版——赛季选择器 + 多类别左栏）
-        if (standingsOpen) {
-            if (cfg.standing == HupuBoardStanding.NBA) {
-                LeagueStandingsOverlay("nba", "NBA 积分榜") { standingsOpen = false }
-            } else {
-                BoardStandingsOverlay(
-                    data = standings,
-                    loading = standingsLoading,
-                    failed = standingsFailed,
-                    onBack = { standingsOpen = false },
-                    onRetry = { loadStandings() },
-                )
-            }
-        }
 }
 
 /** 板块内节标题。 */
@@ -785,77 +663,6 @@ private fun boardLinkUrl(n: HupuBoardNews): String? {
     return runCatching { URLDecoder.decode(inner.substringBefore('&'), "UTF-8") }
         .getOrNull()
         ?.takeIf { it.startsWith("http") }
-}
-
-/**
- * 积分榜盖入页（EmbedWebPage 同款转场）：组标题 + 列头 + 排名行。
- * NBA（SSR 表）与足球（competition/ranking）共用渲染；足球行的
- * [HupuStandingRow.color] 是服务端给的升降级区底色，直接做排名角标底。
- */
-@Composable
-private fun BoardStandingsOverlay(
-    data: HupuStandings?,
-    loading: Boolean,
-    failed: Boolean,
-    onBack: () -> Unit,
-    onRetry: () -> Unit,
-) {
-    val progress = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        SecondaryPage.enter()
-        progress.animateTo(1f, tween(280))
-    }
-    DisposableEffect(Unit) {
-        onDispose { SecondaryPage.exit() }
-    }
-    var closing by remember { mutableStateOf(false) }
-    LaunchedEffect(closing) {
-        if (closing) {
-            progress.animateTo(0f, tween(280))
-            onBack()
-        }
-    }
-    PredictiveBackHandler { events ->
-        if (closing) {
-            events.collect { }
-            return@PredictiveBackHandler
-        }
-        try {
-            events.collect { event -> progress.snapTo(1f - event.progress) }
-            progress.animateTo(0f, tween(120))
-            closing = true
-        } catch (e: CancellationException) {
-            progress.animateTo(1f, tween(200))
-            throw e
-        }
-    }
-    Box(
-        Modifier
-            .fillMaxSize()
-            .zIndex(1.6f)
-            .graphicsLayer { translationX = (1f - progress.value) * size.width }
-            .background(MaterialTheme.colorScheme.background)
-            .tapGuard(),
-    ) {
-        Column(Modifier.fillMaxSize()) {
-            CenteredTopBar(
-                title = data?.league?.takeIf { it.isNotEmpty() }?.let { "$it 积分榜" } ?: "积分榜",
-                onBack = { closing = true },
-            )
-            when {
-                data != null -> StandingList(data)
-                loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(26.dp),
-                        strokeWidth = 2.5.dp,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-                failed -> ErrorRetry { onRetry() }
-                else -> Box(Modifier.fillMaxSize())
-            }
-        }
-    }
 }
 
 @Composable

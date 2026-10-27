@@ -1110,3 +1110,26 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **语义分叉**：`BoardContent` 的 `BackHandler` 原语义=就地展开返回先收起（批A-3）。直达入口（`expandByEntry`）下官方落点=赛程列表页本身，返回应整页退出回频道——`BackHandler(enabled=showAllMatches)` 分叉为 `expandByEntry && onBackDirect!=null → onBackDirect()`，否则维持收起；`onBackDirect` 由宿主透传 `ScorePage.onBack`（= `nav.popBackStack`），非路由用法 null 自动回落就地语义。
 - **标记生命周期**：`expandByEntry` 仅在直达兑现时置位；「收起/查看全部赛程」手动切换点同步清标记——收起回中转形态后再展开即回到就地收起语义，`onBackDirect` 不会被误用（返回路径实证：BoardScheduleExpandUiTest 三用例——直达展开返回退页不收起、就地展开返回收起、手动收起清标记后重展仍就地）。
 - 回退：revert 本 commit。
+
+## 批X5：ScorePage 顶栏官方化（标题/赛事条/数据tab样式/近期比赛区）
+
+### 批X5-1：居中赛事名标题
+
+- `PageHeader(比赛)`（左对齐 24sp 大标题）→ `CenteredTopBar`（全库二级页同款：左返回箭头+居中 17sp 标题+右动作槽）；标题 = `commonOpen→"虎扑评分" : GAMES 名表 → HUPU_BOARDS cfg 名 → 频道 key 兜底`；「筛选项目」动作原样迁入 actions 槽。顶栏挂 `score-topbar` tag 供真机断言。
+
+### 批X5-2：多赛事 chip 横滑条与「管理」入口整组移除
+
+- 官方赛程页无赛事切换条：页内不再切赛事，切赛事=返回频道后从另一频道进入。连带删除死状态：`pickerOpen`+`ScorePickerPage` overlay、`barState/selIdx/animateChipCenterTo`、`swipeScoreTab`+`tabSwipeSwitch`、`externalPinned` 与两条「移出自选→回落」效应、`effectiveGames/commonHidden/showCommon`、批X4 `entryExpanded` 隐藏分支。
+- **后果**：我的页「评分频道」自定义设置对赛程页不再有可见效果（设置页属另一入口面，保留未动）；`score/common`（虎扑评分）仍经热榜「评分榜」入口可达。
+
+### 批X5-3：数据 tab 轨道纯文字化
+
+- `LeagueDataTabBar`：胶囊 `Chip` → Column{文字+3dp 圆角红条}；选中=onSurface 加粗+虎扑红 `0xFFC01E2F` 下划线（同 FeedScreen 搜索钮用色），未选中=onSurfaceVariant；`selectable(role=Tab)` 保留选中语义与点按分派；LazyRow 横滑与接口 tab 集/顺序不变。
+
+### 批X5-4：赛程 tab 恒为完整日分组列表
+
+- 删「近期比赛」标题行+「积分榜」pill+「查看全部赛程 ›」+ ≤4 张热门卡收起态；日块平铺沿用原「全部赛程」分支渲染不另起列表；锚定逻辑同（item 布局改为 0..k-1=非空日块 → `scrollToItem(anchor)`）。
+- **状态机整体删除**：`showAllMatches/expandByEntry/BackHandler/onBackDirect`（无收起态可拦，系统返回即退页=批X4-2 直达语义天然等价）；`ScoreNavRequest.fullSchedule`/`pendingExpandAll`/路由 `full` 参数/`SportChannelHeader.onOpenFullSchedule`（热门行与赛程图标同走 `score/{g}`，落点即全赛程）；积分榜盖入页一套（`standingsOpen/standings*/loadStandings/openStandings` + `BoardStandingsOverlay` + `LeagueStandingsOverlay`）。
+- **积分榜入口核实**（getDataTabList 实测）：nba=全球/赛程/球队榜/球员榜/选秀/日榜/新秀榜/伤病/对阵图/荣誉榜/历史榜（球队榜→StandingsBoardView 同源覆盖）、cba 同有球队榜；epl 仅赛程、soccer 空列表——后两者无球队榜 tab，但频道快捷行「积分榜」图标→`standings/{g}`→`StandingsRoutePage`（自含 StandingList 渲染，不依赖被删盖入页）仍在，入口不失联。与官方口径一致（官方同页同样只经数据 tab 进榜）。
+- **测试改写**：`BoardScheduleExpandUiTest`（断言被删状态机）→ `BoardScheduleFullUiTest`（直出日分组无中转件 + 返回即 finishing=无拦截）。
+- 回退：revert 本批 X5-1..X5-5 各 commit。
