@@ -1081,7 +1081,25 @@ private fun TopicCell(t: HupuTopicInfo, isFavorite: Boolean, onClick: () -> Unit
                 color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
             )
-            if (t.hotText.isNotBlank()) {
+            // 批X9-2：指标官方化——关注数「👍N万」（m 站 zone topicList.count 真实字段）；
+            // 字段缺失（英雄联盟等 m 站未下发版块）回落既有 hotText 热度文案，不换算冒充
+            if (t.followText.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        HupuIcons.Light,
+                        contentDescription = null,
+                        modifier = Modifier.size(11.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.width(3.dp))
+                    Text(
+                        t.followText,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else if (t.hotText.isNotBlank()) {
                 Spacer(Modifier.height(2.dp))
                 Text(
                     "${t.hotText} 热度",

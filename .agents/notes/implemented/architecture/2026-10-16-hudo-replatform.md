@@ -1142,3 +1142,10 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **缓存**：`zone_categories_v1` 编码加 `followText` 字段；ZonePage 冷启仅恢复首项 `cateId=="z0"`（推荐组）的新形态缓存，旧 web 形态缓存不再上屏，一次刷新即替换为新形态。
 - **cateId 命名空间**：m 站组用 `"z{categoryId}"`（推荐="z0"），web-only 组沿用原 cateId——选择稳定性与缓存形态判别共用此约定。
 - 回退：revert 本 commit（ZonePage 回 categories()，模型 followText 可留空字段）。
+
+### 批X9-2：专区网格指标官方化（关注数「👍N万」）
+
+- 网格计数由「N热度」（web 目录 countText）改为官方「👍N万」：`HupuIcons.Light`（Material thumb_up 实心，虎扑「亮了」同形）11dp + `followText` 文案直出。
+- **字段结论**：`topicList[].count` 即官方网格显示的关注数文案（实测 "132.0万"/"279.4万"/"1577"，万制已由服务端格式化，客户端不再加工）。
+- **缺口如实回落**：英雄联盟大类（m 站 zone 未下发）无 count → 回落既有 hotText「N热度」文案（真实字段、明示口径，不换算冒充关注数）；热门等无指标版块留空。
+- 回退：revert 本 commit。
