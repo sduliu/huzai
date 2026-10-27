@@ -2,8 +2,10 @@ package com.kudo.android
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.dp
 import com.kudo.android.data.DisplaySettings
 import com.kudo.android.hupu.HUPU_BOARDS
@@ -151,5 +153,50 @@ class BoardScheduleFullUiTest {
         // 行内不再重复日期（旧「10月24日 22:00」全串消失，只剩纯时间「22:00」）
         compose.onNodeWithText("10月24日 22:00").assertDoesNotExist()
         compose.onNodeWithText("22:00", substring = false).assertIsDisplayed()
+    }
+
+    /**
+     * 批X6fix-2：真实打开路径回归——ScheduleList（LazyColumn 16dp contentPadding
+     * + 今日锚定 + 滚动组合）带多日数据首帧不崩。
+     * 批X6-6 缺口点名：matchRowsRenderOfficialThreeStates 直挂 ScheduleDaySection
+     * 且未在设备执行——负 padding 出血在 LazyColumn 内首测即炸，真机才暴露。
+     */
+    @Test fun scheduleListComposesAnchoredAndScrolled() {
+        val today = java.time.LocalDate.now()
+        val days = listOf(
+            HupuMatchDay(
+                today.minusDays(1).toString(), "昨天 周一",
+                listOf(match("p1", "太阳", "国王")),
+            ),
+            HupuMatchDay(
+                today.toString(), "今天 周二",
+                listOf(match("p2", "快船", "雷霆")),
+            ),
+            HupuMatchDay(
+                today.plusDays(1).toString(), "明天 周三",
+                listOf(match("p3", "灰熊", "马刺")),
+            ),
+        )
+        compose.setContent {
+            KudoTheme(DisplaySettings()) {
+                com.kudo.android.hupuui.pages.ScheduleList(
+                    days = days, resetKey = "x6fix", onOpenMatch = {},
+                )
+            }
+        }
+        compose.waitForIdle()
+        // 锚定到今日：组头（dateBlock 直出）与当日行可见——即真机崩溃的首组合路径
+        compose.onNodeWithText("今天 周二").assertIsDisplayed()
+        compose.onNodeWithText("快船").assertIsDisplayed()
+        compose.onNodeWithText("雷霆").assertIsDisplayed()
+        // 滚动到首/尾日：出血绘制路径在各区首测均走通
+        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(0)
+        compose.waitForIdle()
+        compose.onNodeWithText("昨天 周一").assertIsDisplayed()
+        compose.onNodeWithText("太阳").assertIsDisplayed()
+        compose.onNode(hasScrollToIndexAction()).performScrollToIndex(2)
+        compose.waitForIdle()
+        compose.onNodeWithText("明天 周三").assertIsDisplayed()
+        compose.onNodeWithText("马刺").assertIsDisplayed()
     }
 }
