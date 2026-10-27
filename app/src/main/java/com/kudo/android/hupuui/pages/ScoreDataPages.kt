@@ -899,47 +899,44 @@ internal fun DraftView(league: String) {
                 Text("该年暂无选秀数据", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
             }
             else -> {
-                // 批X8：左栏轮次（第一轮/第二轮），点击滚动定位；卡头「第N轮 | 球队 | 数据」
-                val listState = rememberLazyListState()
-                val scope = rememberCoroutineScope()
-                var roundSel by remember { mutableIntStateOf(0) }
+                // 批X11-2：左栏轮次（第一轮/第二轮），点选切换右栏数据（默认第一轮；官方口径，
+                // 不再是 X8 的滚动定位）。X8-3 的左栏实现真机 dump/截图双确认未渲染，重建。
+                var roundSel by remember { mutableStateOf<Int?>(null) }
+                // 年份切换后新数据可能缺该轮次 → 回默认第一轮
+                val sel = roundSel?.takeIf { r -> b.rounds.any { it.first == r } }
+                    ?: b.rounds.first().first
                 Row(Modifier.fillMaxSize()) {
                     LazyColumn(
                         Modifier.width(84.dp).fillMaxSize(),
                         contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 100.dp),
                     ) {
                         items(b.rounds, key = { it.first }) { (round, _) ->
-                            val sel = round == roundSel
+                            val s = round == sel
                             Text(
                                 "第${round}轮",
                                 fontSize = 13.sp,
-                                fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (sel) MaterialTheme.colorScheme.primary
+                                fontWeight = if (s) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (s) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(
-                                        if (sel) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                                        if (s) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
                                         else MaterialTheme.colorScheme.surface.copy(alpha = 0f)
                                     )
-                                    .clickable {
-                                        roundSel = round
-                                        val idx = b.rounds.indexOfFirst { it.first == round }
-                                        if (idx >= 0) scope.launch { listState.animateScrollToItem(idx) }
-                                    }
+                                    .clickable { roundSel = round }
                                     .padding(horizontal = 10.dp, vertical = 11.dp),
                             )
                         }
                     }
                     LazyColumn(
-                        state = listState,
                         contentPadding = PaddingValues(end = 8.dp, bottom = 100.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier.weight(1f).fillMaxSize(),
                     ) {
-                        b.rounds.forEach { (round, picks) ->
+                        b.rounds.filter { it.first == sel }.forEach { (round, picks) ->
                             item(key = "rdt-$round") {
                                 Column(
                                     Modifier
