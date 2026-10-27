@@ -418,14 +418,14 @@ private fun StandingGroupTable(g: HupuStandingGroup, playoffColors: Boolean) {
                     color = if (playoffColors && rankN != null) {
                         if (rankN <= 6) rankColor else playInColor
                     } else MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.width(20.dp),
+                    modifier = Modifier.width(18.dp),
                 )
                 if (r.teamLogo.isNotEmpty()) {
                     AsyncImage(
                         model = r.teamLogo, contentDescription = null,
                         modifier = Modifier.size(16.dp),
                     )
-                    Spacer(Modifier.width(4.dp))
+                    Spacer(Modifier.width(2.dp))
                 }
                 Text(
                     r.team, fontSize = 12.sp, fontWeight = FontWeight.Medium,
@@ -963,13 +963,13 @@ internal fun DraftView(league: String) {
                                             "球队", fontSize = 10.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                            modifier = Modifier.width(48.dp),
+                                            modifier = Modifier.width(40.dp),
                                         )
                                         Text(
                                             "数据", fontSize = 10.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                            modifier = Modifier.width(72.dp),
+                                            modifier = Modifier.width(60.dp),
                                         )
                                     }
                                     picks.forEach { p ->
@@ -981,14 +981,14 @@ internal fun DraftView(league: String) {
                                             Text(
                                                 "${p.rank}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                                                 color = MaterialTheme.colorScheme.onSurface,
-                                                modifier = Modifier.width(24.dp),
+                                                modifier = Modifier.width(20.dp),
                                             )
                                             AsyncImage(
                                                 model = normalizeCover(p.photo), contentDescription = null,
                                                 contentScale = ContentScale.Crop,
-                                                modifier = Modifier.size(30.dp).clip(CircleShape),
+                                                modifier = Modifier.size(26.dp).clip(CircleShape),
                                             )
-                                            Spacer(Modifier.width(8.dp))
+                                            Spacer(Modifier.width(6.dp))
                                             Text(
                                                 p.name, fontSize = 13.sp, fontWeight = FontWeight.Medium,
                                                 color = MaterialTheme.colorScheme.onSurface,
@@ -1001,7 +1001,7 @@ internal fun DraftView(league: String) {
                                                 color = MaterialTheme.colorScheme.onSurface,
                                                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                                modifier = Modifier.width(48.dp),
+                                                modifier = Modifier.width(40.dp),
                                             )
                                             // 官方数据列「前锋 2.06米」
                                             Text(
@@ -1012,11 +1012,11 @@ internal fun DraftView(league: String) {
                                                         append(String.format("%.2f米", p.heightCm / 100f))
                                                     }
                                                 },
-                                                fontSize = 11.sp,
+                                                fontSize = 10.sp,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                                modifier = Modifier.width(72.dp),
+                                                modifier = Modifier.width(60.dp),
                                             )
                                         }
                                     }
