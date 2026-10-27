@@ -20,6 +20,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -103,7 +106,11 @@ internal fun nativeDataTabKind(url: String): Pair<String, String>? {
 private fun oddsCode(tab: HupuDataTab): String =
     Regex("[?&]code=([^&]+)").find(tab.url)?.groupValues?.get(1) ?: ""
 
-/** 数据 tab 轨道（官方顺序原样）。 */
+/** 官方赛程页数据 tab 的红色下划线（虎扑红，同 FeedScreen 搜索钮用色 0xFFC01E2F）。 */
+private val HUPU_TAB_RED = Color(0xFFC01E2F)
+
+/** 数据 tab 轨道（官方顺序原样；接口返回的 tab 集合原样渲染，可横滑）。
+ *  批X5-3：官方化——无胶囊纯文字行：选中=深色加粗+红色下划线，未选中=灰字。 */
 @Composable
 internal fun LeagueDataTabBar(
     tabs: List<HupuDataTab>,
@@ -113,12 +120,35 @@ internal fun LeagueDataTabBar(
     LazyRow(
         modifier = Modifier
             .fillMaxWidth()
-            .chipBarClip()
-            .padding(bottom = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(bottom = 4.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
     ) {
         items(tabs, key = { it.id }) { t ->
-            Chip(text = t.name, selected = t.id == selectedId) { onSelect(t) }
+            val sel = t.id == selectedId
+            Column(
+                Modifier
+                    .selectable(selected = sel, role = Role.Tab) { onSelect(t) }
+                    .padding(vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    t.name,
+                    fontSize = 15.sp,
+                    fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal,
+                    color = if (sel) MaterialTheme.colorScheme.onSurface
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                // 选中下划线：占位常驻（透明=未选中），避免选中切换时行高跳动
+                Box(
+                    Modifier
+                        .padding(top = 3.dp)
+                        .height(3.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(if (sel) HUPU_TAB_RED else Color.Transparent),
+                )
+            }
         }
     }
 }
