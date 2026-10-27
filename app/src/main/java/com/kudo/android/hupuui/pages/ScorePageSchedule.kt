@@ -182,12 +182,17 @@ internal fun MatchRow(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
             .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // 左列：开赛时间（HH:mm）+ 赛事名
+        // 左列：开赛时间（HH:mm）或进行中实时钟（midGameStageInfo 直出）+ 赛事名
+        val live = m.status == "INPROGRESS"
         Column(Modifier.width(64.dp)) {
             Text(
-                m.startTimeText.substringAfter(' ', m.startTimeText),
+                if (live && !m.liveClockText.isNullOrBlank()) m.liveClockText!!
+                else m.startTimeText.substringAfter(' ', m.startTimeText),
                 fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface, maxLines = 1,
+                // 批X6-3：进行中左列实时钟红（官方「第四节剩1:57」红字同款）
+                color = if (live) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.height(3.dp))
             Text(
@@ -207,9 +212,9 @@ internal fun MatchRow(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
                     color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             } else {
-                MiniTeamScore(m.home, m.winnerMemberId == m.home?.memberId)
+                MiniTeamScore(m.home, m.winnerMemberId == m.home?.memberId, m.status)
                 Spacer(Modifier.height(6.dp))
-                MiniTeamScore(m.away, m.winnerMemberId == m.away?.memberId)
+                MiniTeamScore(m.away, m.winnerMemberId == m.away?.memberId, m.status)
             }
         }
         // 批X6-2：中右列间细竖线（官方三列分隔）
@@ -227,8 +232,9 @@ internal fun MatchRow(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
             if (!subscribable || m.status == "INPROGRESS") {
                 Text(
                     m.statusDesc, fontSize = 11.sp,
+                    // 批X6-3：进行中=红「进行中」；已结束=黑「已结束」（官方同款）
                     color = if (m.status == "INPROGRESS") MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            else MaterialTheme.colorScheme.onSurface,
                 )
             }
             // 批U-5：官方赛程行右侧评分文案为万制「N万人评分」——"9223评分"→"9223人评分"、
@@ -256,11 +262,12 @@ internal fun MatchRow(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
                     Icon(
                         Icons.Outlined.Notifications,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                        // 批X6-3：官方未开赛右列=黑字「预约」+黑铃铛（非主题色）
+                        tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(12.dp),
                     )
                     Spacer(Modifier.width(3.dp))
-                    Text("预约", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
+                    Text("预约", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface)
                 }
                 if (showSubscribe) {
                     AlertDialog(
@@ -280,9 +287,16 @@ internal fun MatchRow(m: HupuMatch, onOpen: (HupuMatch) -> Unit) {
     }
 }
 
-/** 紧凑行内的队伍行：小logo + 队名 + 右对齐比分（胜方加粗） */
+/** 紧凑行内的队伍行：小logo + 队名 + 右对齐比分。
+ *  批X6-3 三态比分色（官方实测）：进行中=红；已结束=胜方黑粗/负方灰；
+ *  未开始（服务端比分即「-」）=黑。 */
 @Composable
-private fun MiniTeamScore(t: HupuMatchTeam?, isWinner: Boolean) {
+private fun MiniTeamScore(t: HupuMatchTeam?, isWinner: Boolean, status: String) {
+    val scoreColor = when {
+        status == "INPROGRESS" -> MaterialTheme.colorScheme.primary
+        status == "COMPLETED" && !isWinner -> MaterialTheme.colorScheme.onSurfaceVariant
+        else -> MaterialTheme.colorScheme.onSurface
+    }
     Row(verticalAlignment = Alignment.CenterVertically) {
         HupuIconImage(
             model = normalizeCover(t?.logo),
@@ -301,7 +315,7 @@ private fun MiniTeamScore(t: HupuMatchTeam?, isWinner: Boolean) {
         Text(
             t?.baseScore ?: "", fontSize = 14.sp,
             fontWeight = if (isWinner) FontWeight.Bold else FontWeight.Normal,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = scoreColor,
         )
     }
 }

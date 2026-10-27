@@ -75,6 +75,11 @@ object HupuMatchParser {
             scoreBizNo = o.optJSONObject("scoreItemKey")?.optString("outBizNo")?.ifEmpty { null },
             businessType = o.optString("businessType"),
             competitionName = o.optString("competitionName"),
+            // 批X6-3：进行中节次/剩余时间（官方左列红字「第四节剩17秒」同源字段）
+            liveClockText = o.optJSONObject("midGameStageInfo")?.let { g ->
+                (g.optString("midGameStage") + g.optString("extraGameStageInfo"))
+                    .replace("null", "").ifBlank { null }
+            },
             subscribe = o.optJSONObject("subscribeInfo")?.let { s ->
                 if (!s.optBoolean("showSubscribe", false) &&
                     s.optString("subScribeTitle").isEmpty()

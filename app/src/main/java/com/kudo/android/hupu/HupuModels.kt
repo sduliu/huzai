@@ -409,6 +409,12 @@ data class HupuMatch(
     val competitionName: String = "",
     /** 预约信息（subscribeInfo；仅展示占位，不做真实订阅） */
     val subscribe: HupuSubscribe? = null,
+    /**
+     * 批X6-3：进行中实时钟文案（midGameStageInfo.midGameStage + extraGameStageInfo
+     * 拼接，如「第四节剩17秒」「第3节剩7:20」——与官方行左列红字逐字同形）。
+     * 仅 INPROGRESS 且服务端给出节次信息时有值；soccer SSR 源无此字段（null）。
+     */
+    val liveClockText: String? = null,
 )
 
 /** 赛程行预约信息（match-api subscribeInfo 原样映射；只读展示） */

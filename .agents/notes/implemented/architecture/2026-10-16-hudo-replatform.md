@@ -1150,3 +1150,12 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **落地**：`MatchRow` 中右列间插 0.5dp×38dp 竖线（outlineVariant 0.6 alpha）；右列 10dp 左距右对齐。`ScheduleDaySection` 行间补 0.5dp 横线。板块频道因 X6-1 换到 `MatchRow`（每队行独立右对齐比分），旧 `BoardMatchRow` 的 "-:-" 合并比分自然消除——服务端未开赛 `memberBaseScore` 即 "-"，逐行直出。
 - **说明**：`MatchCard`/`BoardMatchRow` 保留原样——前者已无调用方，后者仍服务 MatchDetailPage「相关比赛」紧凑表（不同版面，不在本批范围）。
 - 回退：revert 本 commit。
+
+### 批X6-3：三态着色 + 实时钟/评分计数真实字段接线
+
+- **字段实证**（10-27 实网 getScheduleListByTagForH5，NBA businessId）：
+  - `midGameStageInfo = {midGameStage:"第四节", extraGameStageInfo:"剩17秒"}` 仅 INPROGRESS 有值，其余状态 null——官方左列红字「第四节剩17秒」即二者拼接（对照 dump「第3节剩7:20」同构）；模型新增 `HupuMatch.liveClockText` 承接，soccer SSR 源无此字段留 null。
+  - `scoreCountText` 仅 COMPLETED 有值（「16.9万人评分」），INPROGRESS/NOTSTARTED null——评分计数早已接入（hupuWanScoreText 万制归一），本项确认数据源无缺口。
+  - 未开赛 `memberBaseScore`="-"（逐队），`againstInfo.winnerMemberId` 为胜方 memberId。
+- **行内着色**（官方三态实测）：进行中=左列实时钟红 + 比分红 + 右列红「进行中」；已结束=胜方比分黑粗/负方灰（onSurfaceVariant）、右列黑「已结束」+ 灰「N万人评分」；未开始=时间黑、右列黑「预约」+ 黑铃铛（原主题色改 onSurface）。soccer/无节次字段的进行中回落=左列开赛时间红 + 右列红「进行中」（数据缺口如实回落，不编造时钟）。
+- 回退：revert 本 commit。
