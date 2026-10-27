@@ -55,7 +55,9 @@ class HupuDataParserTest {
         val west = b.categories.first { it.id == "W" }
         assertEquals("西部", west.title)
         assertEquals("雷霆", west.groups[0].rows[0].team)
-        assertEquals(listOf("5", "3", "62.5%", "-", "2连胜"), west.groups[0].rows[0].cells)
+        // 批X8：胜-负合并一格，列头对齐官方「胜-负/胜率/胜场差/近况」
+        assertEquals(listOf("胜-负", "胜率", "胜场差", "近况"), west.groups[0].columns)
+        assertEquals(listOf("5-3", "62.5%", "-", "2连胜"), west.groups[0].rows[0].cells)
         val div = b.categories.first { it.id == "divRank" }
         assertEquals("西北分区", div.groups[0].title)
     }
@@ -74,7 +76,8 @@ class HupuDataParserTest {
         val groups = HupuDataParser.parseTeamStatRanks(json)
         assertEquals(2, groups.size)
         assertEquals("场均得分", groups[0].title)
-        assertEquals(listOf("值"), groups[0].columns)
+        // 批X8：Avg 型统计列头「场均」，非 Avg 为「数值」
+        assertEquals(listOf("场均"), groups[0].columns)
         assertEquals("雷霆", groups[0].rows[0].team)
         assertEquals("120.5", groups[0].rows[0].cells[0])
         assertEquals("掘金", groups[1].rows[0].team)

@@ -92,9 +92,9 @@ object HupuDataParser {
                     rank = o.optString("rank"),
                     team = o.optString("teamShortName").ifEmpty { o.optString("teamName") },
                     teamLogo = o.optString("logoLink"),
+                    // 批X8：官方列头「胜-负/胜率/胜场差/近况」——胜负合并一格「3-0」，近况=连胜/连败文案
                     cells = listOf(
-                        o.optString("won"),
-                        o.optString("lost"),
+                        "${o.optString("won")}-${o.optString("lost")}",
                         o.optString("winRate"),
                         o.optString("gb"),
                         strkDesc,
@@ -105,7 +105,7 @@ object HupuDataParser {
                 if (arr == null || arr.length() == 0) return null
                 val rows = (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.let(::row) }
                 return if (rows.isEmpty()) null
-                else HupuStandingGroup(title, listOf("胜", "负", "胜率", "胜差", "连胜"), rows)
+                else HupuStandingGroup(title, listOf("胜-负", "胜率", "胜场差", "近况"), rows)
             }
 
             val categories = mutableListOf<HupuRankCategory>()
@@ -158,9 +158,11 @@ object HupuDataParser {
                     )
                 }
                 if (rows.isNotEmpty()) {
+                    val rt = s.optString("rankType")
                     out += HupuStandingGroup(
-                        title = s.optString("name").ifEmpty { s.optString("rankType") },
-                        columns = listOf("值"),
+                        title = s.optString("name").ifEmpty { rt },
+                        // 批X8：单项统计左栏独立类别；数据列头按 rankType 语义（Avg→场均，其余→数值）
+                        columns = listOf(if (rt.endsWith("Avg")) "场均" else "数值"),
                         rows = rows,
                     )
                 }
