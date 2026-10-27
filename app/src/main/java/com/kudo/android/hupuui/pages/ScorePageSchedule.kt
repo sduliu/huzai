@@ -47,6 +47,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -134,20 +137,34 @@ internal fun ScheduleList(
     }
 }
 
+/** 批X6fix-1：通栏灰条向两侧屏幕的出血量（抵消外层 LazyColumn 16dp 水平
+ *  contentPadding）。常量恒非负；drawBehind 路径读取后经 toPx 使用，无负值入口。 */
+private val SECTION_BAR_BLEED = 16.dp
+
 /** 批X6-1：官方赛程日分区——通栏灰条组头（dateBlock 服务端直出「昨天 周一/
- *  10月29日 周四」）+ 当日比赛行平铺；组头负向 padding 抵消列表两侧 contentPadding
- *  成全宽灰条，行容器无圆角卡片。 */
+ *  10月29日 周四」）+ 当日比赛行平铺；行容器无圆角卡片。
+ *  批X6fix-1：灰条通栏改 drawBehind 出血——Modifier.padding 不接受负值
+ * （批X6-1 的 padding(horizontal=(-16).dp) 在 measure 期抛
+ *  IllegalArgumentException「Padding must be non-negative」，打开即崩；
+ *  drawBehind 只在绘制期把矩形扩出节点边界，不参与测量，无负值路径）。 */
 @Composable
 internal fun ScheduleDaySection(
     day: HupuMatchDay,
     onOpenMatch: (HupuMatch) -> Unit,
 ) {
     Column(Modifier.fillMaxWidth()) {
+        val barColor = MaterialTheme.colorScheme.surfaceVariant
         Box(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = (-16).dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+                .drawBehind {
+                    val b = SECTION_BAR_BLEED.toPx()
+                    drawRect(
+                        color = barColor,
+                        topLeft = Offset(-b, 0f),
+                        size = Size(size.width + b * 2, size.height),
+                    )
+                },
         ) {
             Text(
                 day.dateBlock,

@@ -1210,3 +1210,10 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - 新增 `ZonePageChromeUiTest`：`zoneTopTabsRenderAndSwitch`（文字 tab 选中态/点切）+ `topicCellShowsFollowCountAndHotFallback`（扁平项=名+👍关注数直出；缺字段回落热度文案；点击仍走打开回调）。`ZoneTopTab`/`TopicCell` 提为 `internal` 供直挂（与 `ScheduleDaySection` 先例一致）。
 - 存量面核对：`CommunityUiTest` 的「专区」断言全部针对底栏 GlassNavigation 文本（批Q 基线未动）；`CommunityDirectoryUiTest` 走 Discourse `CommunityDirectoryScreen`，与本页无关——零交集。
 - 回退：revert 本 commit。
+
+### 批X6fix-1：ScheduleDaySection 通栏灰条负 padding 崩溃修复
+
+- **根因**：批X6-1 用 `Modifier.padding(horizontal=(-16).dp)` 让组头灰条越出 LazyColumn 的 16dp 水平 contentPadding 成全宽——**`Modifier.padding` 的 PaddingModifier.measure 强制全部 padding ≥0**，负值在首个 item 的 measure 期抛 `IllegalArgumentException: Padding must be non-negative`（logcat 栈顶 ScorePageSchedule.kt:149），非数据相关、任何挂载路径必崩。负值来源=**写死的出血量本身**，不是首组偏移/锚定/组头高度计算——真实日块数据只要组合即触发（首屏首 item 立刻 measure）。
+- **修复**：灰条通栏改 `drawBehind` 手工扩矩形（`topLeft=(-bleed,0)`，`size.width+bleed*2`）——drawBehind 仅在绘制期扩出节点边界、不参与测量，出血量收敛为常量 `SECTION_BAR_BLEED=16.dp`（恒非负）；padding 修饰符恢复只接非负值。行内容 bounds 不变（行内距仍由列表 contentPadding 提供，与官方一致）。
+- **测试缺口点名**：批X6-6 `matchRowsRenderOfficialThreeStates` 直挂 ScheduleDaySection（独立上下文也会炸）但**当时无设备、androidTest 从未执行**——组合期断言形同虚设；补 `scheduleListComposesAnchoredAndScrolled` 走 `ScheduleList` 真路径（LazyColumn+锚定+滚动到首/尾日）。
+- 回退：revert 本 commit + X6fix-2 test commit（崩溃回归为负 padding 即死）。
