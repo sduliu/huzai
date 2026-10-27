@@ -329,6 +329,8 @@ internal fun BoardContent(
     hostSchedule: List<HupuMatchDay>? = null,
     /** 浮空顶栏（页头+频道条）占位——内容从这里开始才不钻进栏底 */
     topInset: androidx.compose.ui.unit.Dp,
+    /** 批X4-2：直达展开态的返回出口（宿主整页返回=回频道）；null 时回落就地收起 */
+    onBackDirect: (() -> Unit)? = null,
 ) = with(state) {
     LaunchedEffect(state, refreshTick) {
         days = null
@@ -338,7 +340,11 @@ internal fun BoardContent(
 
     // 批A-3：「查看全部赛程」是就地展开态（非导航层），返回键先收起再退页——
     // 否则展开态按返回会直接弹出整个二级页，实测落回频道首页
-    BackHandler(enabled = showAllMatches) { showAllMatches = false }
+    // 批X4-2：直达展开入口反转语义——返回直接退页回频道（官方落点行为）；
+    // 用户手动收起/重开后的展开仍走就地收起
+    BackHandler(enabled = showAllMatches) {
+        if (expandByEntry && onBackDirect != null) onBackDirect() else showAllMatches = false
+    }
 
     // 顶部热门比赛（官方式：≤4 场）——进行中优先，锚定日（今天/最近过往日/首日）起填充；
     // 数据源：本页拉到的 days 优先，未落地前用宿主频道的 hostSchedule 首帧直出
@@ -462,7 +468,7 @@ internal fun BoardContent(
                             Row(
                                 Modifier
                                     .clip(RoundedCornerShape(8.dp))
-                                    .clickable { showAllMatches = !showAllMatches }
+                                    .clickable { showAllMatches = !showAllMatches; expandByEntry = false }
                                     .padding(horizontal = 8.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
