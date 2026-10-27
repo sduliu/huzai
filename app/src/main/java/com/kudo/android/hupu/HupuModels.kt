@@ -816,6 +816,10 @@ data class HupuRankEntry(
     val teamName: String,
     val photo: String,
     val value: String,
+    // 批X8：行副行「34.7分 4.3板 6.0助」原料（rankInfoList 自带；无该字段的维度为空串不渲染副行）
+    val pts: String = "",
+    val reb: String = "",
+    val ast: String = "",
 )
 
 /** 球员榜统计项（如「得分」basic.ptsAvg）。 */

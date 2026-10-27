@@ -489,91 +489,153 @@ internal fun PlayerRankView(league: String) {
             b == null && failed -> ErrorRetry { tick++ }
             b == null -> Box(Modifier.fillMaxSize())
             else -> {
-                // 维度条（基础/进阶）
+                val listState = rememberLazyListState()
+                val scope = rememberCoroutineScope()
+                var statSel by remember { mutableStateOf("") }
+                // 维度条（基础/进阶）；切维度重置左栏选中项
                 LazyRow(
                     modifier = Modifier.fillMaxWidth().chipBarClip().padding(bottom = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(b.dimensions, key = { it.key }) { d ->
-                        Chip(text = d.name, selected = d.key == dimSel) { dimSel = d.key }
+                        Chip(text = d.name, selected = d.key == dimSel) {
+                            dimSel = d.key
+                            statSel = ""
+                        }
                     }
                 }
                 val dim = b.dimensions.firstOrNull { it.key == dimSel }
-                LazyColumn(
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 100.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    dim?.items?.forEach { item ->
-                        item(key = "ri-${item.key}") {
-                            Column(
-                                Modifier
+                // 批X8：官方版式=左栏统计项目录 + 右栏全部统计卡堆叠，点左栏滚动定位到卡
+                Row(Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        Modifier.width(84.dp).fillMaxSize(),
+                        contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 100.dp),
+                    ) {
+                        items(dim?.items.orEmpty(), key = { it.key }) { it ->
+                            val sel = it.key == statSel
+                            Text(
+                                it.name,
+                                fontSize = 13.sp,
+                                fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (sel) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(MaterialTheme.colorScheme.surface)
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                            ) {
-                                Text(
-                                    item.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(vertical = 4.dp),
-                                )
-                                item.leaders.forEach { e ->
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(
+                                        if (sel) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                                        else MaterialTheme.colorScheme.surface.copy(alpha = 0f)
+                                    )
+                                    .clickable {
+                                        statSel = it.key
+                                        val idx = dim?.items?.indexOfFirst { x -> x.key == it.key } ?: -1
+                                        if (idx >= 0) scope.launch { listState.animateScrollToItem(idx) }
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 11.dp),
+                            )
+                        }
+                    }
+                    LazyColumn(
+                        state = listState,
+                        contentPadding = PaddingValues(end = 8.dp, bottom = 100.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.weight(1f).fillMaxSize(),
+                    ) {
+                        dim?.items?.forEach { item ->
+                            item(key = "ri-${item.key}") {
+                                Column(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(MaterialTheme.colorScheme.surface)
+                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                ) {
+                                    // 卡头=统计项名 + 官方列头「球队/数据」
                                     Row(
-                                        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                        Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
                                         Text(
-                                            "${e.rank}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.width(24.dp),
+                                            item.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.weight(1f),
                                         )
-                                        AsyncImage(
-                                            model = normalizeCover(e.photo), contentDescription = null,
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.size(26.dp).clip(CircleShape),
-                                        )
-                                        Spacer(Modifier.width(8.dp))
-                                        Column(Modifier.weight(1f)) {
-                                            Text(
-                                                e.name, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                                                color = MaterialTheme.colorScheme.onSurface,
-                                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                            )
-                                            if (e.teamName.isNotEmpty()) {
-                                                Text(
-                                                    e.teamName, fontSize = 10.sp,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    maxLines = 1,
-                                                )
-                                            }
-                                        }
                                         Text(
-                                            e.value, fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary,
+                                            "球队", fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                            modifier = Modifier.width(42.dp),
+                                        )
+                                        Text(
+                                            "数据", fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                            modifier = Modifier.width(44.dp),
                                         )
                                     }
-                                }
-                                if (item.hasMore) {
-                                    Row(
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .clickable { fullRank = item }
-                                            .padding(vertical = 6.dp),
-                                        horizontalArrangement = Arrangement.Center,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Text(
-                                            "查看完整榜单",
-                                            fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.primary,
-                                        )
-                                        Icon(
-                                            Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(14.dp),
-                                        )
+                                    item.leaders.forEach { e ->
+                                        Row(
+                                            Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Text(
+                                                "${e.rank}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.width(20.dp),
+                                            )
+                                            AsyncImage(
+                                                model = normalizeCover(e.photo), contentDescription = null,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier.size(28.dp).clip(CircleShape),
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Column(Modifier.weight(1f)) {
+                                                Text(
+                                                    e.name, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                                )
+                                                // 官方副行「34.7分 4.3板 6.0助」——三字段齐全才渲染
+                                                if (e.pts.isNotEmpty() && e.reb.isNotEmpty() && e.ast.isNotEmpty()) {
+                                                    Text(
+                                                        "${e.pts}分 ${e.reb}板 ${e.ast}助",
+                                                        fontSize = 10.sp,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        maxLines = 1,
+                                                    )
+                                                }
+                                            }
+                                            Text(
+                                                e.teamName, fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                                modifier = Modifier.width(42.dp),
+                                            )
+                                            // 官方数据值黑色加粗
+                                            Text(
+                                                e.value, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                                modifier = Modifier.width(44.dp),
+                                            )
+                                        }
+                                    }
+                                    if (item.hasMore) {
+                                        Box(
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .clickable { fullRank = item }
+                                                .padding(vertical = 8.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Text(
+                                                "查看全部",
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
                                     }
                                 }
                             }
