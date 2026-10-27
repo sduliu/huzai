@@ -1062,12 +1062,15 @@ private suspend fun topicFeed(
  * 批X10-1：下划线只盖文字宽——Column 取 IntrinsicSize.Min（列宽=文字固有宽），
  * 下划线 Box 撑满列宽即短线；旧实现 fillMaxWidth 把列撑到整行剩余宽，
  * 导致后一 tab 被挤出屏幕右缘截断、下划线拉满整宽。
+ * 批X12-1：Min 语义误用——Text 的最小固有宽=最大不可断单元=单字宽，
+ * 列被压成一字宽致「广/场」「关/注」竖排换行；改 Max（=文字完整宽）：
+ * 文字单行、下划线仍短线盖字，且不侵占相邻 tab 位置。
  */
 @Composable
 internal fun ZoneTopTab(title: String, selected: Boolean, onClick: () -> Unit) {
     Column(
         Modifier
-            .width(IntrinsicSize.Min)
+            .width(IntrinsicSize.Max)
             .selectable(selected = selected, role = Role.Tab) { onClick() }
             .padding(vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
