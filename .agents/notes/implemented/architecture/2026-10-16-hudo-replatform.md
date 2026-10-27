@@ -1165,3 +1165,8 @@ DEEP_off_* 截图未随任务落盘（compare 目录只有 OFF_/KUDO_ 系列）�
 - **语义核实**（两张官方截图交叉验证）：左指实心小三角恒贴**胜方**比分右侧——10-26 场主队胜→三角在上行比分旁，10-27 场客队胜→三角在下行比分旁；非战报/视频标识（`customDescInfo/extraInfo/liveSourceInfos/liveRoomLink` 实测均 null/空或与在场状态无关）。数据源=`againstInfo.winnerMemberId`（真实字段，soccer 源由比分推导同填）。
 - **落地**：`MiniTeamScore` 已结束+胜方时比分右侧 5dp Canvas 左指三角，色同比分（胜方黑）。进行中/未开始/平局（winnerMemberId null）不绘。
 - 回退：revert 本 commit。
+
+### 批X6-5：频道顶部比分卡实时钟同步
+
+- `BoardMatchCard` 底行 INPROGRESS 由「进行中」状态字改为 `liveClockText`（红，与赛程行同一 midGameStageInfo 源，如「第四节剩2:50」）；字段缺失（soccer SSR 等无节次字段）回落 statusDesc——两处共用同一字段决策，不一处编一处空。比分红着色原有逻辑不变。
+- 回退：revert 本 commit。

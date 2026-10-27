@@ -835,7 +835,9 @@ internal fun BoardMatchCard(m: HupuMatch, onOpen: () -> Unit) {
         val jrsText = com.kudo.android.hupu.hupuJrsScoreText(m.scoreCountText)
         val bottomText = when {
             m.status == "NOTSTARTED" -> m.startTimeText
-            m.status == "INPROGRESS" -> m.statusDesc.ifBlank { "进行中" }
+            // 批X6-5：官方频道卡进行中=红实时钟（midGameStageInfo，与赛程行同源）；
+            // 字段缺失（soccer SSR 等）回落「进行中」状态字，不编造时钟。
+            m.status == "INPROGRESS" -> m.liveClockText ?: m.statusDesc.ifBlank { "进行中" }
             jrsText.isNotEmpty() -> jrsText
             else -> m.statusDesc.ifBlank { "已结束" }
         }
